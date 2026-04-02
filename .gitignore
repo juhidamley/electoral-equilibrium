@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# LaTeX
+*.aux
+*.log
+*.tex
+*.pdf
+*.aux
