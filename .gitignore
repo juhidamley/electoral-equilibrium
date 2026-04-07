@@ -212,3 +212,15 @@ __marimo__/
 *.tex
 *.pdf
 *.aux
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.nav
+*.snm
+*.vrb
+*.lof
+*.lot
+*.bbl
+*.blg
