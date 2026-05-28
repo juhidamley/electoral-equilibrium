@@ -23,6 +23,10 @@ llm = [
 orchestration = [
     "prefect>=2.14",
 ]
+scraper = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
