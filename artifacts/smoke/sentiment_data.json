@@ -1,0 +1,12 @@
+{
+  "data": {
+    "model": "cardiffnlp/twitter-roberta-base-sentiment",
+    "scores": {},
+    "shocks": []
+  },
+  "metadata": {
+    "seed": 1544954873
+  },
+  "run_key": "smoke_test",
+  "stage": "sentiment_data"
+}

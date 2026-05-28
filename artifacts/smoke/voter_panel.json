@@ -1,0 +1,42 @@
+{
+  "data": {
+    "cycles": [
+      2020
+    ],
+    "genders": [
+      "women",
+      "men",
+      "other_gender"
+    ],
+    "layer_weights": {
+      "lambda_1": 0.5,
+      "lambda_2": 0.3,
+      "lambda_3": 0.2
+    },
+    "n_rows_gender": 0,
+    "n_rows_race": 0,
+    "n_rows_religion": 0,
+    "races": [
+      "african_american",
+      "latino",
+      "asian",
+      "white",
+      "other_race"
+    ],
+    "religions": [
+      "evangelical",
+      "catholic",
+      "protestant",
+      "secular",
+      "jewish",
+      "muslim",
+      "other_rel"
+    ],
+    "source": null
+  },
+  "metadata": {
+    "seed": 1401318295
+  },
+  "run_key": "smoke_test",
+  "stage": "voter_panel"
+}

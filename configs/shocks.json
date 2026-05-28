@@ -1,0 +1,125 @@
+[
+  {
+    "id": "ayatollah_assassination",
+    "date": "2020-01-03",
+    "category": "Geopolitical",
+    "description": "US kills Iranian IRGC Quds Force commander Qasem Soleimani in drone strike near Baghdad airport",
+    "keywords": [
+      "Soleimani", "Qasem", "IRGC", "Quds", "Iran", "Iranian",
+      "Baghdad", "drone strike", "assassination", "airstrike",
+      "World War 3", "wwiii", "#Iran", "#Soleimani", "#WWIII",
+      "retaliation", "escalation", "Middle East war"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["muslim", "secular", "evangelical", "jewish"],
+    "shock_window_days": 14,
+    "active": true
+  },
+  {
+    "id": "kavanaugh_2018",
+    "date": "2018-09-04",
+    "category": "Moral/Scandal",
+    "description": "Brett Kavanaugh Supreme Court confirmation hearings; sexual assault allegations from Christine Blasey Ford",
+    "keywords": [
+      "Kavanaugh", "Blasey Ford", "Christine Ford", "#MeToo",
+      "SCOTUS", "Supreme Court", "confirmation", "sexual assault",
+      "#StopKavanaugh", "#BelieveSurvivors", "senate hearing",
+      "sexual misconduct", "Brett Kavanaugh"
+    ],
+    "archive_ids": ["kavanaugh"],
+    "target_blocs": ["women", "evangelical", "catholic", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "metoo_2017",
+    "date": "2017-10-15",
+    "category": "Moral/Scandal",
+    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations",
+    "keywords": [
+      "#MeToo", "MeToo", "Harvey Weinstein", "sexual harassment",
+      "sexual assault", "Time's Up", "#TimesUp", "metoo movement",
+      "Hollywood", "assault allegations"
+    ],
+    "archive_ids": ["metoo"],
+    "target_blocs": ["women", "secular", "evangelical", "protestant"],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "beto_cruz_debate_2018",
+    "date": "2018-09-21",
+    "category": "Electoral Surprise",
+    "description": "Beto O'Rourke vs Ted Cruz Senate debate in Texas; competitive race in solidly-red state",
+    "keywords": [
+      "Beto", "O'Rourke", "Cruz", "Ted Cruz", "Texas Senate",
+      "Texas debate", "#BetoForSenate", "Beto Cruz",
+      "Texas race", "Senate debate Texas"
+    ],
+    "archive_ids": ["texas_debate_2018"],
+    "target_blocs": ["latino", "evangelical", "protestant", "secular"],
+    "shock_window_days": 7,
+    "active": false
+  },
+  {
+    "id": "fbi_letter_2016",
+    "date": "2016-10-28",
+    "category": "Electoral Surprise",
+    "description": "Comey letter to Congress announcing FBI reopening Clinton email investigation 11 days before election",
+    "keywords": [
+      "Comey", "FBI", "Clinton emails", "email investigation",
+      "James Comey", "Clinton FBI", "#ComeyLetter", "FISA",
+      "email server", "October Surprise"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["white", "evangelical", "secular", "women"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "trump_indictment_2023",
+    "date": "2023-06-09",
+    "category": "Electoral Surprise",
+    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago",
+    "keywords": [
+      "Trump indictment", "Trump indicted", "classified documents",
+      "Mar-a-Lago", "federal charges", "Jack Smith", "#TrumpIndicted",
+      "federal indictment", "DOJ Trump", "espionage act"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["evangelical", "white", "secular", "african_american"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "dobbs_2022",
+    "date": "2022-06-24",
+    "category": "Electoral Surprise",
+    "description": "Supreme Court overturns Roe v. Wade in Dobbs v. Jackson Women's Health Organization",
+    "keywords": [
+      "Dobbs", "Roe v Wade", "abortion", "Roe overturned",
+      "Supreme Court abortion", "#RoeVWade", "#AbortionRights",
+      "pro-choice", "pro-life", "reproductive rights",
+      "SCOTUS abortion", "abortion ban"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["women", "catholic", "evangelical", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "covid_lockdowns_2020",
+    "date": "2020-03-13",
+    "category": "Security",
+    "description": "Trump declares national emergency for COVID-19; widespread shutdowns begin across United States",
+    "keywords": [
+      "COVID", "coronavirus", "lockdown", "pandemic", "quarantine",
+      "national emergency", "shutdown", "COVID-19", "social distancing",
+      "stimulus check", "CARES Act", "flatten the curve"
+    ],
+    "archive_ids": ["election_2020_ieee", "election_2020_kaggle"],
+    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
+    "shock_window_days": 60,
+    "active": false
+  }
+]
