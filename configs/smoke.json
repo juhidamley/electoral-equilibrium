@@ -19,6 +19,6 @@
     "women",
     "men"
   ],
-  "pi_bio_server": "http://100.125.90.19:9000",
+  "pi_bio_server": "http://100.x.x.x:9000",
   "pi_npu_enabled": false
 }
