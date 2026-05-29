@@ -422,7 +422,7 @@ class ShockResponseData:
 
     shock: str
     cycle: int  # most-recent historical cycle used as context
-    deltas: dict[str, float]  # bloc_id → Δμ_i in [-0.15, 0.15]
+    deltas: dict[str, float]  # bloc_id → Δμ_i (change, not share) in [-0.15, 0.15]
     covariance: list[list[float]]  # N×N, N = len(deltas)
     source: str  # "llm_unified" | "roberta_news_only" | "roberta_social_only"
 

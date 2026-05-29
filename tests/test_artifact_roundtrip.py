@@ -519,6 +519,11 @@ class TestEquilibriumData:
         with pytest.raises(ValueError, match="party"):
             self._make(party="independent").validate()
 
+    def test_mu_shifted_boundary_values(self):
+        # 0.0 (total desertion) and 1.0 (unanimous support) are both valid vote shares
+        assert_roundtrip(self._make(mu_shifted={r: 0.0 for r in RACE_IDS}))
+        assert_roundtrip(self._make(mu_shifted={r: 1.0 for r in RACE_IDS}))
+
     def test_mu_shifted_out_of_range_raises(self):
         bad_mu = {**MU_SHIFTED_RACE, "white": 1.5}
         with pytest.raises(ValueError, match=r"mu_shifted\["):
