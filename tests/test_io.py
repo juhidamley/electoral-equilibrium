@@ -41,7 +41,9 @@ def panel_df() -> pd.DataFrame:
     Columns mirror tests/fixtures/toy_panel.csv so that io tests exercise the
     same dtypes the real data pipeline will produce.
     """
-    rng = np.random.default_rng(42)
+    from electoral.core.rng import make_rng
+
+    rng = make_rng(42)
     n = 100
     races = ["african_american", "latino", "asian", "white", "other_race"]
     strata = ["race", "religion", "gender"]
