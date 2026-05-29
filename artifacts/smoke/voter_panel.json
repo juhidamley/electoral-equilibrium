@@ -5,8 +5,7 @@
     ],
     "genders": [
       "women",
-      "men",
-      "other_gender"
+      "men"
     ],
     "layer_weights": {
       "lambda_1": 0.5,
@@ -18,19 +17,11 @@
     "n_rows_religion": 0,
     "races": [
       "african_american",
-      "latino",
-      "asian",
-      "white",
-      "other_race"
+      "white"
     ],
     "religions": [
       "evangelical",
-      "catholic",
-      "protestant",
-      "secular",
-      "jewish",
-      "muslim",
-      "other_rel"
+      "secular"
     ],
     "source": null
   },

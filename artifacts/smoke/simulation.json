@@ -1,0 +1,28 @@
+{
+  "data": {
+    "n_simulations": 10000,
+    "percentiles": {
+      "african_american": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "white": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ]
+    },
+    "seed": 1875195376,
+    "win_probability": 0.5
+  },
+  "metadata": {
+    "n_simulations": 10000
+  },
+  "run_key": "smoke_test",
+  "stage": "simulation"
+}

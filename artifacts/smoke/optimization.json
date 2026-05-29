@@ -1,0 +1,21 @@
+{
+  "data": {
+    "feasible": true,
+    "method": "placeholder",
+    "mu_shifted": {
+      "african_american": 0.5,
+      "white": 0.5
+    },
+    "party": "democrat",
+    "shock": "smoke_test",
+    "target": 0.535,
+    "target_met": false,
+    "weights": {
+      "african_american": 0.5,
+      "white": 0.5
+    }
+  },
+  "metadata": {},
+  "run_key": "smoke_test",
+  "stage": "optimization"
+}

@@ -182,6 +182,29 @@ class TestWriteReadParquet:
         write_parquet(path, panel_df)
         assert path.exists()
 
+    def test_parquet_roundtrip_1000_rows(self, tmp_path):
+        """Devplan requirement: 1,000-row DataFrame round-trips without data loss."""
+        from electoral.core.rng import make_rng
+
+        rng = make_rng(99)
+        n = 1_000
+        races = ["african_american", "latino", "asian", "white", "other_race"]
+        df = pd.DataFrame(
+            {
+                "cycle": rng.choice([2016, 2018, 2020, 2022], size=n),
+                "bloc": rng.choice(races, size=n),
+                "vote_share": rng.uniform(0.0, 1.0, size=n).round(6),
+                "stratum_share": rng.uniform(0.05, 0.40, size=n).round(6),
+                "turnout": rng.uniform(0.40, 0.80, size=n).round(6),
+                "source": rng.choice(["ARDA", "GSS", "NEP"], size=n),
+            }
+        )
+        path = tmp_path / "panel_1000.parquet"
+        write_parquet(path, df)
+        recovered = read_parquet(path)
+        assert recovered.shape == (n, len(df.columns))
+        pd.testing.assert_frame_equal(recovered, df, check_dtype=False)
+
 
 # ── (iii) Parquet smaller than JSON ──────────────────────────────────────────
 

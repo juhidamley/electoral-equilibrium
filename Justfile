@@ -49,9 +49,7 @@ sample:
 
 # ── Data preparation (runs locally on M5 or Windows) ─────────────────────────
 
-# LLM cleaning: off-topic detection, spam filter, text normalisation, dedup
-# Uses local open-weight model (Qwen2.5-7B or Mistral-7B-Instruct-v0.3) via mlx_lm
-# NEVER uses Gemini API — breaks reproducibility (see DECISIONS.md §12)
+# LLM cleaning: off-topic filter, dedup, normalisation (local model on M5; NEVER Gemini API)
 clean:
     python scripts/clean_with_llm.py
 
