@@ -223,7 +223,17 @@ class SentimentData:
 
     def validate(self) -> None:
         assert_unique(self.shocks, name="shocks", context="SentimentData")
+        shocks_set = set(self.shocks)
         for bloc_id, shock_scores in self.scores.items():
+            actual = set(shock_scores.keys())
+            if actual != shocks_set:
+                missing = sorted(shocks_set - actual)
+                extra = sorted(actual - shocks_set)
+                raise ValueError(
+                    f"SentimentData.scores[{bloc_id!r}]: shock keys must match "
+                    f"SentimentData.shocks exactly. "
+                    f"Missing: {missing}, Extra: {extra}"
+                )
             for shock_id, score in shock_scores.items():
                 if not (-1.0 <= score <= 1.0):
                     raise ValueError(
