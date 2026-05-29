@@ -33,6 +33,8 @@ def derive_seed_tokens(tokens: list[str]) -> int:
     Returns:
         Deterministic non-negative integer in [0, 2**31).
     """
+    if any(":" in token for token in tokens):
+        raise ValueError("derive_seed_tokens tokens must not contain ':'")
     joined = ":".join(tokens).encode("utf-8")
     h = hashlib.sha256(joined).digest()
     # First 8 bytes as little-endian uint64, modded into NumPy's accepted range.
