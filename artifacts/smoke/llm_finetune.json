@@ -1,0 +1,16 @@
+{
+  "data": {
+    "adapter_path": null,
+    "base_model": "mistralai/Mistral-7B-v0.3",
+    "cycles_used": [
+      2020
+    ],
+    "lora_rank": 16,
+    "n_examples": 1
+  },
+  "metadata": {
+    "seed": 2097189716
+  },
+  "run_key": "smoke_test",
+  "stage": "llm_finetune"
+}

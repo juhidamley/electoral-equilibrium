@@ -9,33 +9,21 @@
     "mu_eff": 0.5,
     "mu_gender": {
       "men": 0.5,
-      "other_gender": 0.5,
       "women": 0.5
     },
     "mu_race": {
       "african_american": 0.5,
-      "asian": 0.5,
-      "latino": 0.5,
-      "other_race": 0.5,
       "white": 0.5
     },
     "mu_religion": {
-      "catholic": 0.5,
       "evangelical": 0.5,
-      "jewish": 0.5,
-      "muslim": 0.5,
-      "other_rel": 0.5,
-      "protestant": 0.5,
       "secular": 0.5
     },
     "party": "democrat",
     "target": 0.535,
     "weights": {
-      "african_american": 0.2,
-      "asian": 0.2,
-      "latino": 0.2,
-      "other_race": 0.2,
-      "white": 0.2
+      "african_american": 0.5,
+      "white": 0.5
     }
   },
   "metadata": {

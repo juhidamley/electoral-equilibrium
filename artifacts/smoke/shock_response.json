@@ -1,0 +1,71 @@
+{
+  "data": {
+    "covariance": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "cycle": 2020,
+    "deltas": {
+      "african_american": 0.0,
+      "evangelical": 0.0,
+      "men": 0.0,
+      "secular": 0.0,
+      "white": 0.0,
+      "women": 0.0
+    },
+    "shock": "smoke_test",
+    "source": "llm_unified"
+  },
+  "metadata": {
+    "event": "smoke_test",
+    "intensity": 0.5
+  },
+  "run_key": "smoke_test",
+  "stage": "shock_response"
+}
