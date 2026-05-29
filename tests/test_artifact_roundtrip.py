@@ -285,8 +285,11 @@ class TestLLMFineTuneData:
     def test_zero_lora_rank_raises(self):
         with pytest.raises(ValueError, match="lora_rank"):
             LLMFineTuneData(
-                base_model="m", lora_rank=0, n_examples=1,
-                cycles_used=[2020], adapter_path=None,
+                base_model="m",
+                lora_rank=0,
+                n_examples=1,
+                cycles_used=[2020],
+                adapter_path=None,
             ).validate()
 
     def test_negative_lora_rank_raises(self):
@@ -603,19 +606,27 @@ class TestMetricsTablesData:
         assert_roundtrip(self._make(tables={}))
 
     def test_json_scalars_valid(self):
-        assert_roundtrip(self._make(tables={
-            "int_val": 42,
-            "float_val": 3.14,
-            "bool_val": True,
-            "null_val": None,
-            "str_val": "result",
-        }))
+        assert_roundtrip(
+            self._make(
+                tables={
+                    "int_val": 42,
+                    "float_val": 3.14,
+                    "bool_val": True,
+                    "null_val": None,
+                    "str_val": "result",
+                }
+            )
+        )
 
     def test_nested_structures_valid(self):
-        assert_roundtrip(self._make(tables={
-            "nested": {"a": [1, 2, 3], "b": {"c": 0.5}},
-            "list_of_lists": [[0.1, 0.9], [0.4, 0.6]],
-        }))
+        assert_roundtrip(
+            self._make(
+                tables={
+                    "nested": {"a": [1, 2, 3], "b": {"c": 0.5}},
+                    "list_of_lists": [[0.1, 0.9], [0.4, 0.6]],
+                }
+            )
+        )
 
     def test_empty_key_raises(self):
         with pytest.raises(ValueError, match="empty key"):

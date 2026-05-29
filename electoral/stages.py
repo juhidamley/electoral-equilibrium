@@ -157,15 +157,18 @@ def build_optimization(
     config: PipelineConfig,
     shock: ShockResponseData,
 ) -> EquilibriumData:
-    """Week 5: CVXPY DQCP optimizer → rebalanced coalition weights."""
-    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
-    placeholder_weights = {bloc: 1.0 / len(all_blocs) for bloc in all_blocs}
+    """Week 5: CVXPY DQCP optimizer → rebalanced coalition weights.
+
+    weights and mu_shifted are keyed by race blocs only — the optimizer decision
+    variables. Religion and gender weights (v_R, g_G) are fixed and not optimized.
+    """
+    placeholder_weights = {r: 1.0 / len(config.races) for r in config.races}
     payload = EquilibriumData(
         method="placeholder",
         party=config.party,
         shock=shock.shock,
         weights=placeholder_weights,
-        mu_shifted={bloc: 0.50 for bloc in all_blocs},
+        mu_shifted={r: 0.50 for r in config.races},
         feasible=True,
         target_met=False,
         target=config.target,

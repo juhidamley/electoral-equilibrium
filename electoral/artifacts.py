@@ -448,9 +448,7 @@ class ShockResponseData:
             )
         for bloc_id, v in self.deltas.items():
             if not math.isfinite(v):
-                raise ValueError(
-                    f"ShockResponseData.deltas[{bloc_id!r}] = {v} must be finite"
-                )
+                raise ValueError(f"ShockResponseData.deltas[{bloc_id!r}] = {v} must be finite")
             if not (-0.15 <= v <= 0.15):
                 raise ValueError(
                     f"ShockResponseData.deltas[{bloc_id!r}] = {v} is outside [-0.15, 0.15]"

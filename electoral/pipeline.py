@@ -3,10 +3,18 @@
 Run with: just smoke  (or: python -m electoral.pipeline --config configs/smoke.json)
 
 Prefect benefits over hand-written orchestration:
-  - Automatic retry on failure (retries=2)
+  - Automatic retry on failure (retries=2, retry_delay_seconds=30)
   - Visual dashboard: prefect server start
   - Persistent state — crash restarts from last successful stage
-  - Parallel task execution where stages are independent
+  - Parallel task execution: task_baseline_portfolio and task_sentiment_data
+    run concurrently after task_voter_panel completes (same upstream future)
+
+Stage dependency graph:
+  task_voter_panel  ──►  task_baseline_portfolio
+                    └──►  task_sentiment_data ──►  task_llm_finetune
+                                               └──►  task_shock_response
+                                                          └──►  task_optimization
+                                                                     └──►  task_simulation
 """
 
 from __future__ import annotations
@@ -47,55 +55,102 @@ from electoral.config import PipelineConfig
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
+    build_optimization,
     build_sentiment_data,
+    build_shock_response,
     build_voter_panel,
+    run_simulations,
 )
 
+# All tasks share the same retry policy. Adjust per-task once real kernels land.
+_RETRY = dict(retries=2, retry_delay_seconds=30)
 
-@task(retries=2, retry_delay_seconds=30)
+
+@task(**_RETRY)
 def task_voter_panel(config: PipelineConfig):
     return build_voter_panel(config)
 
 
-@task(retries=2, retry_delay_seconds=30)
+@task(**_RETRY)
 def task_baseline_portfolio(config: PipelineConfig, panel):
     return build_baseline_portfolio(config, panel)
 
 
-@task(retries=2, retry_delay_seconds=30)
+@task(**_RETRY)
 def task_sentiment_data(config: PipelineConfig, panel):
     return build_sentiment_data(config, panel)
 
 
-@task(retries=1, retry_delay_seconds=60)
+@task(**_RETRY)
 def task_llm_finetune(config: PipelineConfig, sentiment):
     return build_llm_finetune(config, sentiment)
 
 
+@task(**_RETRY)
+def task_shock_response(config: PipelineConfig, event: str, intensity: float):
+    return build_shock_response(config, event, intensity)
+
+
+@task(**_RETRY)
+def task_optimization(config: PipelineConfig, shock):
+    return build_optimization(config, shock)
+
+
+@task(**_RETRY)
+def task_simulation(config: PipelineConfig, equilibrium):
+    return run_simulations(config, equilibrium)
+
+
 @flow(name="electoral-equilibrium")
-def run_pipeline(config_path: str) -> dict:
+def run_pipeline(
+    config_path: str,
+    shock_event: str = "smoke_test",
+    shock_intensity: float = 0.5,
+) -> dict:
     """Full Electoral Equilibrium pipeline flow.
 
-    Returns a dict of all stage artifacts for testing/inspection.
+    task_baseline_portfolio and task_sentiment_data both receive the same
+    `panel` future so Prefect's ConcurrentTaskRunner executes them in parallel.
+
+    In historical mode task_shock_response is called after task_llm_finetune
+    completes; in continuous mode it follows task_sentiment_data directly.
+    Python execution order in the flow body is the implicit ordering guarantee.
+
+    Returns a dict of all stage artifacts for testing and inspection.
     """
     config = PipelineConfig.from_json(config_path)
     config.validate()
 
+    # Stage 1: voter panel — no upstream dependencies
     panel = task_voter_panel(config)
+
+    # Stages 2 + 3: both depend only on panel → run concurrently under Prefect
     baseline = task_baseline_portfolio(config, panel)
     sentiment = task_sentiment_data(config, panel)
 
-    # LLM fine-tuning is skipped in continuous mode (adapter already exists)
+    # Stage 4: LLM fine-tuning — historical mode only
     if config.pipeline_mode == "historical":
         finetune = task_llm_finetune(config, sentiment)
     else:
         finetune = None
+
+    # Stage 5: shock response — follows finetune (historical) or sentiment (continuous)
+    # Python call order here ensures Prefect does not start this task until the
+    # preceding branch completes.
+    shock = task_shock_response(config, shock_event, shock_intensity)
+
+    # Stages 6 + 7: linear chain
+    equilibrium = task_optimization(config, shock)
+    simulation = task_simulation(config, equilibrium)
 
     return {
         "voter_panel": panel,
         "baseline_portfolio": baseline,
         "sentiment_data": sentiment,
         "llm_finetune": finetune,
+        "shock_response": shock,
+        "optimization": equilibrium,
+        "simulation": simulation,
     }
 
 
@@ -106,6 +161,17 @@ def main() -> None:
         default="configs/smoke.json",
         help="Path to PipelineConfig JSON (default: configs/smoke.json)",
     )
+    parser.add_argument(
+        "--shock",
+        default="smoke_test",
+        help="Shock event identifier (default: smoke_test)",
+    )
+    parser.add_argument(
+        "--intensity",
+        type=float,
+        default=0.5,
+        help="Shock intensity 0–1 (default: 0.5)",
+    )
     args = parser.parse_args()
 
     if not Path(args.config).exists():
@@ -113,15 +179,24 @@ def main() -> None:
         sys.exit(1)
 
     if _HAS_PREFECT:
-        run_pipeline(config_path=args.config)
+        run_pipeline(
+            config_path=args.config,
+            shock_event=args.shock,
+            shock_intensity=args.intensity,
+        )
     else:
-        # Fallback: run as plain Python without Prefect
+        # Fallback: run as plain Python without Prefect (CI / minimal installs)
         config = PipelineConfig.from_json(args.config)
         config.validate()
         panel = build_voter_panel(config)
         build_baseline_portfolio(config, panel)
-        build_sentiment_data(config, panel)
-        print(f"✓ Smoke pipeline completed (run_key={config.run_key!r})")
+        sentiment = build_sentiment_data(config, panel)
+        if config.pipeline_mode == "historical":
+            build_llm_finetune(config, sentiment)
+        shock = build_shock_response(config, args.shock, args.intensity)
+        equilibrium = build_optimization(config, shock)
+        run_simulations(config, equilibrium)
+        print(f"Pipeline completed (run_key={config.run_key!r})")
 
 
 if __name__ == "__main__":
