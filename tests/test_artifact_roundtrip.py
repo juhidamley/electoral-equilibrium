@@ -312,8 +312,11 @@ class TestLLMFineTuneData:
     def test_negative_n_examples_raises(self):
         with pytest.raises(ValueError, match="n_examples"):
             LLMFineTuneData(
-                base_model="m", lora_rank=16, n_examples=-1,
-                cycles_used=[2020], adapter_path=None,
+                base_model="m",
+                lora_rank=16,
+                n_examples=-1,
+                cycles_used=[2020],
+                adapter_path=None,
             ).validate()
 
     def test_duplicate_cycles_raises(self):
