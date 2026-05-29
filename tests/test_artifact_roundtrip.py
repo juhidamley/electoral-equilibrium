@@ -418,20 +418,18 @@ class TestPredictionMarketData:
             self._make(pre_shock_prob=1.5).validate()
 
 
+ALL_BLOCS = RACE_IDS + RELIGION_IDS + GENDER_IDS
+_N_BLOCS = len(ALL_BLOCS)
+COV_NXNX = [[0.01 if i == j else 0.0 for j in range(_N_BLOCS)] for i in range(_N_BLOCS)]
+
+
 class TestShockResponseData:
     def _make(self, **overrides):
         defaults = dict(
             shock="kavanaugh_2018",
             cycle=2018,
-            party="democrat",
-            delta_bins_race={r: "neutral" for r in RACE_IDS},
-            delta_bins_religion={r: "neutral" for r in RELIGION_IDS},
-            delta_bins_gender={r: "neutral" for r in GENDER_IDS},
-            deltas_race={r: 0.0 for r in RACE_IDS},
-            deltas_religion={r: 0.0 for r in RELIGION_IDS},
-            deltas_gender={r: 0.0 for r in GENDER_IDS},
-            delta_eff=0.0,
-            covariance=COV_5X5,
+            deltas={bloc: 0.0 for bloc in ALL_BLOCS},
+            covariance=COV_NXNX,
             source="llm_unified",
         )
         defaults.update(overrides)
@@ -440,152 +438,192 @@ class TestShockResponseData:
     def test_roundtrip(self):
         assert_roundtrip(self._make())
 
-    def test_non_neutral_bins(self):
-        bins = {
-            "african_american": "slight_neg",
-            "latino": "mild_neg",
-            "asian": "neutral",
-            "white": "mod_neg",
-            "other_race": "slight_neg",
-        }
-        obj = self._make(
-            delta_bins_race=bins,
-            deltas_race={
-                "african_american": -0.012,
-                "latino": -0.035,
-                "asian": 0.0,
-                "white": -0.070,
-                "other_race": -0.012,
-            },
-        )
-        assert_roundtrip(obj)
+    def test_non_zero_deltas(self):
+        deltas = {bloc: 0.0 for bloc in ALL_BLOCS}
+        deltas["african_american"] = -0.012
+        deltas["evangelical"] = 0.035
+        deltas["women"] = -0.070
+        assert_roundtrip(self._make(deltas=deltas))
 
-    def test_invalid_bin_token_raises(self):
-        bad_bins = {r: "neutral" for r in RACE_IDS}
-        bad_bins["white"] = "mildly_bad"  # not a valid token
-        with pytest.raises(ValueError, match="delta bin token"):
-            self._make(delta_bins_race=bad_bins).validate()
+    def test_all_sources_valid(self):
+        for src in ("llm_unified", "roberta_news_only", "roberta_social_only"):
+            assert_roundtrip(self._make(source=src))
 
     def test_delta_out_of_range_raises(self):
-        bad_deltas = {r: 0.0 for r in RACE_IDS}
-        bad_deltas["white"] = -0.50  # outside [-0.15, 0.15]
+        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
+        bad["white"] = -0.50  # outside [-0.15, 0.15]
         with pytest.raises(ValueError, match=r"\[-0.15"):
-            self._make(deltas_race=bad_deltas).validate()
+            self._make(deltas=bad).validate()
+
+    def test_delta_non_finite_raises(self):
+        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
+        bad["white"] = math.nan
+        with pytest.raises(ValueError, match="finite"):
+            self._make(deltas=bad).validate()
+
+    def test_covariance_wrong_row_count_raises(self):
+        short_cov = [[0.0] * _N_BLOCS for _ in range(_N_BLOCS - 1)]
+        with pytest.raises(ValueError, match=r"\d+×\d+"):
+            self._make(covariance=short_cov).validate()
+
+    def test_covariance_ragged_row_raises(self):
+        ragged = [row[:] for row in COV_NXNX]
+        ragged[0] = ragged[0][:-1]  # row 0 one element short
+        with pytest.raises(ValueError, match="elements"):
+            self._make(covariance=ragged).validate()
 
     def test_invalid_source_raises(self):
         with pytest.raises(ValueError, match="source"):
             self._make(source="twitter_only").validate()
 
-    def test_invalid_party_raises(self):
-        with pytest.raises(ValueError, match="party"):
-            self._make(party="green").validate()
+    def test_empty_source_raises(self):
+        with pytest.raises(ValueError, match="source"):
+            self._make(source="").validate()
+
+
+MU_SHIFTED_RACE = {r: 0.50 for r in RACE_IDS}
 
 
 class TestEquilibriumData:
-    def test_roundtrip(self):
-        obj = EquilibriumData(
+    def _make(self, **overrides):
+        defaults = dict(
             method="cvxpy_dqcp",
             party="democrat",
             shock="kavanaugh_2018",
             weights=RACE_WEIGHTS,
-            mu_eff_shifted=0.504,
+            mu_shifted=MU_SHIFTED_RACE,
             feasible=True,
             target_met=False,
             target=0.535,
         )
-        assert_roundtrip(obj)
+        defaults.update(overrides)
+        return EquilibriumData(**defaults)
+
+    def test_roundtrip(self):
+        assert_roundtrip(self._make())
 
     def test_roundtrip_no_shock(self):
-        obj = EquilibriumData(
-            method="cvxpy_dqcp",
-            party="republican",
-            shock=None,
-            weights=RACE_WEIGHTS,
-            mu_eff_shifted=0.50,
-            feasible=True,
-            target_met=False,
-            target=0.520,
-        )
-        d = assert_roundtrip(obj)
+        d = assert_roundtrip(self._make(shock=None, party="republican", target=0.520))
         assert d["shock"] is None
+
+    def test_roundtrip_target_met(self):
+        mu_high = {r: 0.60 for r in RACE_IDS}
+        assert_roundtrip(self._make(mu_shifted=mu_high, feasible=True, target_met=True))
 
     def test_weights_not_summing_raises(self):
         bad = {**RACE_WEIGHTS, "white": 0.99}
         with pytest.raises(ValueError, match="sum"):
-            EquilibriumData(
-                method="m",
-                party="democrat",
-                shock=None,
-                weights=bad,
-                mu_eff_shifted=0.5,
-                feasible=True,
-                target_met=False,
-                target=0.535,
-            ).validate()
+            self._make(weights=bad).validate()
 
-    def test_nan_mu_eff_raises(self):
-        with pytest.raises(ValueError, match="finite"):
-            EquilibriumData(
-                method="m",
-                party="democrat",
-                shock=None,
-                weights=RACE_WEIGHTS,
-                mu_eff_shifted=math.nan,
-                feasible=True,
-                target_met=False,
-                target=0.535,
-            ).validate()
+    def test_invalid_party_raises(self):
+        with pytest.raises(ValueError, match="party"):
+            self._make(party="independent").validate()
+
+    def test_mu_shifted_out_of_range_raises(self):
+        bad_mu = {**MU_SHIFTED_RACE, "white": 1.5}
+        with pytest.raises(ValueError, match=r"mu_shifted\["):
+            self._make(mu_shifted=bad_mu).validate()
+
+    def test_mismatched_keys_raises(self):
+        # mu_shifted missing one bloc that weights has
+        short_mu = {r: 0.50 for r in RACE_IDS[:-1]}  # drops "other_race"
+        with pytest.raises(ValueError, match="identical key sets"):
+            self._make(mu_shifted=short_mu).validate()
+
+    def test_extra_mu_key_raises(self):
+        extra_mu = {**MU_SHIFTED_RACE, "evangelical": 0.30}  # extra key not in weights
+        with pytest.raises(ValueError, match="identical key sets"):
+            self._make(mu_shifted=extra_mu).validate()
 
 
 class TestSimulationData:
-    def test_roundtrip(self):
-        obj = SimulationData(
+    def _make(self, **overrides):
+        defaults = dict(
             n_simulations=10_000,
             seed=42,
             win_probability=0.35,
-            win_probability_low=0.28,
-            win_probability_high=0.42,
             percentiles={r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS},
         )
-        assert_roundtrip(obj)
+        defaults.update(overrides)
+        return SimulationData(**defaults)
+
+    def test_roundtrip(self):
+        assert_roundtrip(self._make())
+
+    def test_empty_percentiles(self):
+        assert_roundtrip(self._make(percentiles={}))
+
+    def test_win_probability_boundary_values(self):
+        assert_roundtrip(self._make(win_probability=0.0))
+        assert_roundtrip(self._make(win_probability=1.0))
 
     def test_win_probability_out_of_range_raises(self):
         with pytest.raises(ValueError, match="win_probability"):
-            SimulationData(
-                n_simulations=1000,
-                seed=0,
-                win_probability=1.5,  # > 1.0
-                win_probability_low=0.0,
-                win_probability_high=1.0,
-                percentiles={},
-            ).validate()
+            self._make(win_probability=1.5).validate()
+
+    def test_win_probability_negative_raises(self):
+        with pytest.raises(ValueError, match="win_probability"):
+            self._make(win_probability=-0.01).validate()
 
     def test_wrong_percentile_count_raises(self):
         with pytest.raises(ValueError, match="5 values"):
-            SimulationData(
-                n_simulations=1000,
-                seed=0,
-                win_probability=0.5,
-                win_probability_low=0.4,
-                win_probability_high=0.6,
-                percentiles={"evangelical": [0.1, 0.5, 0.9]},  # only 3 values
-            ).validate()
+            self._make(percentiles={"evangelical": [0.1, 0.5, 0.9]}).validate()
+
+    def test_percentile_value_out_of_range_raises(self):
+        bad = {r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS}
+        bad["white"] = [0.10, 0.25, 0.35, 0.45, 1.5]  # last value > 1
+        with pytest.raises(ValueError, match=r"percentiles\["):
+            self._make(percentiles=bad).validate()
+
+    def test_zero_n_simulations_raises(self):
+        with pytest.raises(ValueError, match="n_simulations"):
+            self._make(n_simulations=0).validate()
 
 
 class TestMetricsTablesData:
-    def test_roundtrip(self):
-        obj = MetricsTablesData(
+    def _make(self, **overrides):
+        defaults = dict(
             tables={
                 "baseline_weights": {r: w for r, w in RACE_WEIGHTS.items()},
                 "loco_mae": {"mean": 0.025, "evangelical": 0.038},
             }
         )
-        assert_roundtrip(obj)
+        defaults.update(overrides)
+        return MetricsTablesData(**defaults)
+
+    def test_roundtrip(self):
+        assert_roundtrip(self._make())
+
+    def test_empty_tables_valid(self):
+        assert_roundtrip(self._make(tables={}))
+
+    def test_json_scalars_valid(self):
+        assert_roundtrip(self._make(tables={
+            "int_val": 42,
+            "float_val": 3.14,
+            "bool_val": True,
+            "null_val": None,
+            "str_val": "result",
+        }))
+
+    def test_nested_structures_valid(self):
+        assert_roundtrip(self._make(tables={
+            "nested": {"a": [1, 2, 3], "b": {"c": 0.5}},
+            "list_of_lists": [[0.1, 0.9], [0.4, 0.6]],
+        }))
+
+    def test_empty_key_raises(self):
+        with pytest.raises(ValueError, match="empty key"):
+            self._make(tables={"": {"x": 1}}).validate()
 
     def test_non_serializable_raises(self):
         import datetime
 
         with pytest.raises(ValueError, match="JSON-serializable"):
-            MetricsTablesData(
-                tables={"bad": datetime.datetime.now()}  # not JSON-serializable
-            ).validate()
+            self._make(tables={"bad": datetime.datetime.now()}).validate()
+
+    def test_error_message_names_key(self):
+        import datetime
+
+        with pytest.raises(ValueError, match="bad_table"):
+            self._make(tables={"bad_table": datetime.date.today()}).validate()
