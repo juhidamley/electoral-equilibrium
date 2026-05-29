@@ -230,6 +230,35 @@ class TestSentimentData:
                 scores={"evangelical": {"s1": 1.5}},  # > 1.0
             ).validate()
 
+    def test_missing_shock_in_bloc_raises(self):
+        # scores["evangelical"] is missing "metoo_2017" — must be caught.
+        with pytest.raises(ValueError, match="Missing") as exc_info:
+            SentimentData(
+                model="m",
+                shocks=["kavanaugh_2018", "metoo_2017"],
+                scores={"evangelical": {"kavanaugh_2018": 0.25}},  # metoo_2017 absent
+            ).validate()
+        assert "metoo_2017" in str(exc_info.value)
+        assert "evangelical" in str(exc_info.value)
+
+    def test_extra_shock_in_bloc_raises(self):
+        # scores["secular"] has a shock ID not in self.shocks — must be caught.
+        with pytest.raises(ValueError, match="Extra") as exc_info:
+            SentimentData(
+                model="m",
+                shocks=["kavanaugh_2018"],
+                scores={"secular": {"kavanaugh_2018": 0.10, "typo_shock": -0.05}},
+            ).validate()
+        assert "typo_shock" in str(exc_info.value)
+
+    def test_duplicate_shocks_raises(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            SentimentData(
+                model="m",
+                shocks=["kavanaugh_2018", "kavanaugh_2018"],
+                scores={"evangelical": {"kavanaugh_2018": 0.25}},
+            ).validate()
+
 
 class TestLLMFineTuneData:
     def test_roundtrip(self):
@@ -256,10 +285,57 @@ class TestLLMFineTuneData:
     def test_zero_lora_rank_raises(self):
         with pytest.raises(ValueError, match="lora_rank"):
             LLMFineTuneData(
+                base_model="m", lora_rank=0, n_examples=1,
+                cycles_used=[2020], adapter_path=None,
+            ).validate()
+
+    def test_negative_lora_rank_raises(self):
+        with pytest.raises(ValueError, match="lora_rank"):
+            LLMFineTuneData(
                 base_model="m",
-                lora_rank=0,
+                lora_rank=-8,
                 n_examples=1,
                 cycles_used=[2020],
+                adapter_path=None,
+            ).validate()
+
+    def test_zero_n_examples_raises(self):
+        with pytest.raises(ValueError, match="n_examples"):
+            LLMFineTuneData(
+                base_model="m",
+                lora_rank=16,
+                n_examples=0,
+                cycles_used=[2020],
+                adapter_path=None,
+            ).validate()
+
+    def test_negative_n_examples_raises(self):
+        with pytest.raises(ValueError, match="n_examples"):
+            LLMFineTuneData(
+                base_model="m",
+                lora_rank=16,
+                n_examples=-1,
+                cycles_used=[2020],
+                adapter_path=None,
+            ).validate()
+
+    def test_duplicate_cycles_raises(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            LLMFineTuneData(
+                base_model="m",
+                lora_rank=16,
+                n_examples=100,
+                cycles_used=[2020, 2020],
+                adapter_path=None,
+            ).validate()
+
+    def test_unsorted_cycles_raises(self):
+        with pytest.raises(ValueError, match="strictly increasing"):
+            LLMFineTuneData(
+                base_model="m",
+                lora_rank=16,
+                n_examples=100,
+                cycles_used=[2020, 2016],
                 adapter_path=None,
             ).validate()
 
