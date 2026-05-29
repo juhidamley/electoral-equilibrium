@@ -1,0 +1,14 @@
+{
+  "democrat": {
+    "V_eq": 0.525,
+    "V_eq_low": 0.520,
+    "V_eq_high": 0.535,
+    "note": "Empirically derived from NEP 2016/2020; update via build_constraint_spec"
+  },
+  "republican": {
+    "V_eq": 0.500,
+    "V_eq_low": 0.490,
+    "V_eq_high": 0.510,
+    "note": "Empirically derived from NEP 2016/2020; update via build_constraint_spec"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "note": "shock_id -> prediction market contract IDs. Used by markets/collector.py to pull calibration prices. Prediction markets are CALIBRATION BENCHMARKS ONLY — never training inputs. Add contracts as shocks are identified.",
+  "contracts": {
+    "kavanaugh_2018": {
+      "polymarket": null,
+      "predictit": null,
+      "note": "Historical event — no live contract"
+    },
+    "ayatollah_assassination": {
+      "polymarket": null,
+      "predictit": null,
+      "note": "Historical event — no live contract"
+    }
+  }
+}

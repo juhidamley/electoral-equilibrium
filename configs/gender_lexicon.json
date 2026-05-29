@@ -1,0 +1,22 @@
+{
+  "note": "Bio keyword -> gender signal for SetFit + keyword bio classifier. Gender is the weakest lexicon signal — SetFit model predictions take precedence. Keys lowercase.",
+  "keywords": {
+    "she/her":          {"women": 1.0},
+    "she/her/hers":     {"women": 1.0},
+    "mother":           {"women": 0.95, "other_gender": 0.05},
+    "mom":              {"women": 0.95, "other_gender": 0.05},
+    "wife":             {"women": 0.9, "other_gender": 0.1},
+    "he/him":           {"men": 1.0},
+    "he/him/his":       {"men": 1.0},
+    "father":           {"men": 0.95, "other_gender": 0.05},
+    "dad":              {"men": 0.95, "other_gender": 0.05},
+    "husband":          {"men": 0.9, "other_gender": 0.1},
+    "they/them":        {"other_gender": 1.0},
+    "nonbinary":        {"other_gender": 1.0},
+    "non-binary":       {"other_gender": 1.0},
+    "enby":             {"other_gender": 1.0},
+    "trans woman":      {"women": 0.9, "other_gender": 0.1},
+    "trans man":        {"men": 0.9, "other_gender": 0.1},
+    "transgender":      {"other_gender": 0.6, "women": 0.2, "men": 0.2}
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "kernel": "rbf",
+  "lambda_mmd": null,
+  "lambda_computation": "median_heuristic",
+  "formula": "1 / (2 * sigma^2) where sigma = median pairwise distance",
+  "note": "lambda_mmd is computed at runtime via median heuristic and stored here after first run. null = not yet computed."
+}

@@ -1,0 +1,14 @@
+{
+  "categories": [
+    "Geopolitical",
+    "Economic",
+    "Moral/Scandal",
+    "Religious",
+    "Immigration",
+    "Criminal Justice",
+    "Health/Pandemic",
+    "Environmental",
+    "Electoral/Voting Rights"
+  ],
+  "note": "Canonical shock categories. Every shock in shocks.json must map to one of these. Add new categories only after DECISIONS.md entry."
+}

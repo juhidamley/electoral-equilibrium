@@ -1,0 +1,26 @@
+{
+  "note": "Bio keyword -> race weights for SetFit + keyword bio classifier (Stage 1 of 3-stage inference). Keys are lowercase. Values are {race_id: weight} dicts summing to 1.0.",
+  "keywords": {
+    "black":            {"african_american": 1.0},
+    "african american": {"african_american": 1.0},
+    "african-american": {"african_american": 1.0},
+    "afro":             {"african_american": 0.9, "other_race": 0.1},
+    "latino":           {"latino": 1.0},
+    "latina":           {"latino": 1.0},
+    "latinx":           {"latino": 1.0},
+    "hispanic":         {"latino": 0.9, "other_race": 0.1},
+    "chicano":          {"latino": 1.0},
+    "chicana":          {"latino": 1.0},
+    "asian":            {"asian": 1.0},
+    "asian american":   {"asian": 1.0},
+    "chinese":          {"asian": 0.9, "other_race": 0.1},
+    "korean":           {"asian": 0.9, "other_race": 0.1},
+    "vietnamese":       {"asian": 0.9, "other_race": 0.1},
+    "filipino":         {"asian": 0.9, "other_race": 0.1},
+    "indian american":  {"asian": 0.9, "other_race": 0.1},
+    "biracial":         {"other_race": 0.6, "white": 0.2, "african_american": 0.2},
+    "multiracial":      {"other_race": 1.0},
+    "indigenous":       {"other_race": 1.0},
+    "native american":  {"other_race": 1.0}
+  }
+}

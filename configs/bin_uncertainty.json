@@ -1,0 +1,14 @@
+{
+  "note": "Per-bin empirical sigma_b for Logistic-Normal Monte Carlo. Populated by scripts/generate_synthetic.py after historical delta analysis. Conservative prior sigma = bin_width/2 used for bins with < 5 historical examples.",
+  "bins": {
+    "strong_neg": {"sigma": null, "n_examples": 0},
+    "mod_neg":    {"sigma": null, "n_examples": 0},
+    "mild_neg":   {"sigma": null, "n_examples": 0},
+    "slight_neg": {"sigma": null, "n_examples": 0},
+    "neutral":    {"sigma": null, "n_examples": 0},
+    "slight_pos": {"sigma": null, "n_examples": 0},
+    "mild_pos":   {"sigma": null, "n_examples": 0},
+    "mod_pos":    {"sigma": null, "n_examples": 0},
+    "strong_pos": {"sigma": null, "n_examples": 0}
+  }
+}

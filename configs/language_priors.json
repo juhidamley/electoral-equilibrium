@@ -1,0 +1,21 @@
+{
+  "note": "Pew Research-based priors for language fallback. Used ONLY when bio classifier returns inference_method=language_prior. Exclude language_prior posts from mean/covariance estimation; use as held-out validation only.",
+  "priors": {
+    "spanish": {
+      "race": {"latino": 0.80, "other_race": 0.20},
+      "note": "Spanish-language posts assumed predominantly Latino"
+    },
+    "korean": {
+      "race": {"asian": 0.90, "other_race": 0.10},
+      "note": "Korean-language posts assumed predominantly Korean-American (Asian)"
+    },
+    "chinese": {
+      "race": {"asian": 0.90, "other_race": 0.10},
+      "note": "Chinese-language posts assumed predominantly Chinese-American (Asian)"
+    },
+    "arabic": {
+      "race": {"other_race": 0.50, "white": 0.30, "african_american": 0.20},
+      "note": "Arabic speakers are diverse — conservative prior"
+    }
+  }
+}
