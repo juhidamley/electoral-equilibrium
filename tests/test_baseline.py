@@ -1,4 +1,5 @@
 """Tests for electoral/kernels/baseline.py — implemented in Week 2."""
+
 from __future__ import annotations
 
 import pytest

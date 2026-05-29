@@ -9,6 +9,7 @@ Seed contract (non-negotiable):
   - Every stochastic operation takes a seeded generator as a parameter
   - Dirichlet sampling: rng.dirichlet(alpha, size=N) from seeded generator only
 """
+
 from __future__ import annotations
 
 import hashlib

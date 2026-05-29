@@ -25,6 +25,7 @@ Every collector writes JSONL records in the canonical envelope format:
 After the merge_posts() Prefect task, the scorer reads from rawdata/merged/
 which contains the flattened payload dicts (envelope stripped).
 """
+
 from __future__ import annotations
 
 import json
@@ -37,9 +38,7 @@ SCHEMA_VERSION = "1.0"
 STAGE = "collect"
 
 # Languages we keep.  Posts with no lang tag are retained (may be English).
-KEEP_LANGS: frozenset[str] = frozenset(
-    ["en", "en-gb", "en-us", "en-au", "en-ca", ""]
-)
+KEEP_LANGS: frozenset[str] = frozenset(["en", "en-gb", "en-us", "en-au", "en-ca", ""])
 
 
 def normalize_timestamp(ts: str | None) -> str:

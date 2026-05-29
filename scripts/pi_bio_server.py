@@ -36,6 +36,7 @@ Usage
     # CPU-only smoke test (runs on any machine):
     python scripts/pi_bio_server.py --config configs/base.json --port 9000 --cpu-only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,8 +62,8 @@ log = logging.getLogger("pi_bio_server")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-SETFIT_THRESHOLD = 0.60         # minimum per-stratum max-confidence to accept Stage 1
-BATCH_SIZE_LIMIT = 50           # enforced by /classify_batch
+SETFIT_THRESHOLD = 0.60  # minimum per-stratum max-confidence to accept Stage 1
+BATCH_SIZE_LIMIT = 50  # enforced by /classify_batch
 MODEL_NAME = "all-MiniLM-L6-v2"
 HEF_DEFAULT_PATH = Path(__file__).parent.parent / "adapters" / "all-minilm-l6-v2.hef"
 
@@ -70,7 +71,13 @@ HEF_DEFAULT_PATH = Path(__file__).parent.parent / "adapters" / "all-minilm-l6-v2
 # all three stages produce no signal (e.g. empty bio, unknown language).
 _CANONICAL_RACES = ["african_american", "latino", "asian", "white", "other_race"]
 _CANONICAL_RELIGIONS = [
-    "evangelical", "catholic", "protestant", "secular", "jewish", "muslim", "other_rel",
+    "evangelical",
+    "catholic",
+    "protestant",
+    "secular",
+    "jewish",
+    "muslim",
+    "other_rel",
 ]
 _CANONICAL_GENDERS = ["women", "men", "other_gender"]
 
@@ -101,6 +108,7 @@ _GENDER_EXEMPLARS = [
 
 # ── Config loading ────────────────────────────────────────────────────────────
 
+
 def _load_json(path: Path) -> Any:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -122,6 +130,7 @@ def _load_language_priors(repo_root: Path) -> dict[str, dict]:
 
 # ── Inference backend — CPU path ──────────────────────────────────────────────
 
+
 class _CPUBackend:
     """SentenceTransformer on Pi CPU (or any machine for testing)."""
 
@@ -131,8 +140,7 @@ class _CPUBackend:
             from sentence_transformers import SentenceTransformer  # type: ignore[import]
         except ImportError as exc:
             raise RuntimeError(
-                "sentence-transformers is not installed. "
-                "Run: pip install sentence-transformers"
+                "sentence-transformers is not installed. " "Run: pip install sentence-transformers"
             ) from exc
 
         self.model = SentenceTransformer(MODEL_NAME, device="cpu")
@@ -163,6 +171,7 @@ class _CPUBackend:
 
 
 # ── Inference backend — NPU path ──────────────────────────────────────────────
+
 
 class _NPUBackend:
     """Hailo-8L NPU backend via Hailo SDK.
@@ -203,9 +212,7 @@ class _NPUBackend:
         # Load the HEF and configure the VDevice (Hailo runtime).
         target = VDevice()
         hef = HEF(str(hef_path))
-        configure_params = ConfigureParams.create_from_hef(
-            hef, interface=HailoStreamInterface.PCIe
-        )
+        configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
         network_groups = target.configure(hef, configure_params)
         self._network_group = network_groups[0]
 
@@ -223,8 +230,7 @@ class _NPUBackend:
         self._input_name = hef.get_input_vstream_infos()[0].name
         self._output_name = hef.get_output_vstream_infos()[0].name
 
-        log.info("NPU backend ready — input: %s, output: %s",
-                 self._input_name, self._output_name)
+        log.info("NPU backend ready — input: %s, output: %s", self._input_name, self._output_name)
 
         # Pre-compute exemplar embeddings via NPU.
         self._race_emb = self._embed_batch(_RACE_EXEMPLARS)
@@ -264,17 +270,19 @@ class _NPUBackend:
 
 # ── Classifier ────────────────────────────────────────────────────────────────
 
+
 def _cosine_softmax(bio_vec: np.ndarray, exemplar_matrix: np.ndarray) -> np.ndarray:
     """Return softmax of cosine similarities between bio_vec and each exemplar row."""
-    sims = exemplar_matrix @ bio_vec          # (n,) — bio_vec and rows already L2-normed
+    sims = exemplar_matrix @ bio_vec  # (n,) — bio_vec and rows already L2-normed
     sims = np.clip(sims, -1.0, 1.0)
     # Temperature-scaled softmax (τ=0.1) sharpens the distribution.
     exp_sims = np.exp(sims / 0.1)
     return exp_sims / exp_sims.sum()
 
 
-def _apply_lexicon(bio_lower: str, lexicon: dict[str, dict[str, float]],
-                   canonical: list[str]) -> tuple[dict[str, float], bool]:
+def _apply_lexicon(
+    bio_lower: str, lexicon: dict[str, dict[str, float]], canonical: list[str]
+) -> tuple[dict[str, float], bool]:
     """Scan bio_lower for lexicon keywords; return blended weights and hit flag."""
     matched: list[dict[str, float]] = []
     # Longest-keyword-first scan reduces false substring matches.
@@ -361,9 +369,11 @@ class BioClassifier:
             gen_probs = _cosine_softmax(bio_vec, gen_emb)
 
             # Accept Stage 1 only if ALL three strata exceed the confidence threshold.
-            if (race_probs.max() >= SETFIT_THRESHOLD
-                    and rel_probs.max() >= SETFIT_THRESHOLD
-                    and gen_probs.max() >= SETFIT_THRESHOLD):
+            if (
+                race_probs.max() >= SETFIT_THRESHOLD
+                and rel_probs.max() >= SETFIT_THRESHOLD
+                and gen_probs.max() >= SETFIT_THRESHOLD
+            ):
                 return {
                     "race": dict(zip(self._races, race_probs.tolist())),
                     "religion": dict(zip(self._religions, rel_probs.tolist())),
@@ -391,9 +401,7 @@ class BioClassifier:
         )
         return {**strata, "inference_method": "language_prior"}
 
-    def classify_batch(
-        self, items: list[dict[str, str]]
-    ) -> dict[str, dict[str, Any]]:
+    def classify_batch(self, items: list[dict[str, str]]) -> dict[str, dict[str, Any]]:
         """Classify a list of {did, bio, lang} dicts; return {did: result}."""
         results: dict[str, dict[str, Any]] = {}
         for item in items:
@@ -406,15 +414,15 @@ class BioClassifier:
 
 # ── FastAPI application ───────────────────────────────────────────────────────
 
+
 def _build_app(classifier: BioClassifier, backend_name: str):
     """Build and return the FastAPI application."""
     try:
         from fastapi import FastAPI, HTTPException  # type: ignore[import]
-        from pydantic import BaseModel              # type: ignore[import]
+        from pydantic import BaseModel  # type: ignore[import]
     except ImportError as exc:
         raise RuntimeError(
-            "fastapi and pydantic are not installed. "
-            "Run: pip install fastapi uvicorn pydantic"
+            "fastapi and pydantic are not installed. " "Run: pip install fastapi uvicorn pydantic"
         ) from exc
 
     app = FastAPI(
@@ -458,7 +466,7 @@ def _build_app(classifier: BioClassifier, backend_name: str):
             raise HTTPException(
                 status_code=422,
                 detail=f"Batch size {len(req.items)} exceeds limit {BATCH_SIZE_LIMIT}. "
-                       f"Split into smaller batches.",
+                f"Split into smaller batches.",
             )
         try:
             raw = [item.model_dump() for item in req.items]
@@ -472,6 +480,7 @@ def _build_app(classifier: BioClassifier, backend_name: str):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Electoral Equilibrium bio classifier server (Pi + optional Hailo NPU).",
@@ -483,11 +492,14 @@ def _parse_args() -> argparse.Namespace:
         help="Path to configs/base.json (or domain equivalent).",
     )
     parser.add_argument(
-        "--port", type=int, default=9000,
+        "--port",
+        type=int,
+        default=9000,
         help="TCP port to bind. Must match pi_bio_server in configs/base.json.",
     )
     parser.add_argument(
-        "--host", default="0.0.0.0",
+        "--host",
+        default="0.0.0.0",
         help="Bind host. Use 0.0.0.0 on Pi; 127.0.0.1 for local smoke tests.",
     )
     parser.add_argument(
@@ -520,8 +532,11 @@ def main() -> None:
     if args.cpu_only or not pi_npu_enabled:
         # CPU-only path: SentenceTransformer on Pi CPU.
         # This path is always safe to use regardless of hardware.
-        log.info("Selecting CPU backend (pi_npu_enabled=%s, --cpu-only=%s)",
-                 pi_npu_enabled, args.cpu_only)
+        log.info(
+            "Selecting CPU backend (pi_npu_enabled=%s, --cpu-only=%s)",
+            pi_npu_enabled,
+            args.cpu_only,
+        )
         backend: _CPUBackend | _NPUBackend = _CPUBackend()
     else:
         # NPU path: Hailo SDK + HEF model.
@@ -535,7 +550,9 @@ def main() -> None:
     lang_priors = _load_language_priors(repo_root)
     log.info(
         "Lexicons loaded — race: %d keywords, religion: %d, gender: %d",
-        len(race_lex), len(rel_lex), len(gen_lex),
+        len(race_lex),
+        len(rel_lex),
+        len(gen_lex),
     )
 
     # ── Load canonical bloc lists from config ─────────────────────────────────
@@ -562,9 +579,7 @@ def main() -> None:
     try:
         import uvicorn  # type: ignore[import]
     except ImportError as exc:
-        raise RuntimeError(
-            "uvicorn is not installed. Run: pip install uvicorn"
-        ) from exc
+        raise RuntimeError("uvicorn is not installed. Run: pip install uvicorn") from exc
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

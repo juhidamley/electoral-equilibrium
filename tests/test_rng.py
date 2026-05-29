@@ -6,6 +6,7 @@ Seed contract (non-negotiable):
   - make_rng(seed) always produces identical draws for the same seed
   - Running the pipeline twice with the same seed produces identical artifacts
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -48,9 +49,15 @@ class TestDeriveSeed:
 
     def test_known_stage_names(self):
         stage_names = [
-            "voter_panel", "baseline_portfolio", "sentiment_data",
-            "llm_finetune", "shock_response", "optimization",
-            "monte_carlo", "setfit", "roberta",
+            "voter_panel",
+            "baseline_portfolio",
+            "sentiment_data",
+            "llm_finetune",
+            "shock_response",
+            "optimization",
+            "monte_carlo",
+            "setfit",
+            "roberta",
         ]
         seeds = [derive_seed(42, s) for s in stage_names]
         assert len(seeds) == len(set(seeds)), "All stage seeds should be unique"
@@ -111,7 +118,9 @@ class TestDeriveSeedTokens:
 
     def test_identical_inputs_produce_identical_seeds(self):
         # (i) Identical token lists must always hash to the same seed.
-        assert derive_seed_tokens(["42", "voter_panel"]) == derive_seed_tokens(["42", "voter_panel"])
+        assert derive_seed_tokens(["42", "voter_panel"]) == derive_seed_tokens(
+            ["42", "voter_panel"]
+        )
 
     def test_order_matters(self):
         # (ii) Token order is significant — reversing the list changes the seed.
@@ -164,7 +173,8 @@ class TestSeedContract:
     def test_stage_isolation(self):
         """Different stages derive different seeds even with the same base seed."""
         base = 42
-        stage_seeds = {stage: derive_seed(base, stage) for stage in [
-            "voter_panel", "baseline_portfolio", "monte_carlo", "llm_finetune"
-        ]}
+        stage_seeds = {
+            stage: derive_seed(base, stage)
+            for stage in ["voter_panel", "baseline_portfolio", "monte_carlo", "llm_finetune"]
+        }
         assert len(set(stage_seeds.values())) == len(stage_seeds)

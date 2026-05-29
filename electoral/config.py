@@ -4,6 +4,7 @@ Two valid pipeline_mode values:
   "historical"  — full rebuild from raw survey data (used during SRP development)
   "continuous"  — nightly incremental update; skips voter panel rebuild (post-SRP)
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -24,18 +25,18 @@ from electoral.core.types import (
 class PipelineConfig:
     """Immutable pipeline configuration. Load via PipelineConfig.from_json(path)."""
 
-    run_key: str                # unique identifier for this run (e.g. "base_2026")
-    seed: int                   # global random seed — all stochastic ops derive from this
-    party: str                  # "democrat" or "republican"
-    target: float               # V_eq equilibrium threshold (~0.535 Dem, ~0.520 Rep)
-    data_path: str              # root path for panel/archive data
-    output_dir: str             # root path for artifact outputs
-    pipeline_mode: str          # "historical" or "continuous"
-    races: list[str]            # canonical race identifiers (5)
-    religions: list[str]        # canonical religion identifiers (7)
-    genders: list[str]          # canonical gender identifiers (3)
-    pi_bio_server: str          # Tailscale URL for Pi bio classifier endpoint
-    pi_npu_enabled: bool        # True if Hailo NPU is available on Pi
+    run_key: str  # unique identifier for this run (e.g. "base_2026")
+    seed: int  # global random seed — all stochastic ops derive from this
+    party: str  # "democrat" or "republican"
+    target: float  # V_eq equilibrium threshold (~0.535 Dem, ~0.520 Rep)
+    data_path: str  # root path for panel/archive data
+    output_dir: str  # root path for artifact outputs
+    pipeline_mode: str  # "historical" or "continuous"
+    races: list[str]  # canonical race identifiers (5)
+    religions: list[str]  # canonical religion identifiers (7)
+    genders: list[str]  # canonical gender identifiers (3)
+    pi_bio_server: str  # Tailscale URL for Pi bio classifier endpoint
+    pi_npu_enabled: bool  # True if Hailo NPU is available on Pi
 
     @classmethod
     def from_json(cls, path: str | Path) -> PipelineConfig:
@@ -71,19 +72,14 @@ class PipelineConfig:
         """Raise ValueError if the config is invalid."""
         if self.party not in ("democrat", "republican"):
             raise ValueError(
-                f"PipelineConfig.party must be 'democrat' or 'republican', "
-                f"got {self.party!r}"
+                f"PipelineConfig.party must be 'democrat' or 'republican', " f"got {self.party!r}"
             )
         if not (0.5 < self.target < 0.7):
-            raise ValueError(
-                f"PipelineConfig.target must be in (0.5, 0.7), got {self.target}"
-            )
+            raise ValueError(f"PipelineConfig.target must be in (0.5, 0.7), got {self.target}")
         if self.pipeline_mode not in VALID_PIPELINE_MODES:
             raise ValueError(
                 f"PipelineConfig.pipeline_mode must be one of "
                 f"{sorted(VALID_PIPELINE_MODES)}, got {self.pipeline_mode!r}"
             )
         if self.seed < 0:
-            raise ValueError(
-                f"PipelineConfig.seed must be non-negative, got {self.seed}"
-            )
+            raise ValueError(f"PipelineConfig.seed must be non-negative, got {self.seed}")

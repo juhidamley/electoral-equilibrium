@@ -1,6 +1,5 @@
 """data: stub — implemented in the corresponding weekly sprint."""
+
 from __future__ import annotations
 
-raise NotImplementedError(
-    "data not yet implemented. See devplan for weekly schedule."
-)
+raise NotImplementedError("data not yet implemented. See devplan for weekly schedule.")

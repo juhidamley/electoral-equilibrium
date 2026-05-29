@@ -1,4 +1,5 @@
 """generate_synthetic: stub — implemented in the corresponding weekly sprint."""
+
 from __future__ import annotations
 
 raise NotImplementedError(

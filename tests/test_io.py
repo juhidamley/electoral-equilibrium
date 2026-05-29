@@ -13,10 +13,10 @@ Additional coverage:
   - read_artifact returns (envelope, df) tuple; df is None for non-tabular artifacts
   - Parquet preserves column dtypes and row count exactly
 """
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -34,6 +34,7 @@ from electoral.core.io import (
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def panel_df() -> pd.DataFrame:
     """100-row synthetic voter panel DataFrame matching the pipeline schema.
@@ -49,13 +50,13 @@ def panel_df() -> pd.DataFrame:
 
     return pd.DataFrame(
         {
-            "cycle":          rng.choice(cycles, size=n),
-            "stratum":        rng.choice(strata, size=n),
-            "bloc":           rng.choice(races, size=n),
-            "vote_share":     rng.uniform(0.0, 1.0, size=n).round(4),
-            "stratum_share":  rng.uniform(0.05, 0.40, size=n).round(4),
-            "turnout":        rng.uniform(0.40, 0.80, size=n).round(4),
-            "source":         rng.choice(["ARDA", "GSS", "NEP"], size=n),
+            "cycle": rng.choice(cycles, size=n),
+            "stratum": rng.choice(strata, size=n),
+            "bloc": rng.choice(races, size=n),
+            "vote_share": rng.uniform(0.0, 1.0, size=n).round(4),
+            "stratum_share": rng.uniform(0.05, 0.40, size=n).round(4),
+            "turnout": rng.uniform(0.40, 0.80, size=n).round(4),
+            "source": rng.choice(["ARDA", "GSS", "NEP"], size=n),
         }
     )
 
@@ -75,6 +76,7 @@ def sample_envelope() -> dict:
 
 
 # ── (i) JSON round-trip ───────────────────────────────────────────────────────
+
 
 class TestWriteReadJson:
 
@@ -114,9 +116,7 @@ class TestWriteReadJson:
         raw = path.read_text(encoding="utf-8")
         parsed = json.loads(raw)
         keys_in_file = list(parsed.keys())
-        assert keys_in_file == sorted(keys_in_file), (
-            f"Keys not sorted: {keys_in_file}"
-        )
+        assert keys_in_file == sorted(keys_in_file), f"Keys not sorted: {keys_in_file}"
 
     def test_json_creates_parent_directories(self, tmp_path):
         """write_json must create any missing parent directories."""
@@ -133,6 +133,7 @@ class TestWriteReadJson:
 
 
 # ── (ii) Parquet round-trip ───────────────────────────────────────────────────
+
 
 class TestWriteReadParquet:
 
@@ -161,8 +162,8 @@ class TestWriteReadParquet:
         """Float and int columns survive without precision loss."""
         df = pd.DataFrame(
             {
-                "cycle":       [2016, 2020] * 50,
-                "vote_share":  [round(x, 10) for x in np.linspace(0.0, 1.0, 100)],
+                "cycle": [2016, 2020] * 50,
+                "vote_share": [round(x, 10) for x in np.linspace(0.0, 1.0, 100)],
                 "stratum_share": [0.5] * 100,
             }
         )
@@ -181,6 +182,7 @@ class TestWriteReadParquet:
 
 
 # ── (iii) Parquet smaller than JSON ──────────────────────────────────────────
+
 
 class TestParquetCompression:
 
@@ -209,30 +211,29 @@ class TestParquetCompression:
         # Repetitive data is where columnar + snappy compression shines most.
         df = pd.DataFrame(
             {
-                "cycle":   [2016] * 50 + [2020] * 50,
+                "cycle": [2016] * 50 + [2020] * 50,
                 "stratum": ["race"] * 100,
-                "bloc":    ["african_american"] * 100,
+                "bloc": ["african_american"] * 100,
                 "vote_share": [0.87] * 100,
                 "stratum_share": [0.13] * 100,
-                "turnout":  [0.63] * 100,
-                "source":   ["NEP"] * 100,
+                "turnout": [0.63] * 100,
+                "source": ["NEP"] * 100,
             }
         )
         parquet_path = tmp_path / "rep.parquet"
         json_path = tmp_path / "rep.json"
 
         write_parquet(parquet_path, df)
-        json_path.write_text(
-            json.dumps(df.to_dict(orient="records"), indent=2), encoding="utf-8"
-        )
+        json_path.write_text(json.dumps(df.to_dict(orient="records"), indent=2), encoding="utf-8")
 
         ratio = parquet_path.stat().st_size / json_path.stat().st_size
-        assert ratio < 0.5, (
-            f"Compression ratio {ratio:.2f} >= 0.50; expected < 0.50 for repetitive data."
-        )
+        assert (
+            ratio < 0.5
+        ), f"Compression ratio {ratio:.2f} >= 0.50; expected < 0.50 for repetitive data."
 
 
 # ── (iv) FileNotFoundError on missing path ────────────────────────────────────
+
 
 class TestMissingPath:
 
@@ -253,12 +254,13 @@ class TestMissingPath:
         missing = tmp_path / "artifacts" / "voter_panel.json"
         with pytest.raises(FileNotFoundError) as exc_info:
             read_json(missing)
-        assert "voter_panel.json" in str(exc_info.value), (
-            f"Path not in error message: {exc_info.value}"
-        )
+        assert "voter_panel.json" in str(
+            exc_info.value
+        ), f"Path not in error message: {exc_info.value}"
 
 
 # ── write_artifact / read_artifact dispatch ───────────────────────────────────
+
 
 class TestWriteArtifactDispatch:
 
@@ -267,9 +269,7 @@ class TestWriteArtifactDispatch:
         path = tmp_path / "optimization.json"
         write_artifact(path, sample_envelope)
         assert path.exists(), ".json envelope not written"
-        assert not path.with_suffix(".parquet").exists(), (
-            ".parquet written when no df was provided"
-        )
+        assert not path.with_suffix(".parquet").exists(), ".parquet written when no df was provided"
 
     def test_tabular_artifact_writes_both_files(self, tmp_path, sample_envelope, panel_df):
         """Tabular artifacts (with df) must write both .json and .parquet."""

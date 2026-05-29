@@ -4,6 +4,7 @@ Tabular stages (voter panel, scored posts, fine-tuning dataset) write Parquet.
 Non-tabular stages (optimizer, simulation) write JSON.
 All artifact envelopes are JSON.
 """
+
 from __future__ import annotations
 
 import json

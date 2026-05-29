@@ -21,6 +21,7 @@ Usage:
 launchd stdout/stderr both land in the configured log file. Every line is
 prefixed with an ISO-8601 timestamp so the audit trail is unambiguous.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -51,10 +52,10 @@ DATA_ROOT: Path = (
 # ── Tuning constants ──────────────────────────────────────────────────────────
 
 SCHEMA_VERSION = "1.0"
-MIN_WORD_COUNT = 100           # articles below this are discarded
-REQUEST_TIMEOUT = 20           # seconds; applies to both feed and article fetches
-INTER_OUTLET_DELAY = 2.0       # seconds between outlets (politeness)
-INTER_ARTICLE_DELAY = 0.5      # seconds between article fetches within an outlet
+MIN_WORD_COUNT = 100  # articles below this are discarded
+REQUEST_TIMEOUT = 20  # seconds; applies to both feed and article fetches
+INTER_OUTLET_DELAY = 2.0  # seconds between outlets (politeness)
+INTER_ARTICLE_DELAY = 0.5  # seconds between article fetches within an outlet
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -71,8 +72,7 @@ log = logging.getLogger("electoral.scraper")
 
 _HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; "
-        "research project, non-commercial)"
+        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; " "research project, non-commercial)"
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
@@ -196,9 +196,7 @@ def _parse_feed(xml_bytes: bytes) -> list[dict[str, str]]:
             if not url:
                 continue
             title_el = entry.find(f"{{{_ATOM_NS}}}title")
-            pub_el = entry.find(f"{{{_ATOM_NS}}}published") or entry.find(
-                f"{{{_ATOM_NS}}}updated"
-            )
+            pub_el = entry.find(f"{{{_ATOM_NS}}}published") or entry.find(f"{{{_ATOM_NS}}}updated")
             items.append(
                 {
                     "url": url,
@@ -213,8 +211,19 @@ def _parse_feed(xml_bytes: bytes) -> list[dict[str, str]]:
 # ── Text extraction ───────────────────────────────────────────────────────────
 
 _NOISE_TAGS = frozenset(
-    ["script", "style", "nav", "header", "footer",
-     "aside", "figure", "figcaption", "iframe", "noscript", "form"]
+    [
+        "script",
+        "style",
+        "nav",
+        "header",
+        "footer",
+        "aside",
+        "figure",
+        "figcaption",
+        "iframe",
+        "noscript",
+        "form",
+    ]
 )
 
 
@@ -308,7 +317,7 @@ def _build_record(
             "source": "scrape",
             "word_count": word_count,
             "lang": "en",
-            "shock_id": None,          # filled by scorer
+            "shock_id": None,  # filled by scorer
             "inference_method": None,  # filled by bio classifier
         },
     }
@@ -408,9 +417,7 @@ def scrape_outlet(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Electoral Equilibrium nightly news scraper."
-    )
+    parser = argparse.ArgumentParser(description="Electoral Equilibrium nightly news scraper.")
     parser.add_argument(
         "--dry-run",
         action="store_true",

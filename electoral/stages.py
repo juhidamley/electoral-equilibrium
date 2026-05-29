@@ -10,6 +10,7 @@ Stage dependency graph:
                                                            └──►  build_optimization
                                                                       └──►  run_simulations
 """
+
 from __future__ import annotations
 
 from electoral.artifacts import (

@@ -8,6 +8,7 @@ Structure per helper:
 Error message assertions use re.search so they are robust to minor rephrasing
 but strict about the presence of the class name, field name, and key facts.
 """
+
 from __future__ import annotations
 
 import re
@@ -23,6 +24,7 @@ from electoral.core.schema import (
 
 
 # ── assert_required_keys ──────────────────────────────────────────────────────
+
 
 class TestAssertRequiredKeys:
 
@@ -91,6 +93,7 @@ class TestAssertRequiredKeys:
 
 # ── assert_unique ─────────────────────────────────────────────────────────────
 
+
 class TestAssertUnique:
 
     # ── positive ─────────────────────────────────────────────────────────────
@@ -146,12 +149,15 @@ class TestAssertUnique:
 
 # ── assert_sorted_unique ──────────────────────────────────────────────────────
 
+
 class TestAssertSortedUnique:
 
     # ── positive ─────────────────────────────────────────────────────────────
 
     def test_strictly_increasing_integers(self):
-        assert_sorted_unique([2000, 2004, 2008, 2016, 2020], name="cycles", context="VoterPanelData")
+        assert_sorted_unique(
+            [2000, 2004, 2008, 2016, 2020], name="cycles", context="VoterPanelData"
+        )
 
     def test_two_element_sorted(self):
         assert_sorted_unique([2016, 2020], name="cycles", context="VoterPanelData")
@@ -188,6 +194,7 @@ class TestAssertSortedUnique:
 
 
 # ── assert_valid_share ────────────────────────────────────────────────────────
+
 
 class TestAssertValidShare:
 
@@ -235,14 +242,20 @@ class TestAssertValidShare:
 
 # ── assert_shares_sum_to_one ──────────────────────────────────────────────────
 
+
 class TestAssertSharesSumToOne:
 
     # ── positive ─────────────────────────────────────────────────────────────
 
     def test_five_race_weights_exact(self):
         assert_shares_sum_to_one(
-            {"african_american": 0.15, "latino": 0.12, "asian": 0.06,
-             "white": 0.57, "other_race": 0.10},
+            {
+                "african_american": 0.15,
+                "latino": 0.12,
+                "asian": 0.06,
+                "white": 0.57,
+                "other_race": 0.10,
+            },
             context="BaselinePortfolioData.weights",
         )
 
