@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"loaders not yet implemented. See devplan for weekly schedule."
+    "loaders not yet implemented. See devplan for weekly schedule."
 )

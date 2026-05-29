@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"scorer not yet implemented. See devplan for weekly schedule."
+    "scorer not yet implemented. See devplan for weekly schedule."
 )

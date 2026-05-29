@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"apify not yet implemented. See devplan for weekly schedule."
+    "apify not yet implemented. See devplan for weekly schedule."
 )

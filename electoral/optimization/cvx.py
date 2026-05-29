@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"cvx not yet implemented. See devplan for weekly schedule."
+    "cvx not yet implemented. See devplan for weekly schedule."
 )

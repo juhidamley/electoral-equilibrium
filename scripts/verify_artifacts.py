@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"verify_artifacts not yet implemented. See devplan for weekly schedule."
+    "verify_artifacts not yet implemented. See devplan for weekly schedule."
 )

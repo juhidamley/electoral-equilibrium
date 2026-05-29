@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"compile_hailo not yet implemented. See devplan for weekly schedule."
+    "compile_hailo not yet implemented. See devplan for weekly schedule."
 )

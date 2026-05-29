@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"archive not yet implemented. See devplan for weekly schedule."
+    "archive not yet implemented. See devplan for weekly schedule."
 )

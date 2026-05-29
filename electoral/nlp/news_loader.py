@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"news_loader not yet implemented. See devplan for weekly schedule."
+    "news_loader not yet implemented. See devplan for weekly schedule."
 )

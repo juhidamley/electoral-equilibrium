@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"bluesky not yet implemented. See devplan for weekly schedule."
+    "bluesky not yet implemented. See devplan for weekly schedule."
 )

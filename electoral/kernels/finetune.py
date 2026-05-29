@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"finetune not yet implemented. See devplan for weekly schedule."
+    "finetune not yet implemented. See devplan for weekly schedule."
 )

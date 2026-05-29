@@ -16,7 +16,6 @@ from electoral.artifacts import (
     BaselinePortfolioData,
     EquilibriumData,
     LLMFineTuneData,
-    MetricsTablesData,
     SentimentData,
     ShockResponseData,
     SimulationData,
@@ -133,7 +132,6 @@ def build_shock_response(
     intensity: float,
 ) -> ShockResponseData:
     """Week 4/5: LLM constrained decoding → per-stratum delta bins."""
-    from electoral.core.types import CANONICAL_RACES, CANONICAL_RELIGIONS, CANONICAL_GENDERS
     placeholder_bins_race = {r: "neutral" for r in config.races}
     placeholder_bins_religion = {r: "neutral" for r in config.religions}
     placeholder_bins_gender = {r: "neutral" for r in config.genders}

@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"simplex not yet implemented. See devplan for weekly schedule."
+    "simplex not yet implemented. See devplan for weekly schedule."
 )

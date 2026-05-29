@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"ml_baseline not yet implemented. See devplan for weekly schedule."
+    "ml_baseline not yet implemented. See devplan for weekly schedule."
 )

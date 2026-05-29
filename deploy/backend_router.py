@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"backend_router not yet implemented. See devplan for weekly schedule."
+    "backend_router not yet implemented. See devplan for weekly schedule."
 )

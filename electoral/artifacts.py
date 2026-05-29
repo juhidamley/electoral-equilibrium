@@ -22,9 +22,6 @@ from electoral.core.schema import (
     assert_valid_share,
 )
 from electoral.core.types import (
-    CANONICAL_GENDERS,
-    CANONICAL_RACES,
-    CANONICAL_RELIGIONS,
     DELTA_BINS,
     LAYER_WEIGHT_KEYS,
     VALID_SOURCES,

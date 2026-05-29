@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"trainer not yet implemented. See devplan for weekly schedule."
+    "trainer not yet implemented. See devplan for weekly schedule."
 )

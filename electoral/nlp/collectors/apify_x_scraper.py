@@ -42,15 +42,12 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from electoral.nlp.collectors.schema import (
     append_post_record,
-    build_keyword_index,
     build_post_payload,
-    extract_primary_lang,
     load_shocks,
     normalize_timestamp,
 )

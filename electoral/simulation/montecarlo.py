@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"montecarlo not yet implemented. See devplan for weekly schedule."
+    "montecarlo not yet implemented. See devplan for weekly schedule."
 )

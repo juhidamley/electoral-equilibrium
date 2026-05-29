@@ -38,7 +38,7 @@ def assert_roundtrip(obj) -> dict:
     obj.validate()
     d = obj.to_dict()
     # Must be JSON-serializable
-    serialized = json.dumps(d)
+    json.dumps(d)
     # Must reconstruct to identical state
     obj2 = type(obj).from_dict(d)
     obj2.validate()

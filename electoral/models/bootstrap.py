@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"bootstrap not yet implemented. See devplan for weekly schedule."
+    "bootstrap not yet implemented. See devplan for weekly schedule."
 )

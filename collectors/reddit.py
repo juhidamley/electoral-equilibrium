@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"reddit not yet implemented. See devplan for weekly schedule."
+    "reddit not yet implemented. See devplan for weekly schedule."
 )

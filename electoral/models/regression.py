@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"regression not yet implemented. See devplan for weekly schedule."
+    "regression not yet implemented. See devplan for weekly schedule."
 )

@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"bio_classifier not yet implemented. See devplan for weekly schedule."
+    "bio_classifier not yet implemented. See devplan for weekly schedule."
 )

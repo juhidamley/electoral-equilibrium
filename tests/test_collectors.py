@@ -7,8 +7,6 @@ that downstream merge_posts() depends on.
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -28,10 +26,6 @@ from electoral.nlp.collectors.schema import (
 from electoral.nlp.collectors.apify_x_scraper import (
     normalize_apify_tweet,
     _extract_text,
-    _extract_id,
-    _extract_lang,
-    _extract_author,
-    MAX_ITEMS_FREE_TIER,
 )
 
 

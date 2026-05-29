@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"baseline not yet implemented. See devplan for weekly schedule."
+    "baseline not yet implemented. See devplan for weekly schedule."
 )

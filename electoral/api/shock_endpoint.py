@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"shock_endpoint not yet implemented. See devplan for weekly schedule."
+    "shock_endpoint not yet implemented. See devplan for weekly schedule."
 )

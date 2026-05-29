@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"metrics_tables not yet implemented. See devplan for weekly schedule."
+    "metrics_tables not yet implemented. See devplan for weekly schedule."
 )

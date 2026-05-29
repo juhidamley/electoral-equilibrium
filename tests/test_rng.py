@@ -8,10 +8,9 @@ Seed contract (non-negotiable):
 """
 from __future__ import annotations
 
-import pytest
 import numpy as np
 
-from electoral.core.rng import derive_seed, make_rng
+from electoral.core.rng import derive_seed, derive_seed_tokens, make_rng
 
 
 class TestDeriveSeed:
@@ -107,6 +106,45 @@ class TestMakeRng:
         np.testing.assert_allclose(row_sums, 1.0, atol=1e-12)
 
 
+class TestDeriveSeedTokens:
+    """Tests for the general list-based derive_seed_tokens API."""
+
+    def test_identical_inputs_produce_identical_seeds(self):
+        # (i) Identical token lists must always hash to the same seed.
+        assert derive_seed_tokens(["42", "voter_panel"]) == derive_seed_tokens(["42", "voter_panel"])
+
+    def test_order_matters(self):
+        # (ii) Token order is significant — reversing the list changes the seed.
+        assert derive_seed_tokens(["alpha", "beta"]) != derive_seed_tokens(["beta", "alpha"])
+
+    def test_generator_draws_identical_for_same_seed(self):
+        # (iii) A generator seeded from derive_seed_tokens produces identical draws.
+        seed = derive_seed_tokens(["42", "monte_carlo"])
+        draws_a = make_rng(seed).random(50)
+        draws_b = make_rng(seed).random(50)
+        np.testing.assert_array_equal(draws_a, draws_b)
+
+    def test_consistent_with_derive_seed(self):
+        # derive_seed(n, s) must equal derive_seed_tokens([str(n), s]) for all inputs.
+        for base, stage in [(42, "voter_panel"), (0, "monte_carlo"), (999, "setfit")]:
+            assert derive_seed(base, stage) == derive_seed_tokens([str(base), stage])
+
+    def test_different_tokens_different_seeds(self):
+        assert derive_seed_tokens(["42", "a"]) != derive_seed_tokens(["42", "b"])
+
+    def test_seed_in_valid_numpy_range(self):
+        seed = derive_seed_tokens(["100", "test_stage", "extra_token"])
+        assert 0 <= seed < 2**31
+
+    def test_multi_token_list(self):
+        # Three-token list: useful for per-shock-per-stage seeds.
+        s1 = derive_seed_tokens(["42", "shock_response", "kavanaugh_2018"])
+        s2 = derive_seed_tokens(["42", "shock_response", "kavanaugh_2018"])
+        assert s1 == s2
+        s3 = derive_seed_tokens(["42", "shock_response", "soleimani_2020"])
+        assert s1 != s3
+
+
 class TestSeedContract:
     """Pipeline-level reproducibility: two runs with same seed produce identical outputs."""
 
@@ -118,8 +156,7 @@ class TestSeedContract:
         rng_run1 = make_rng(derive_seed(base_seed, stage))
         rng_run2 = make_rng(derive_seed(base_seed, stage))
 
-        # Simulate a small Monte Carlo step
-        w_star = np.array([0.15, 0.12, 0.06, 0.57, 0.10])
+        # Simulate a small Monte Carlo step (no need to assign w_star)
         noise1 = rng_run1.multivariate_normal(mean=np.zeros(5), cov=np.eye(5) * 0.01, size=100)
         noise2 = rng_run2.multivariate_normal(mean=np.zeros(5), cov=np.eye(5) * 0.01, size=100)
         np.testing.assert_array_equal(noise1, noise2)

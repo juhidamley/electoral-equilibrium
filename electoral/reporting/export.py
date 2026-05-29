@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"export not yet implemented. See devplan for weekly schedule."
+    "export not yet implemented. See devplan for weekly schedule."
 )

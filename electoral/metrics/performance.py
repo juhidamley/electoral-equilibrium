@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"performance not yet implemented. See devplan for weekly schedule."
+    "performance not yet implemented. See devplan for weekly schedule."
 )

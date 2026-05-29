@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"constraints not yet implemented. See devplan for weekly schedule."
+    "constraints not yet implemented. See devplan for weekly schedule."
 )

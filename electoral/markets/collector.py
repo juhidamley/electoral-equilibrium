@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"collector not yet implemented. See devplan for weekly schedule."
+    "collector not yet implemented. See devplan for weekly schedule."
 )

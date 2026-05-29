@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"sentiment not yet implemented. See devplan for weekly schedule."
+    "sentiment not yet implemented. See devplan for weekly schedule."
 )

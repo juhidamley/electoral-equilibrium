@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"panel not yet implemented. See devplan for weekly schedule."
+    "panel not yet implemented. See devplan for weekly schedule."
 )

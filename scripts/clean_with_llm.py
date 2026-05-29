@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"clean_with_llm not yet implemented. See devplan for weekly schedule."
+    "clean_with_llm not yet implemented. See devplan for weekly schedule."
 )

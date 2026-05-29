@@ -41,10 +41,8 @@ from electoral.config import PipelineConfig
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
-    build_optimization,
     build_sentiment_data,
     build_voter_panel,
-    run_simulations,
 )
 
 

@@ -2,5 +2,5 @@
 from __future__ import annotations
 
 raise NotImplementedError(
-    f"inference not yet implemented. See devplan for weekly schedule."
+    "inference not yet implemented. See devplan for weekly schedule."
 )
