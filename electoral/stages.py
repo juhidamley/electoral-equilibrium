@@ -158,13 +158,14 @@ def build_optimization(
     shock: ShockResponseData,
 ) -> EquilibriumData:
     """Week 5: CVXPY DQCP optimizer → rebalanced coalition weights."""
-    placeholder_weights = {r: 1.0 / len(config.races) for r in config.races}
+    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
+    placeholder_weights = {bloc: 1.0 / len(all_blocs) for bloc in all_blocs}
     payload = EquilibriumData(
         method="placeholder",
         party=config.party,
         shock=shock.shock,
         weights=placeholder_weights,
-        mu_shifted={r: 0.50 for r in config.races},
+        mu_shifted={bloc: 0.50 for bloc in all_blocs},
         feasible=True,
         target_met=False,
         target=config.target,
