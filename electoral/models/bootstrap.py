@@ -1,6 +1,5 @@
 """bootstrap: stub — implemented in the corresponding weekly sprint."""
+
 from __future__ import annotations
 
-raise NotImplementedError(
-    f"bootstrap not yet implemented. See devplan for weekly schedule."
-)
+raise NotImplementedError("bootstrap not yet implemented. See devplan for weekly schedule.")

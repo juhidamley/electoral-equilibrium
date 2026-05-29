@@ -10,6 +10,7 @@ Each test:
 
 Negative tests confirm that invariant violations raise informative ValueErrors.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,12 +34,13 @@ from electoral.artifacts import (
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
+
 def assert_roundtrip(obj) -> dict:
     """Full round-trip check. Returns the serialized dict for further assertions."""
     obj.validate()
     d = obj.to_dict()
     # Must be JSON-serializable
-    serialized = json.dumps(d)
+    json.dumps(d)
     # Must reconstruct to identical state
     obj2 = type(obj).from_dict(d)
     obj2.validate()
@@ -82,9 +84,7 @@ class TestStageArtifact:
 
     def test_empty_stage_raises(self):
         with pytest.raises(ValueError, match="stage"):
-            StageArtifact(
-                stage="", run_key="k", metadata={}, data={"x": 1}
-            ).validate()
+            StageArtifact(stage="", run_key="k", metadata={}, data={"x": 1}).validate()
 
 
 class TestVoterPanelData:
@@ -256,8 +256,11 @@ class TestLLMFineTuneData:
     def test_zero_lora_rank_raises(self):
         with pytest.raises(ValueError, match="lora_rank"):
             LLMFineTuneData(
-                base_model="m", lora_rank=0, n_examples=1,
-                cycles_used=[2020], adapter_path=None,
+                base_model="m",
+                lora_rank=0,
+                n_examples=1,
+                cycles_used=[2020],
+                adapter_path=None,
             ).validate()
 
 
@@ -291,8 +294,11 @@ class TestSocialMediaSentimentData:
     def test_negative_n_posts_raises(self):
         with pytest.raises(ValueError, match="non-negative"):
             SocialMediaSentimentData(
-                shock="s", platforms=["p"], window_hours=24,
-                scores={"p": {"b": 0.0}}, n_posts={"p": -1},
+                shock="s",
+                platforms=["p"],
+                window_hours=24,
+                scores={"p": {"b": 0.0}},
+                n_posts={"p": -1},
                 lagged_delta=None,
             ).validate()
 
@@ -369,8 +375,11 @@ class TestShockResponseData:
         obj = self._make(
             delta_bins_race=bins,
             deltas_race={
-                "african_american": -0.012, "latino": -0.035,
-                "asian": 0.0, "white": -0.070, "other_race": -0.012,
+                "african_american": -0.012,
+                "latino": -0.035,
+                "asian": 0.0,
+                "white": -0.070,
+                "other_race": -0.012,
             },
         )
         assert_roundtrip(obj)
@@ -428,17 +437,27 @@ class TestEquilibriumData:
         bad = {**RACE_WEIGHTS, "white": 0.99}
         with pytest.raises(ValueError, match="sum"):
             EquilibriumData(
-                method="m", party="democrat", shock=None,
-                weights=bad, mu_eff_shifted=0.5,
-                feasible=True, target_met=False, target=0.535,
+                method="m",
+                party="democrat",
+                shock=None,
+                weights=bad,
+                mu_eff_shifted=0.5,
+                feasible=True,
+                target_met=False,
+                target=0.535,
             ).validate()
 
     def test_nan_mu_eff_raises(self):
         with pytest.raises(ValueError, match="finite"):
             EquilibriumData(
-                method="m", party="democrat", shock=None,
-                weights=RACE_WEIGHTS, mu_eff_shifted=math.nan,
-                feasible=True, target_met=False, target=0.535,
+                method="m",
+                party="democrat",
+                shock=None,
+                weights=RACE_WEIGHTS,
+                mu_eff_shifted=math.nan,
+                feasible=True,
+                target_met=False,
+                target=0.535,
             ).validate()
 
 
@@ -450,27 +469,28 @@ class TestSimulationData:
             win_probability=0.35,
             win_probability_low=0.28,
             win_probability_high=0.42,
-            percentiles={
-                r: [0.10, 0.25, 0.35, 0.45, 0.60]
-                for r in RACE_IDS
-            },
+            percentiles={r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS},
         )
         assert_roundtrip(obj)
 
     def test_win_probability_out_of_range_raises(self):
         with pytest.raises(ValueError, match="win_probability"):
             SimulationData(
-                n_simulations=1000, seed=0,
+                n_simulations=1000,
+                seed=0,
                 win_probability=1.5,  # > 1.0
-                win_probability_low=0.0, win_probability_high=1.0,
+                win_probability_low=0.0,
+                win_probability_high=1.0,
                 percentiles={},
             ).validate()
 
     def test_wrong_percentile_count_raises(self):
         with pytest.raises(ValueError, match="5 values"):
             SimulationData(
-                n_simulations=1000, seed=0,
-                win_probability=0.5, win_probability_low=0.4,
+                n_simulations=1000,
+                seed=0,
+                win_probability=0.5,
+                win_probability_low=0.4,
                 win_probability_high=0.6,
                 percentiles={"evangelical": [0.1, 0.5, 0.9]},  # only 3 values
             ).validate()
@@ -488,6 +508,7 @@ class TestMetricsTablesData:
 
     def test_non_serializable_raises(self):
         import datetime
+
         with pytest.raises(ValueError, match="JSON-serializable"):
             MetricsTablesData(
                 tables={"bad": datetime.datetime.now()}  # not JSON-serializable

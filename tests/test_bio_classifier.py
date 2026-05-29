@@ -1,4 +1,5 @@
 """Tests for electoral/nlp/bio_classifier.py — Week 3."""
+
 from __future__ import annotations
 
 import pytest

@@ -1,4 +1,5 @@
 """Tests for electoral/data/cleaning.py — implemented in Week 1."""
+
 from __future__ import annotations
 
 import pytest

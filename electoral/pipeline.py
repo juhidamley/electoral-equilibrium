@@ -8,6 +8,7 @@ Prefect benefits over hand-written orchestration:
   - Persistent state — crash restarts from last successful stage
   - Parallel task execution where stages are independent
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +19,7 @@ from pathlib import Path
 # module imports cleanly and the pipeline still runs as plain Python.
 try:
     from prefect import flow, task  # type: ignore[import]
+
     _HAS_PREFECT = True
 except ImportError:
     _HAS_PREFECT = False
@@ -25,15 +27,19 @@ except ImportError:
     def task(fn=None, **kwargs):  # type: ignore[misc]
         if fn is not None:
             return fn
+
         def decorator(f):
             return f
+
         return decorator
 
     def flow(fn=None, **kwargs):  # type: ignore[misc]
         if fn is not None:
             return fn
+
         def decorator(f):
             return f
+
         return decorator
 
 
@@ -41,10 +47,8 @@ from electoral.config import PipelineConfig
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
-    build_optimization,
     build_sentiment_data,
     build_voter_panel,
-    run_simulations,
 )
 
 

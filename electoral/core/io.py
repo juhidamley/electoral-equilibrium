@@ -4,6 +4,7 @@ Tabular stages (voter panel, scored posts, fine-tuning dataset) write Parquet.
 Non-tabular stages (optimizer, simulation) write JSON.
 All artifact envelopes are JSON.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    import pandas as pd
+    pass
 
 
 def write_json(path: str | Path, payload: dict[str, Any]) -> None:

@@ -1,0 +1,13 @@
+cycle,stratum,bloc,vote_share,stratum_share,turnout,source
+2016,race,african_american,0.89,0.15,0.61,SMOKE
+2016,race,white,0.38,0.85,0.64,SMOKE
+2020,race,african_american,0.87,0.15,0.63,SMOKE
+2020,race,white,0.41,0.85,0.70,SMOKE
+2016,religion,evangelical,0.20,0.30,0.65,SMOKE
+2016,religion,secular,0.66,0.70,0.56,SMOKE
+2020,religion,evangelical,0.22,0.30,0.67,SMOKE
+2020,religion,secular,0.69,0.70,0.60,SMOKE
+2016,gender,women,0.54,0.52,0.64,SMOKE
+2016,gender,men,0.41,0.48,0.62,SMOKE
+2020,gender,women,0.57,0.52,0.68,SMOKE
+2020,gender,men,0.45,0.48,0.65,SMOKE

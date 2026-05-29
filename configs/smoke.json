@@ -1,4 +1,5 @@
 {
+  "_comment": "Minimal smoke config — 2 blocs per stratum, 2 cycles, tiny fixture dataset. Pipeline must complete end-to-end in under 10 seconds. Do not add blocs or expand data_path here.",
   "run_key": "smoke_test",
   "seed": 7,
   "party": "democrat",
@@ -8,24 +9,15 @@
   "pipeline_mode": "historical",
   "races": [
     "african_american",
-    "latino",
-    "asian",
-    "white",
-    "other_race"
+    "white"
   ],
   "religions": [
     "evangelical",
-    "catholic",
-    "protestant",
-    "secular",
-    "jewish",
-    "muslim",
-    "other_rel"
+    "secular"
   ],
   "genders": [
     "women",
-    "men",
-    "other_gender"
+    "men"
   ],
   "pi_bio_server": "http://100.x.x.x:9000",
   "pi_npu_enabled": false

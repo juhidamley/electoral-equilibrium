@@ -28,6 +28,7 @@ Architecture note:
     ↑ written by this script (Intel Mac only)
     ↓ read by merge_posts() Prefect task and HistoricalArchiveLoader
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,11 +56,13 @@ logger = logging.getLogger(__name__)
 
 # ── Atproto imports with version guard ───────────────────────────────────────
 
+
 def _import_atproto():
     """Import atproto components, raising a clear error if not installed."""
     try:
         from atproto import FirehoseSubscribeReposClient, parse_subscribe_repos_message
         from atproto import CAR
+
         return FirehoseSubscribeReposClient, parse_subscribe_repos_message, CAR
     except ImportError as exc:
         raise ImportError(
@@ -69,6 +72,7 @@ def _import_atproto():
 
 
 # ── Collector class ───────────────────────────────────────────────────────────
+
 
 class BlueskyFirehoseCollector:
     """Subscribes to the Bluesky firehose and routes matching posts to shock files.
@@ -87,13 +91,40 @@ class BlueskyFirehoseCollector:
     # Broad political pre-filter to reduce noise before per-shock matching.
     # Any post not containing at least one of these is discarded without further
     # processing. Keeps CPU load low on high-volume firehose.
-    POLITICAL_PREFILTER: frozenset[str] = frozenset([
-        "president", "election", "vote", "biden", "trump", "congress",
-        "senate", "democrat", "republican", "gop", "liberal", "conservative",
-        "scotus", "supreme court", "maga", "abortion", "immigration", "iran",
-        "russia", "ukraine", "nato", "economy", "inflation", "protest",
-        "police", "gun", "vaccine", "covid", "scandal", "indictment",
-    ])
+    POLITICAL_PREFILTER: frozenset[str] = frozenset(
+        [
+            "president",
+            "election",
+            "vote",
+            "biden",
+            "trump",
+            "congress",
+            "senate",
+            "democrat",
+            "republican",
+            "gop",
+            "liberal",
+            "conservative",
+            "scotus",
+            "supreme court",
+            "maga",
+            "abortion",
+            "immigration",
+            "iran",
+            "russia",
+            "ukraine",
+            "nato",
+            "economy",
+            "inflation",
+            "protest",
+            "police",
+            "gun",
+            "vaccine",
+            "covid",
+            "scandal",
+            "indictment",
+        ]
+    )
 
     def __init__(
         self,
@@ -170,14 +201,17 @@ class BlueskyFirehoseCollector:
                     break
                 logger.warning(
                     "Firehose connection error: %s — reconnecting in %.0fs",
-                    exc, backoff,
+                    exc,
+                    backoff,
                 )
                 time.sleep(backoff)
                 backoff = min(backoff * 2, max_backoff)
 
         logger.info(
             "Firehose stopped. seen=%d matched=%d written=%d",
-            self._total_seen, self._total_matched, self._total_written,
+            self._total_seen,
+            self._total_matched,
+            self._total_written,
         )
 
     def stop(self) -> None:
@@ -223,8 +257,10 @@ class BlueskyFirehoseCollector:
             rate = self._total_seen / max(now - self._last_log_time, 1)
             logger.info(
                 "Firehose stats: seen=%d (+%.0f/s) matched=%d written=%d",
-                self._total_seen, rate,
-                self._total_matched, self._total_written,
+                self._total_seen,
+                rate,
+                self._total_matched,
+                self._total_written,
             )
             self._last_log_time = now
             self._total_seen = 0  # Reset window counter
@@ -279,9 +315,7 @@ class BlueskyFirehoseCollector:
 
         # Write one record per matching shock file
         for shock_id in matched:
-            output_path = (
-                self._output_root / "bluesky" / shock_id / "intel_mac_posts.jsonl"
-            )
+            output_path = self._output_root / "bluesky" / shock_id / "intel_mac_posts.jsonl"
             payload = build_post_payload(
                 post_id=post_uri,
                 text=text,
@@ -292,8 +326,8 @@ class BlueskyFirehoseCollector:
                 platform="bluesky",
                 shock_id=shock_id,
                 author_did=commit.repo,
-                author_handle=None,        # resolved later in batch pass
-                author_description=None,   # resolved by bio classifier
+                author_handle=None,  # resolved later in batch pass
+                author_description=None,  # resolved by bio classifier
                 inference_method=None,
             )
             try:
@@ -351,6 +385,7 @@ class BlueskyFirehoseCollector:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Bluesky firehose collector — Intel Mac daemon",
@@ -406,8 +441,10 @@ def main(argv: list[str] | None = None) -> None:
 
     bsky_handle = os.environ.get("BSKY_HANDLE")
     bsky_password = os.environ.get("BSKY_PASSWORD")
-    pi_bio_server = args.pi_bio_server or os.environ.get("PI_TAILSCALE_IP") and (
-        f"http://{os.environ['PI_TAILSCALE_IP']}:9000"
+    pi_bio_server = (
+        args.pi_bio_server
+        or os.environ.get("PI_TAILSCALE_IP")
+        and (f"http://{os.environ['PI_TAILSCALE_IP']}:9000")
     )
 
     if not Path(args.shocks).exists():

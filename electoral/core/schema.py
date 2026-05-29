@@ -3,6 +3,7 @@
 All helpers are pure functions with no I/O or global state.
 Every error message names the context (class + field) for fast diagnosis.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,8 +19,7 @@ def assert_required_keys(
     missing = [k for k in keys if k not in payload]
     if missing:
         raise ValueError(
-            f"{context}: missing required keys {missing}. "
-            f"Got keys: {sorted(payload.keys())}"
+            f"{context}: missing required keys {missing}. " f"Got keys: {sorted(payload.keys())}"
         )
 
 
@@ -37,9 +37,7 @@ def assert_unique(
             dupes.append(item)
         seen.add(item)
     if dupes:
-        raise ValueError(
-            f"{context}.{name}: duplicate values found: {dupes}"
-        )
+        raise ValueError(f"{context}.{name}: duplicate values found: {dupes}")
 
 
 def assert_sorted_unique(
@@ -66,9 +64,7 @@ def assert_valid_share(
 ) -> None:
     """Raise ValueError unless 0.0 <= value <= 1.0."""
     if not (0.0 <= value <= 1.0):
-        raise ValueError(
-            f"{context}.{name}: must be in [0.0, 1.0], got {value}"
-        )
+        raise ValueError(f"{context}.{name}: must be in [0.0, 1.0], got {value}")
 
 
 def assert_shares_sum_to_one(

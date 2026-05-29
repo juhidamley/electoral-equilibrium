@@ -1,4 +1,5 @@
 """Tests for electoral/simulation/montecarlo.py ILR Monte Carlo — Week 5."""
+
 from __future__ import annotations
 
 import pytest

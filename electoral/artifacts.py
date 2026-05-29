@@ -7,6 +7,7 @@ Design rules (artifact-first):
   - No pandas or NumPy objects in payload fields
   - Election cycles are int YYYY; demographic IDs are lowercase snake_case strings
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -22,9 +23,6 @@ from electoral.core.schema import (
     assert_valid_share,
 )
 from electoral.core.types import (
-    CANONICAL_GENDERS,
-    CANONICAL_RACES,
-    CANONICAL_RELIGIONS,
     DELTA_BINS,
     LAYER_WEIGHT_KEYS,
     VALID_SOURCES,
@@ -35,6 +33,7 @@ _VALID_PARTIES: frozenset[str] = frozenset(["democrat", "republican"])
 
 
 # ── Envelope ────────────────────────────────────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class StageArtifact:
@@ -78,6 +77,7 @@ class StageArtifact:
 
 # ── Stage 1: Voter Panel ─────────────────────────────────────────────────────
 
+
 @dataclasses.dataclass(frozen=True)
 class VoterPanelData:
     """Cleaned longitudinal voter panel: three independent marginal stratum tables.
@@ -86,15 +86,15 @@ class VoterPanelData:
     independently mutually exclusive and exhaustive over ~100% of the electorate.
     """
 
-    cycles: list[int]           # sorted unique election years YYYY
-    races: list[str]            # 5 canonical RaceIds
-    religions: list[str]        # 7 canonical ReligionIds
-    genders: list[str]          # 3 canonical GenderIds
-    n_rows_race: int            # rows in panel_race.parquet
-    n_rows_religion: int        # rows in panel_religion.parquet
-    n_rows_gender: int          # rows in panel_gender.parquet
+    cycles: list[int]  # sorted unique election years YYYY
+    races: list[str]  # 5 canonical RaceIds
+    religions: list[str]  # 7 canonical ReligionIds
+    genders: list[str]  # 3 canonical GenderIds
+    n_rows_race: int  # rows in panel_race.parquet
+    n_rows_religion: int  # rows in panel_religion.parquet
+    n_rows_gender: int  # rows in panel_gender.parquet
     layer_weights: dict[str, float]  # {"lambda_1": x, "lambda_2": x, "lambda_3": x}; sum to 1
-    source: str | None          # e.g. "ARDA+GSS+NEP"
+    source: str | None  # e.g. "ARDA+GSS+NEP"
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -124,34 +124,31 @@ class VoterPanelData:
             ("n_rows_gender", self.n_rows_gender),
         ]:
             if val < 0:
-                raise ValueError(
-                    f"VoterPanelData.{name} must be non-negative, got {val}"
-                )
+                raise ValueError(f"VoterPanelData.{name} must be non-negative, got {val}")
         assert_required_keys(
             self.layer_weights,
             list(LAYER_WEIGHT_KEYS),
             context="VoterPanelData.layer_weights",
         )
-        assert_shares_sum_to_one(
-            self.layer_weights, context="VoterPanelData.layer_weights"
-        )
+        assert_shares_sum_to_one(self.layer_weights, context="VoterPanelData.layer_weights")
 
 
 # ── Stage 2: Baseline Portfolio ───────────────────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class BaselinePortfolioData:
     """Steady-state voter equilibrium: optimal coalition weights + moment estimates."""
 
-    method: str                         # e.g. "cvxpy_dqcp"
-    party: str                          # "democrat" or "republican"
-    weights: dict[str, float]           # race_id → coalition weight; 5 keys; sums to 1.0
-    mu_race: dict[str, float]           # race_id → within-race vote share (Stratum 1)
-    mu_religion: dict[str, float]       # religion_id → within-religion vote share (Stratum 2)
-    mu_gender: dict[str, float]         # gender_id → within-gender vote share (Stratum 3)
-    mu_eff: float                       # scalar effective loyalty (weighted sum, all strata)
-    layer_weights: dict[str, float]     # {"lambda_1": x, "lambda_2": x, "lambda_3": x}
-    target: float                       # V_eq threshold (~0.52-0.53 Dem, ~0.49-0.51 Rep)
+    method: str  # e.g. "cvxpy_dqcp"
+    party: str  # "democrat" or "republican"
+    weights: dict[str, float]  # race_id → coalition weight; 5 keys; sums to 1.0
+    mu_race: dict[str, float]  # race_id → within-race vote share (Stratum 1)
+    mu_religion: dict[str, float]  # religion_id → within-religion vote share (Stratum 2)
+    mu_gender: dict[str, float]  # gender_id → within-gender vote share (Stratum 3)
+    mu_eff: float  # scalar effective loyalty (weighted sum, all strata)
+    layer_weights: dict[str, float]  # {"lambda_1": x, "lambda_2": x, "lambda_3": x}
+    target: float  # V_eq threshold (~0.52-0.53 Dem, ~0.49-0.51 Rep)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -176,9 +173,7 @@ class BaselinePortfolioData:
                 f"BaselinePortfolioData.party must be 'democrat' or 'republican', "
                 f"got {self.party!r}"
             )
-        assert_shares_sum_to_one(
-            self.weights, context="BaselinePortfolioData.weights"
-        )
+        assert_shares_sum_to_one(self.weights, context="BaselinePortfolioData.weights")
         for k, v in self.weights.items():
             assert_valid_share(v, name=f"weights[{k}]", context="BaselinePortfolioData")
         for k, v in self.mu_race.items():
@@ -193,9 +188,7 @@ class BaselinePortfolioData:
             list(LAYER_WEIGHT_KEYS),
             context="BaselinePortfolioData.layer_weights",
         )
-        assert_shares_sum_to_one(
-            self.layer_weights, context="BaselinePortfolioData.layer_weights"
-        )
+        assert_shares_sum_to_one(self.layer_weights, context="BaselinePortfolioData.layer_weights")
         if not (0.5 < self.target < 0.7):
             raise ValueError(
                 f"BaselinePortfolioData.target must be in (0.5, 0.7), got {self.target}"
@@ -203,6 +196,7 @@ class BaselinePortfolioData:
 
 
 # ── Stage 3a: News/Social RoBERTa sentiment ───────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class SentimentData:
@@ -212,9 +206,9 @@ class SentimentData:
     They are consumed by the LLM fine-tuning pipeline.
     """
 
-    model: str                                  # e.g. "cardiffnlp/twitter-roberta-base-sentiment"
-    shocks: list[str]                           # shock event identifiers (unique)
-    scores: dict[str, dict[str, float]]         # scores[bloc_id][shock_id] = elasticity in [-1, 1]
+    model: str  # e.g. "cardiffnlp/twitter-roberta-base-sentiment"
+    shocks: list[str]  # shock event identifiers (unique)
+    scores: dict[str, dict[str, float]]  # scores[bloc_id][shock_id] = elasticity in [-1, 1]
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -224,10 +218,7 @@ class SentimentData:
         return cls(
             model=str(payload["model"]),
             shocks=list(payload["shocks"]),
-            scores={
-                bloc: dict(shock_scores)
-                for bloc, shock_scores in payload["scores"].items()
-            },
+            scores={bloc: dict(shock_scores) for bloc, shock_scores in payload["scores"].items()},
         )
 
     def validate(self) -> None:
@@ -243,6 +234,7 @@ class SentimentData:
 
 # ── Stage 3b: Social media sentiment (platform-aggregated) ───────────────────
 
+
 @dataclasses.dataclass(frozen=True)
 class SocialMediaSentimentData:
     """Platform-aggregated sentiment paired with lagged favorability polls.
@@ -251,12 +243,12 @@ class SocialMediaSentimentData:
     training set. Platform user-base demographics serve as proxies for voter blocs.
     """
 
-    shock: str                              # shock event identifier
-    platforms: list[str]                    # e.g. ["bluesky", "apify", "facebook"]
-    window_hours: int                       # collection window around shock (e.g. 72)
-    scores: dict[str, dict[str, float]]     # scores[platform][bloc_proxy] = elasticity [-1, 1]
-    n_posts: dict[str, int]                 # n_posts[platform] = number of posts collected
-    lagged_delta: dict[str, float] | None   # favorability shift at t+14 days; None if unavailable
+    shock: str  # shock event identifier
+    platforms: list[str]  # e.g. ["bluesky", "apify", "facebook"]
+    window_hours: int  # collection window around shock (e.g. 72)
+    scores: dict[str, dict[str, float]]  # scores[platform][bloc_proxy] = elasticity [-1, 1]
+    n_posts: dict[str, int]  # n_posts[platform] = number of posts collected
+    lagged_delta: dict[str, float] | None  # favorability shift at t+14 days; None if unavailable
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -269,21 +261,18 @@ class SocialMediaSentimentData:
             platforms=list(payload["platforms"]),
             window_hours=int(payload["window_hours"]),
             scores={
-                platform: dict(proxy_scores)
-                for platform, proxy_scores in payload["scores"].items()
+                platform: dict(proxy_scores) for platform, proxy_scores in payload["scores"].items()
             },
             n_posts={k: int(v) for k, v in payload["n_posts"].items()},
-            lagged_delta={k: float(v) for k, v in raw_lagged.items()}
-            if raw_lagged is not None
-            else None,
+            lagged_delta=(
+                {k: float(v) for k, v in raw_lagged.items()} if raw_lagged is not None else None
+            ),
         )
 
     def validate(self) -> None:
         if not self.shock:
             raise ValueError("SocialMediaSentimentData.shock must be non-empty")
-        assert_unique(
-            self.platforms, name="platforms", context="SocialMediaSentimentData"
-        )
+        assert_unique(self.platforms, name="platforms", context="SocialMediaSentimentData")
         if self.window_hours <= 0:
             raise ValueError(
                 f"SocialMediaSentimentData.window_hours must be positive, "
@@ -306,15 +295,16 @@ class SocialMediaSentimentData:
 
 # ── Stage 3c: LLM fine-tuning dataset ────────────────────────────────────────
 
+
 @dataclasses.dataclass(frozen=True)
 class LLMFineTuneData:
     """Metadata about the assembled LLM fine-tuning dataset."""
 
-    base_model: str                 # e.g. "mistralai/Mistral-7B-v0.3"
-    lora_rank: int                  # LoRA rank parameter (16 or 32)
-    n_examples: int                 # number of fine-tuning examples in train.jsonl
-    cycles_used: list[int]          # sorted unique election cycles in training set
-    adapter_path: str | None        # path to saved QLoRA adapter weights (None if not yet trained)
+    base_model: str  # e.g. "mistralai/Mistral-7B-v0.3"
+    lora_rank: int  # LoRA rank parameter (16 or 32)
+    n_examples: int  # number of fine-tuning examples in train.jsonl
+    cycles_used: list[int]  # sorted unique election cycles in training set
+    adapter_path: str | None  # path to saved QLoRA adapter weights (None if not yet trained)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -331,19 +321,14 @@ class LLMFineTuneData:
 
     def validate(self) -> None:
         if self.lora_rank <= 0:
-            raise ValueError(
-                f"LLMFineTuneData.lora_rank must be positive, got {self.lora_rank}"
-            )
+            raise ValueError(f"LLMFineTuneData.lora_rank must be positive, got {self.lora_rank}")
         if self.n_examples <= 0:
-            raise ValueError(
-                f"LLMFineTuneData.n_examples must be positive, got {self.n_examples}"
-            )
-        assert_sorted_unique(
-            self.cycles_used, name="cycles_used", context="LLMFineTuneData"
-        )
+            raise ValueError(f"LLMFineTuneData.n_examples must be positive, got {self.n_examples}")
+        assert_sorted_unique(self.cycles_used, name="cycles_used", context="LLMFineTuneData")
 
 
 # ── Stage 3d: Prediction market data ─────────────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class PredictionMarketData:
@@ -355,16 +340,16 @@ class PredictionMarketData:
          (2) real-time display in the web app as "Market consensus: X%".
     """
 
-    shock: str                          # shock event identifier
-    party: str                          # "democrat" or "republican"
-    pre_shock_prob: float               # market-implied win probability 24h before shock
-    post_shock_1h: float | None         # market-implied win probability 1h after shock
-    post_shock_24h: float | None        # 24h after
-    post_shock_72h: float | None        # 72h after
-    delta_prob: float                   # post_shock_24h - pre_shock_prob (calibration only)
-    sources: list[str]                  # e.g. ["polymarket", "predictit"]
-    contract_ids: dict[str, str]        # source → contract identifier (from market_contracts.json)
-    volume: dict[str, float] | None     # source → total $ volume in 72h window
+    shock: str  # shock event identifier
+    party: str  # "democrat" or "republican"
+    pre_shock_prob: float  # market-implied win probability 24h before shock
+    post_shock_1h: float | None  # market-implied win probability 1h after shock
+    post_shock_24h: float | None  # 24h after
+    post_shock_72h: float | None  # 72h after
+    delta_prob: float  # post_shock_24h - pre_shock_prob (calibration only)
+    sources: list[str]  # e.g. ["polymarket", "predictit"]
+    contract_ids: dict[str, str]  # source → contract identifier (from market_contracts.json)
+    volume: dict[str, float] | None  # source → total $ volume in 72h window
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -385,9 +370,7 @@ class PredictionMarketData:
             delta_prob=float(payload["delta_prob"]),
             sources=list(payload["sources"]),
             contract_ids=dict(payload["contract_ids"]),
-            volume={k: float(v) for k, v in raw_vol.items()}
-            if raw_vol is not None
-            else None,
+            volume={k: float(v) for k, v in raw_vol.items()} if raw_vol is not None else None,
         )
 
     def validate(self) -> None:
@@ -414,12 +397,11 @@ class PredictionMarketData:
             raise ValueError(
                 f"PredictionMarketData.delta_prob must be finite, got {self.delta_prob}"
             )
-        assert_unique(
-            self.sources, name="sources", context="PredictionMarketData"
-        )
+        assert_unique(self.sources, name="sources", context="PredictionMarketData")
 
 
 # ── Stage 4: LLM shock response ───────────────────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class ShockResponseData:
@@ -431,17 +413,17 @@ class ShockResponseData:
     """
 
     shock: str
-    cycle: int                              # most-recent historical cycle used
-    party: str                              # "democrat" or "republican"
-    delta_bins_race: dict[str, str]         # race_id → delta bin token (5 keys)
-    delta_bins_religion: dict[str, str]     # religion_id → delta bin token (7 keys)
-    delta_bins_gender: dict[str, str]       # gender_id → delta bin token (3 keys)
-    deltas_race: dict[str, float]           # race_id → numeric midpoint of bin (5 keys)
-    deltas_religion: dict[str, float]       # religion_id → numeric midpoint (7 keys)
-    deltas_gender: dict[str, float]         # gender_id → numeric midpoint (3 keys)
-    delta_eff: float                        # scalar: lambda_1*Σ(w*Δrace) + lambda_2*Σ(v*Δrel) + lambda_3*Σ(g*Δgen)
-    covariance: list[list[float]]           # 5×5 race-level covariance of deltas_race
-    source: str                             # "llm_unified" | "roberta_news_only" | "roberta_social_only"
+    cycle: int  # most-recent historical cycle used
+    party: str  # "democrat" or "republican"
+    delta_bins_race: dict[str, str]  # race_id → delta bin token (5 keys)
+    delta_bins_religion: dict[str, str]  # religion_id → delta bin token (7 keys)
+    delta_bins_gender: dict[str, str]  # gender_id → delta bin token (3 keys)
+    deltas_race: dict[str, float]  # race_id → numeric midpoint of bin (5 keys)
+    deltas_religion: dict[str, float]  # religion_id → numeric midpoint (7 keys)
+    deltas_gender: dict[str, float]  # gender_id → numeric midpoint (3 keys)
+    delta_eff: float  # scalar: lambda_1*Σ(w*Δrace) + lambda_2*Σ(v*Δrel) + lambda_3*Σ(g*Δgen)
+    covariance: list[list[float]]  # 5×5 race-level covariance of deltas_race
+    source: str  # "llm_unified" | "roberta_news_only" | "roberta_social_only"
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -493,19 +475,15 @@ class ShockResponseData:
         ]:
             for k, v in deltas_dict.items():
                 if not math.isfinite(v):
-                    raise ValueError(
-                        f"ShockResponseData.{stratum}[{k!r}] = {v} must be finite"
-                    )
+                    raise ValueError(f"ShockResponseData.{stratum}[{k!r}] = {v} must be finite")
                 if not (-0.15 <= v <= 0.15):
                     raise ValueError(
-                        f"ShockResponseData.{stratum}[{k!r}] = {v} is outside "
-                        f"[-0.15, 0.15]"
+                        f"ShockResponseData.{stratum}[{k!r}] = {v} is outside " f"[-0.15, 0.15]"
                     )
         n = len(self.deltas_race)
         if len(self.covariance) != n:
             raise ValueError(
-                f"ShockResponseData.covariance must be {n}×{n}, "
-                f"got {len(self.covariance)} rows"
+                f"ShockResponseData.covariance must be {n}×{n}, " f"got {len(self.covariance)} rows"
             )
         for i, row in enumerate(self.covariance):
             if len(row) != n:
@@ -519,12 +497,11 @@ class ShockResponseData:
                 f"got {self.source!r}"
             )
         if not math.isfinite(self.delta_eff):
-            raise ValueError(
-                f"ShockResponseData.delta_eff must be finite, got {self.delta_eff}"
-            )
+            raise ValueError(f"ShockResponseData.delta_eff must be finite, got {self.delta_eff}")
 
 
 # ── Stage 5: Equilibrium (post-shock optimizer output) ───────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class EquilibriumData:
@@ -534,14 +511,14 @@ class EquilibriumData:
     This maximizes P(win) rather than minimizing variance (correct for deficit scenarios).
     """
 
-    method: str                     # e.g. "cvxpy_dqcp"
-    party: str                      # "democrat" or "republican"
-    shock: str | None               # shock event identifier (None for baseline)
-    weights: dict[str, float]       # race_id → rebalanced coalition weight; 5 keys; sums to 1.0
-    mu_eff_shifted: float           # post-shock scalar effective loyalty (all strata combined)
-    feasible: bool                  # False if no w on the simplex can push μ̃_eff above V_eq
-    target_met: bool                # True if mu_eff_shifted >= target
-    target: float                   # V_eq threshold
+    method: str  # e.g. "cvxpy_dqcp"
+    party: str  # "democrat" or "republican"
+    shock: str | None  # shock event identifier (None for baseline)
+    weights: dict[str, float]  # race_id → rebalanced coalition weight; 5 keys; sums to 1.0
+    mu_eff_shifted: float  # post-shock scalar effective loyalty (all strata combined)
+    feasible: bool  # False if no w on the simplex can push μ̃_eff above V_eq
+    target_met: bool  # True if mu_eff_shifted >= target
+    target: float  # V_eq threshold
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -562,26 +539,21 @@ class EquilibriumData:
     def validate(self) -> None:
         if self.party not in _VALID_PARTIES:
             raise ValueError(
-                f"EquilibriumData.party must be 'democrat' or 'republican', "
-                f"got {self.party!r}"
+                f"EquilibriumData.party must be 'democrat' or 'republican', " f"got {self.party!r}"
             )
-        assert_shares_sum_to_one(
-            self.weights, context="EquilibriumData.weights"
-        )
+        assert_shares_sum_to_one(self.weights, context="EquilibriumData.weights")
         for k, v in self.weights.items():
             assert_valid_share(v, name=f"weights[{k}]", context="EquilibriumData")
         if not math.isfinite(self.mu_eff_shifted):
             raise ValueError(
-                f"EquilibriumData.mu_eff_shifted must be finite, "
-                f"got {self.mu_eff_shifted}"
+                f"EquilibriumData.mu_eff_shifted must be finite, " f"got {self.mu_eff_shifted}"
             )
         if not (0.5 < self.target < 0.7):
-            raise ValueError(
-                f"EquilibriumData.target must be in (0.5, 0.7), got {self.target}"
-            )
+            raise ValueError(f"EquilibriumData.target must be in (0.5, 0.7), got {self.target}")
 
 
 # ── Stage 6: Monte Carlo simulation ──────────────────────────────────────────
+
 
 @dataclasses.dataclass(frozen=True)
 class SimulationData:
@@ -592,11 +564,11 @@ class SimulationData:
     90% CI: win_probability_low (p5) to win_probability_high (p95).
     """
 
-    n_simulations: int              # number of Monte Carlo draws (≥10,000 for production)
-    seed: int                       # RNG seed used for this simulation run
-    win_probability: float          # point estimate: fraction of draws meeting V_eq
-    win_probability_low: float      # 5th percentile (p=0.05 lower CI bound)
-    win_probability_high: float     # 95th percentile (p=0.95 upper CI bound)
+    n_simulations: int  # number of Monte Carlo draws (≥10,000 for production)
+    seed: int  # RNG seed used for this simulation run
+    win_probability: float  # point estimate: fraction of draws meeting V_eq
+    win_probability_low: float  # 5th percentile (p=0.05 lower CI bound)
+    win_probability_high: float  # 95th percentile (p=0.95 upper CI bound)
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
 
     def to_dict(self) -> dict[str, Any]:
@@ -610,24 +582,18 @@ class SimulationData:
             win_probability=float(payload["win_probability"]),
             win_probability_low=float(payload["win_probability_low"]),
             win_probability_high=float(payload["win_probability_high"]),
-            percentiles={
-                k: [float(p) for p in v]
-                for k, v in payload["percentiles"].items()
-            },
+            percentiles={k: [float(p) for p in v] for k, v in payload["percentiles"].items()},
         )
 
     def validate(self) -> None:
         if self.n_simulations <= 0:
             raise ValueError(
-                f"SimulationData.n_simulations must be positive, "
-                f"got {self.n_simulations}"
+                f"SimulationData.n_simulations must be positive, " f"got {self.n_simulations}"
             )
         for attr in ("win_probability", "win_probability_low", "win_probability_high"):
             val = getattr(self, attr)
             if not (0.0 <= val <= 1.0):
-                raise ValueError(
-                    f"SimulationData.{attr} = {val} must be in [0.0, 1.0]"
-                )
+                raise ValueError(f"SimulationData.{attr} = {val} must be in [0.0, 1.0]")
         for bloc_id, pcts in self.percentiles.items():
             if len(pcts) != 5:
                 raise ValueError(
@@ -644,11 +610,12 @@ class SimulationData:
 
 # ── Stage 7: Performance metrics tables ──────────────────────────────────────
 
+
 @dataclasses.dataclass(frozen=True)
 class MetricsTablesData:
     """Summary performance metrics in manuscript-ready table format."""
 
-    tables: dict[str, Any]   # tables["table_key"] = JSON-serializable table payload
+    tables: dict[str, Any]  # tables["table_key"] = JSON-serializable table payload
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)

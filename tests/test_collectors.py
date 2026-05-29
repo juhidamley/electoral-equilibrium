@@ -4,11 +4,10 @@ These tests do NOT require network access or API credentials.
 They test the normalization, keyword routing, and schema correctness
 that downstream merge_posts() depends on.
 """
+
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -28,14 +27,11 @@ from electoral.nlp.collectors.schema import (
 from electoral.nlp.collectors.apify_x_scraper import (
     normalize_apify_tweet,
     _extract_text,
-    _extract_id,
-    _extract_lang,
-    _extract_author,
-    MAX_ITEMS_FREE_TIER,
 )
 
 
 # ── Timestamp normalization ───────────────────────────────────────────────────
+
 
 class TestNormalizeTimestamp:
     def test_iso_with_z_suffix(self):
@@ -75,6 +71,7 @@ class TestNormalizeTimestamp:
 
 
 # ── Language detection ────────────────────────────────────────────────────────
+
 
 class TestLanguageDetection:
     def test_english_list(self):
@@ -160,6 +157,7 @@ class TestKeywordIndex:
 
 # ── Payload building ──────────────────────────────────────────────────────────
 
+
 class TestBuildPostPayload:
     def _make(self, **overrides) -> dict:
         defaults = dict(
@@ -215,6 +213,7 @@ class TestBuildPostPayload:
 
 # ── Envelope wrapping ─────────────────────────────────────────────────────────
 
+
 class TestWrapEnvelope:
     def test_schema_version(self):
         env = wrap_envelope({"id": "test"})
@@ -256,6 +255,7 @@ class TestWrapEnvelope:
 
 
 # ── Append to file ────────────────────────────────────────────────────────────
+
 
 class TestAppendPostRecord:
     def test_append_creates_file(self, tmp_path):
@@ -331,6 +331,7 @@ class TestAppendPostRecord:
 
 # ── Apify tweet normalization ─────────────────────────────────────────────────
 
+
 class TestApifyNormalization:
     def _tweet(self, **overrides) -> dict:
         base = {
@@ -400,6 +401,7 @@ class TestApifyNormalization:
 
     def test_max_items_free_tier(self):
         from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper
+
         with pytest.raises(ValueError, match="free-tier"):
             ApifyXScraper(
                 shock_id="test",
@@ -411,6 +413,7 @@ class TestApifyNormalization:
 
 
 # ── Schema consistency between platforms ─────────────────────────────────────
+
 
 class TestCrossPlatformConsistency:
     """Verify Bluesky and Apify records share the same schema so merge_posts works."""
@@ -478,6 +481,7 @@ class TestCrossPlatformConsistency:
 
 
 # ── Shocks.json loading ───────────────────────────────────────────────────────
+
 
 class TestLoadShocks:
     def test_loads_real_shocks_json(self):

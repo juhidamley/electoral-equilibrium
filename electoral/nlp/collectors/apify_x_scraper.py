@@ -35,6 +35,7 @@ Actor options (configure via APIFY_ACTOR_ID):
 Dependencies:
     pip install apify-client>=1.6
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,15 +43,12 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from electoral.nlp.collectors.schema import (
     append_post_record,
-    build_keyword_index,
     build_post_payload,
-    extract_primary_lang,
     load_shocks,
     normalize_timestamp,
 )
@@ -60,7 +58,7 @@ logger = logging.getLogger(__name__)
 # ── Default actor configuration ───────────────────────────────────────────────
 
 DEFAULT_ACTOR_ID = "apidojo/tweet-scraper"
-MAX_ITEMS_FREE_TIER = 500   # Hard limit to stay within free tier
+MAX_ITEMS_FREE_TIER = 500  # Hard limit to stay within free tier
 
 # Apify actor input field names vary by actor version.
 # We support two common schemas and fall back gracefully.
@@ -86,9 +84,11 @@ _ACTOR_SCHEMAS: dict[str, dict[str, str]] = {
 
 # ── Apify import with guard ───────────────────────────────────────────────────
 
+
 def _import_apify():
     try:
         from apify_client import ApifyClient
+
         return ApifyClient
     except ImportError as exc:
         raise ImportError(
@@ -98,6 +98,7 @@ def _import_apify():
 
 
 # ── Field normalizers for different actor output schemas ─────────────────────
+
 
 def _extract_text(item: dict[str, Any]) -> str:
     """Extract tweet text, handling actor-specific field names."""
@@ -127,8 +128,12 @@ def _extract_id(item: dict[str, Any]) -> str:
 def _extract_created_at(item: dict[str, Any]) -> str:
     """Extract and normalize the tweet creation timestamp."""
     for field in (
-        "created_at", "createdAt", "timestamp", "date",
-        "tweet_created_at", "publishedAt",
+        "created_at",
+        "createdAt",
+        "timestamp",
+        "date",
+        "tweet_created_at",
+        "publishedAt",
     ):
         val = item.get(field)
         if val:
@@ -148,12 +153,7 @@ def _extract_lang(item: dict[str, Any]) -> str:
 def _extract_author(item: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
     """Extract (author_id, author_handle, author_description) from tweet item."""
     # Author info may be nested under user/author/authorMeta
-    author_obj = (
-        item.get("user")
-        or item.get("author")
-        or item.get("authorMeta")
-        or {}
-    )
+    author_obj = item.get("user") or item.get("author") or item.get("authorMeta") or {}
 
     # Author ID
     author_id = None
@@ -221,6 +221,7 @@ def normalize_apify_tweet(
 
 
 # ── Scraper class ─────────────────────────────────────────────────────────────
+
 
 class ApifyXScraper:
     """Runs the Apify X (Twitter) scraper actor for a specific shock event.
@@ -310,14 +311,17 @@ class ApifyXScraper:
         run_input = self._build_actor_input()
         logger.info(
             "Starting Apify actor '%s' for shock '%s': %d keywords, max=%d",
-            self._actor_id, self._shock_id, len(self._keywords), self._max_items,
+            self._actor_id,
+            self._shock_id,
+            len(self._keywords),
+            self._max_items,
         )
         logger.debug("Actor input: %s", json.dumps(run_input, indent=2))
 
         try:
             actor_run = client.actor(self._actor_id).call(
                 run_input=run_input,
-                timeout_secs=300,       # 5 min max; free tier runs are fast
+                timeout_secs=300,  # 5 min max; free tier runs are fast
                 memory_mbytes=256,
             )
         except Exception as exc:
@@ -331,7 +335,8 @@ class ApifyXScraper:
 
         logger.info(
             "Actor run completed: runId=%s datasetId=%s",
-            actor_run.get("id"), dataset_id,
+            actor_run.get("id"),
+            dataset_id,
         )
 
         written = 0
@@ -351,12 +356,16 @@ class ApifyXScraper:
 
         logger.info(
             "Apify collection complete: shock=%s written=%d skipped=%d → %s",
-            self._shock_id, written, skipped, self.output_path,
+            self._shock_id,
+            written,
+            skipped,
+            self.output_path,
         )
         return written
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -376,7 +385,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--keywords",
         default=None,
-        help='JSON array of keywords to search. If omitted, loaded from shocks.json.',
+        help="JSON array of keywords to search. If omitted, loaded from shocks.json.",
     )
     p.add_argument(
         "--output",
@@ -450,7 +459,8 @@ def main(argv: list[str] | None = None) -> None:
         if shock_entry is None:
             logger.error(
                 "Shock ID '%s' not found in %s. Available: %s",
-                args.shock_id, args.shocks,
+                args.shock_id,
+                args.shocks,
                 [s["id"] for s in shocks],
             )
             sys.exit(1)
@@ -463,7 +473,8 @@ def main(argv: list[str] | None = None) -> None:
         logger.error(
             "--max-items=%d exceeds free-tier cap of %d. "
             "This will incur Apify charges. Aborting.",
-            args.max_items, MAX_ITEMS_FREE_TIER,
+            args.max_items,
+            MAX_ITEMS_FREE_TIER,
         )
         sys.exit(1)
 
@@ -490,7 +501,9 @@ def main(argv: list[str] | None = None) -> None:
 
     logger.info(
         "Apify X scraper: shock=%s keywords=%s output=%s",
-        args.shock_id, keywords, scraper.output_path,
+        args.shock_id,
+        keywords,
+        scraper.output_path,
     )
 
     written = scraper.run()

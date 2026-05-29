@@ -1,4 +1,5 @@
 """Tests for social media collector schema and dedup — Week 3."""
+
 from __future__ import annotations
 
 import pytest

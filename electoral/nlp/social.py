@@ -12,6 +12,7 @@ Concrete subclasses (all run on Intel Mac):
 Note: the collector scripts themselves live in electoral/nlp/collectors/ as
 standalone daemons. These classes provide the pipeline-facing interface.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -67,6 +68,7 @@ class BlueSkyCollector(SocialCollector):
         pi_bio_server: str | None = None,
     ) -> None:
         from electoral.nlp.collectors.bluesky_firehose import BlueskyFirehoseCollector
+
         self._impl = BlueskyFirehoseCollector(
             shocks_path=shocks_path,
             output_root=output_root,
@@ -137,6 +139,7 @@ class ApifyCollector(SocialCollector):
 
         if keywords is None:
             import json as _json
+
             shocks = _json.load(open("configs/shocks.json"))
             shock = next((s for s in shocks if s["id"] == shock_id), None)
             if shock is None:
