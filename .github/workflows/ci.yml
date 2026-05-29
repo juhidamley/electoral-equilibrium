@@ -22,8 +22,8 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Install project (dev extras)
-        run: pip install -e '.[dev]'
+      - name: Install project (dev and data extras)
+        run: pip install -e '.[dev,data]'
 
       - name: Ruff lint
         run: ruff check .
