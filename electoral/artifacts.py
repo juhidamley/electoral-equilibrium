@@ -23,12 +23,10 @@ from electoral.core.schema import (
     assert_valid_share,
 )
 from electoral.core.types import (
-    DELTA_BINS,
     LAYER_WEIGHT_KEYS,
     VALID_SOURCES,
 )
 
-_VALID_DELTA_BINS: frozenset[str] = frozenset(DELTA_BINS)
 _VALID_PARTIES: frozenset[str] = frozenset(["democrat", "republican"])
 
 
@@ -415,24 +413,17 @@ class PredictionMarketData:
 
 @dataclasses.dataclass(frozen=True)
 class ShockResponseData:
-    """Combined shock-derived voter share deviations across all three strata.
+    """LLM-estimated within-bloc Democratic vote share changes after a political shock.
 
-    The LLM outputs 9-token categorical bins per stratum cell (constrained
-    decoding via outlines). Numeric deltas are midpoints of each bin.
-    Covariance is 5×5 (race-level only) estimated via Ledoit-Wolf shrinkage.
+    deltas[bloc_id] = Δμ_i: the LLM-estimated change in within-bloc Democratic
+    vote share for any demographic stratum cell (race, religion, or gender).
+    Covariance is N×N where N = len(deltas), estimated via Ledoit-Wolf shrinkage.
     """
 
     shock: str
-    cycle: int  # most-recent historical cycle used
-    party: str  # "democrat" or "republican"
-    delta_bins_race: dict[str, str]  # race_id → delta bin token (5 keys)
-    delta_bins_religion: dict[str, str]  # religion_id → delta bin token (7 keys)
-    delta_bins_gender: dict[str, str]  # gender_id → delta bin token (3 keys)
-    deltas_race: dict[str, float]  # race_id → numeric midpoint of bin (5 keys)
-    deltas_religion: dict[str, float]  # religion_id → numeric midpoint (7 keys)
-    deltas_gender: dict[str, float]  # gender_id → numeric midpoint (3 keys)
-    delta_eff: float  # scalar: lambda_1*Σ(w*Δrace) + lambda_2*Σ(v*Δrel) + lambda_3*Σ(g*Δgen)
-    covariance: list[list[float]]  # 5×5 race-level covariance of deltas_race
+    cycle: int  # most-recent historical cycle used as context
+    deltas: dict[str, float]  # bloc_id → Δμ_i (change, not share) in [-0.15, 0.15]
+    covariance: list[list[float]]  # N×N, N = len(deltas)
     source: str  # "llm_unified" | "roberta_news_only" | "roberta_social_only"
 
     def to_dict(self) -> dict[str, Any]:
@@ -443,14 +434,7 @@ class ShockResponseData:
         return cls(
             shock=str(payload["shock"]),
             cycle=int(payload["cycle"]),
-            party=str(payload["party"]),
-            delta_bins_race=dict(payload["delta_bins_race"]),
-            delta_bins_religion=dict(payload["delta_bins_religion"]),
-            delta_bins_gender=dict(payload["delta_bins_gender"]),
-            deltas_race={k: float(v) for k, v in payload["deltas_race"].items()},
-            deltas_religion={k: float(v) for k, v in payload["deltas_religion"].items()},
-            deltas_gender={k: float(v) for k, v in payload["deltas_gender"].items()},
-            delta_eff=float(payload["delta_eff"]),
+            deltas={k: float(v) for k, v in payload["deltas"].items()},
             covariance=[list(row) for row in payload["covariance"]],
             source=str(payload["source"]),
         )
@@ -462,38 +446,19 @@ class ShockResponseData:
             raise ValueError(
                 f"ShockResponseData.cycle must be a valid year (YYYY), got {self.cycle}"
             )
-        if self.party not in _VALID_PARTIES:
-            raise ValueError(
-                f"ShockResponseData.party must be 'democrat' or 'republican', "
-                f"got {self.party!r}"
-            )
-        for stratum, bins_dict in [
-            ("delta_bins_race", self.delta_bins_race),
-            ("delta_bins_religion", self.delta_bins_religion),
-            ("delta_bins_gender", self.delta_bins_gender),
-        ]:
-            for k, v in bins_dict.items():
-                if v not in _VALID_DELTA_BINS:
-                    raise ValueError(
-                        f"ShockResponseData.{stratum}[{k!r}] = {v!r} is not a valid "
-                        f"delta bin token. Must be one of {DELTA_BINS}"
-                    )
-        for stratum, deltas_dict in [
-            ("deltas_race", self.deltas_race),
-            ("deltas_religion", self.deltas_religion),
-            ("deltas_gender", self.deltas_gender),
-        ]:
-            for k, v in deltas_dict.items():
-                if not math.isfinite(v):
-                    raise ValueError(f"ShockResponseData.{stratum}[{k!r}] = {v} must be finite")
-                if not (-0.15 <= v <= 0.15):
-                    raise ValueError(
-                        f"ShockResponseData.{stratum}[{k!r}] = {v} is outside " f"[-0.15, 0.15]"
-                    )
-        n = len(self.deltas_race)
+        for bloc_id, v in self.deltas.items():
+            if not math.isfinite(v):
+                raise ValueError(
+                    f"ShockResponseData.deltas[{bloc_id!r}] = {v} must be finite"
+                )
+            if not (-0.15 <= v <= 0.15):
+                raise ValueError(
+                    f"ShockResponseData.deltas[{bloc_id!r}] = {v} is outside [-0.15, 0.15]"
+                )
+        n = len(self.deltas)
         if len(self.covariance) != n:
             raise ValueError(
-                f"ShockResponseData.covariance must be {n}×{n}, " f"got {len(self.covariance)} rows"
+                f"ShockResponseData.covariance must be {n}×{n}, got {len(self.covariance)} rows"
             )
         for i, row in enumerate(self.covariance):
             if len(row) != n:
@@ -506,8 +471,6 @@ class ShockResponseData:
                 f"ShockResponseData.source must be one of {sorted(VALID_SOURCES)}, "
                 f"got {self.source!r}"
             )
-        if not math.isfinite(self.delta_eff):
-            raise ValueError(f"ShockResponseData.delta_eff must be finite, got {self.delta_eff}")
 
 
 # ── Stage 5: Equilibrium (post-shock optimizer output) ───────────────────────
@@ -519,15 +482,18 @@ class EquilibriumData:
 
     Objective: max Φ((μ̃_eff(w) - V_eq) / sqrt(λ₁² · wᵀΣ_Δw))
     This maximizes P(win) rather than minimizing variance (correct for deficit scenarios).
+
+    weights and mu_shifted must share identical key sets so the frontend can zip
+    them together to display coalition-weight and vote-share loyalty shifts per bloc.
     """
 
     method: str  # e.g. "cvxpy_dqcp"
     party: str  # "democrat" or "republican"
     shock: str | None  # shock event identifier (None for baseline)
-    weights: dict[str, float]  # race_id → rebalanced coalition weight; 5 keys; sums to 1.0
-    mu_eff_shifted: float  # post-shock scalar effective loyalty (all strata combined)
+    weights: dict[str, float]  # bloc_id → rebalanced coalition weight w̃_i; sums to 1.0
+    mu_shifted: dict[str, float]  # bloc_id → post-shock within-bloc vote share μ̃_i^(P)
     feasible: bool  # False if no w on the simplex can push μ̃_eff above V_eq
-    target_met: bool  # True if mu_eff_shifted >= target
+    target_met: bool  # True if the rebalanced μ̃_eff meets V_eq
     target: float  # V_eq threshold
 
     def to_dict(self) -> dict[str, Any]:
@@ -540,7 +506,7 @@ class EquilibriumData:
             party=str(payload["party"]),
             shock=payload.get("shock"),
             weights={k: float(v) for k, v in payload["weights"].items()},
-            mu_eff_shifted=float(payload["mu_eff_shifted"]),
+            mu_shifted={k: float(v) for k, v in payload["mu_shifted"].items()},
             feasible=bool(payload["feasible"]),
             target_met=bool(payload["target_met"]),
             target=float(payload["target"]),
@@ -549,14 +515,21 @@ class EquilibriumData:
     def validate(self) -> None:
         if self.party not in _VALID_PARTIES:
             raise ValueError(
-                f"EquilibriumData.party must be 'democrat' or 'republican', " f"got {self.party!r}"
+                f"EquilibriumData.party must be 'democrat' or 'republican', got {self.party!r}"
             )
         assert_shares_sum_to_one(self.weights, context="EquilibriumData.weights")
         for k, v in self.weights.items():
             assert_valid_share(v, name=f"weights[{k}]", context="EquilibriumData")
-        if not math.isfinite(self.mu_eff_shifted):
+        for k, v in self.mu_shifted.items():
+            assert_valid_share(v, name=f"mu_shifted[{k}]", context="EquilibriumData")
+        weights_keys = set(self.weights.keys())
+        mu_keys = set(self.mu_shifted.keys())
+        if weights_keys != mu_keys:
+            missing = sorted(weights_keys - mu_keys)
+            extra = sorted(mu_keys - weights_keys)
             raise ValueError(
-                f"EquilibriumData.mu_eff_shifted must be finite, " f"got {self.mu_eff_shifted}"
+                f"EquilibriumData.weights and mu_shifted must have identical key sets. "
+                f"Missing from mu_shifted: {missing}, extra in mu_shifted: {extra}"
             )
         if not (0.5 < self.target < 0.7):
             raise ValueError(f"EquilibriumData.target must be in (0.5, 0.7), got {self.target}")
@@ -571,14 +544,12 @@ class SimulationData:
 
     NOT Dirichlet (forces negative off-diagonal covariances — cannot model wave elections).
     Uses ILR (isometric log-ratio) with Helmert contrast matrix for simplex sampling.
-    90% CI: win_probability_low (p5) to win_probability_high (p95).
+    percentiles[bloc_id] = [p5, p25, p50, p75, p95] of the within-bloc weight distribution.
     """
 
     n_simulations: int  # number of Monte Carlo draws (≥10,000 for production)
     seed: int  # RNG seed used for this simulation run
     win_probability: float  # point estimate: fraction of draws meeting V_eq
-    win_probability_low: float  # 5th percentile (p=0.05 lower CI bound)
-    win_probability_high: float  # 95th percentile (p=0.95 upper CI bound)
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
 
     def to_dict(self) -> dict[str, Any]:
@@ -590,20 +561,18 @@ class SimulationData:
             n_simulations=int(payload["n_simulations"]),
             seed=int(payload["seed"]),
             win_probability=float(payload["win_probability"]),
-            win_probability_low=float(payload["win_probability_low"]),
-            win_probability_high=float(payload["win_probability_high"]),
             percentiles={k: [float(p) for p in v] for k, v in payload["percentiles"].items()},
         )
 
     def validate(self) -> None:
         if self.n_simulations <= 0:
             raise ValueError(
-                f"SimulationData.n_simulations must be positive, " f"got {self.n_simulations}"
+                f"SimulationData.n_simulations must be positive, got {self.n_simulations}"
             )
-        for attr in ("win_probability", "win_probability_low", "win_probability_high"):
-            val = getattr(self, attr)
-            if not (0.0 <= val <= 1.0):
-                raise ValueError(f"SimulationData.{attr} = {val} must be in [0.0, 1.0]")
+        if not (0.0 <= self.win_probability <= 1.0):
+            raise ValueError(
+                f"SimulationData.win_probability = {self.win_probability} must be in [0.0, 1.0]"
+            )
         for bloc_id, pcts in self.percentiles.items():
             if len(pcts) != 5:
                 raise ValueError(

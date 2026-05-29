@@ -132,22 +132,13 @@ def build_shock_response(
     event: str,
     intensity: float,
 ) -> ShockResponseData:
-    """Week 4/5: LLM constrained decoding → per-stratum delta bins."""
-    placeholder_bins_race = {r: "neutral" for r in config.races}
-    placeholder_bins_religion = {r: "neutral" for r in config.religions}
-    placeholder_bins_gender = {r: "neutral" for r in config.genders}
-    n = len(config.races)
+    """Week 4/5: LLM constrained decoding → per-bloc Δμ estimates."""
+    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
+    n = len(all_blocs)
     payload = ShockResponseData(
         shock=event,
         cycle=2020,
-        party=config.party,
-        delta_bins_race=placeholder_bins_race,
-        delta_bins_religion=placeholder_bins_religion,
-        delta_bins_gender=placeholder_bins_gender,
-        deltas_race={r: 0.0 for r in config.races},
-        deltas_religion={r: 0.0 for r in config.religions},
-        deltas_gender={r: 0.0 for r in config.genders},
-        delta_eff=0.0,
+        deltas={bloc: 0.0 for bloc in all_blocs},
         covariance=[[0.0] * n for _ in range(n)],
         source="llm_unified",
     )
@@ -167,13 +158,14 @@ def build_optimization(
     shock: ShockResponseData,
 ) -> EquilibriumData:
     """Week 5: CVXPY DQCP optimizer → rebalanced coalition weights."""
-    placeholder_weights = {r: 1.0 / len(config.races) for r in config.races}
+    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
+    placeholder_weights = {bloc: 1.0 / len(all_blocs) for bloc in all_blocs}
     payload = EquilibriumData(
         method="placeholder",
         party=config.party,
         shock=shock.shock,
         weights=placeholder_weights,
-        mu_eff_shifted=0.50,
+        mu_shifted={bloc: 0.50 for bloc in all_blocs},
         feasible=True,
         target_met=False,
         target=config.target,
@@ -201,8 +193,6 @@ def run_simulations(
         n_simulations=n_simulations,
         seed=config.derive_seed("monte_carlo"),
         win_probability=0.50,
-        win_probability_low=0.40,
-        win_probability_high=0.60,
         percentiles={r: [0.1, 0.3, 0.5, 0.7, 0.9] for r in config.races},
     )
     payload.validate()
