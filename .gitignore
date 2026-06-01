@@ -188,6 +188,11 @@ cython_debug/
 #  you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 
+# Project data directories (large files, not for version control)
+data/
+rawdata/
+artifacts/
+
 # Ruff stuff:
 .ruff_cache/
 
@@ -224,3 +229,58 @@ __marimo__/
 *.lot
 *.bbl
 *.blg
+
+# ── Credentials — never commit these ──────────────────────────────────────────
+# .env is already above; these are additional safeguards
+.env.*
+!.env.example        # example template is OK to commit
+secrets*.json
+credentials*.json
+service_account*.json
+*.pem
+*.p12
+*.key
+configs/*.local.json  # local overrides that may contain API keys or IPs
+
+# ── ML model weights and adapters ─────────────────────────────────────────────
+# Model weights belong in HuggingFace Hub or a dedicated model store, not git
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+*.ggml
+adapters/
+.cache/              # HuggingFace model download cache
+mlruns/              # MLflow experiment tracking
+
+# ── Pipeline runtime outputs ───────────────────────────────────────────────────
+logs/
+nohup.out
+slurm-*.out          # SLURM job stdout/stderr (HPC)
+*.sbatch.log
+run_*.log
+
+# ── Local databases ────────────────────────────────────────────────────────────
+# DuckDB and SQLite files may contain raw data or audit logs
+*.duckdb
+*.db
+# Note: *.sqlite3 and db.sqlite3 already covered above (Django section)
+
+# ── macOS system files ─────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+._*
+
+# ── Syncthing ──────────────────────────────────────────────────────────────────
+.stfolder
+.stignore
+.stversions/
+
+# ── Reddit Devvit app (elec-equilibrium/) ─────────────────────────────────────
+# This is a Devvit Reddit platform app that lives alongside the Python pipeline.
+# Track source (src/, public/, configs) but not build artifacts or dependencies.
+elec-equilibrium/node_modules/
+elec-equilibrium/dist/
+elec-equilibrium/.devvit/
+elec-equilibrium/*.lock

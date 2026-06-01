@@ -174,6 +174,48 @@ class TestVoterPanelData:
                 source=None,
             ).validate()
 
+    def test_non_canonical_race_raises(self):
+        with pytest.raises(ValueError, match="canonical race"):
+            VoterPanelData(
+                cycles=[2020],
+                races=["hispanic"],  # not in CANONICAL_RACES
+                religions=RELIGION_IDS,
+                genders=GENDER_IDS,
+                n_rows_race=0,
+                n_rows_religion=0,
+                n_rows_gender=0,
+                layer_weights=LAYER_WEIGHTS,
+                source=None,
+            ).validate()
+
+    def test_non_canonical_religion_raises(self):
+        with pytest.raises(ValueError, match="canonical religion"):
+            VoterPanelData(
+                cycles=[2020],
+                races=RACE_IDS,
+                religions=["buddhist"],  # not in CANONICAL_RELIGIONS
+                genders=GENDER_IDS,
+                n_rows_race=0,
+                n_rows_religion=0,
+                n_rows_gender=0,
+                layer_weights=LAYER_WEIGHTS,
+                source=None,
+            ).validate()
+
+    def test_non_canonical_gender_raises(self):
+        with pytest.raises(ValueError, match="canonical gender"):
+            VoterPanelData(
+                cycles=[2020],
+                races=RACE_IDS,
+                religions=RELIGION_IDS,
+                genders=["nonbinary"],  # not in CANONICAL_GENDERS
+                n_rows_race=0,
+                n_rows_religion=0,
+                n_rows_gender=0,
+                layer_weights=LAYER_WEIGHTS,
+                source=None,
+            ).validate()
+
 
 class TestBaselinePortfolioData:
     def _make(self, **overrides):
@@ -208,6 +250,21 @@ class TestBaselinePortfolioData:
         bad_mu["white"] = 1.5  # out of [0, 1]
         with pytest.raises(ValueError, match="mu_race"):
             self._make(mu_race=bad_mu).validate()
+
+    def test_non_canonical_weight_key_raises(self):
+        bad = {"hispanic": 1.0}  # not a canonical race
+        with pytest.raises(ValueError, match="canonical race"):
+            self._make(weights=bad).validate()
+
+    def test_non_canonical_mu_religion_key_raises(self):
+        bad = {"buddhist": 0.50}  # not a canonical religion
+        with pytest.raises(ValueError, match="canonical religion"):
+            self._make(mu_religion=bad).validate()
+
+    def test_non_canonical_mu_gender_key_raises(self):
+        bad = {"nonbinary": 0.50}  # not a canonical gender
+        with pytest.raises(ValueError, match="canonical gender"):
+            self._make(mu_gender=bad).validate()
 
 
 class TestSentimentData:
@@ -257,6 +314,14 @@ class TestSentimentData:
                 model="m",
                 shocks=["kavanaugh_2018", "kavanaugh_2018"],
                 scores={"evangelical": {"kavanaugh_2018": 0.25}},
+            ).validate()
+
+    def test_non_canonical_bloc_in_scores_raises(self):
+        with pytest.raises(ValueError, match="canonical bloc"):
+            SentimentData(
+                model="m",
+                shocks=["s1"],
+                scores={"hispanic": {"s1": 0.10}},  # not a canonical bloc ID
             ).validate()
 
 
@@ -381,6 +446,28 @@ class TestSocialMediaSentimentData:
                 lagged_delta=None,
             ).validate()
 
+    def test_scores_extra_platform_raises(self):
+        with pytest.raises(ValueError, match="scores keys must match platforms"):
+            SocialMediaSentimentData(
+                shock="s",
+                platforms=["bluesky"],
+                window_hours=24,
+                scores={"bluesky": {"secular": 0.1}, "apify": {"secular": 0.2}},  # extra
+                n_posts={"bluesky": 100},
+                lagged_delta=None,
+            ).validate()
+
+    def test_n_posts_missing_platform_raises(self):
+        with pytest.raises(ValueError, match="n_posts keys must match platforms"):
+            SocialMediaSentimentData(
+                shock="s",
+                platforms=["bluesky", "apify"],
+                window_hours=24,
+                scores={"bluesky": {"secular": 0.1}, "apify": {"secular": 0.2}},
+                n_posts={"bluesky": 100},  # missing "apify"
+                lagged_delta=None,
+            ).validate()
+
 
 class TestPredictionMarketData:
     def _make(self, **overrides):
@@ -419,6 +506,20 @@ class TestPredictionMarketData:
     def test_pre_shock_out_of_range_raises(self):
         with pytest.raises(ValueError, match="pre_shock_prob"):
             self._make(pre_shock_prob=1.5).validate()
+
+    def test_contract_ids_missing_source_raises(self):
+        with pytest.raises(ValueError, match="contract_ids keys must match sources"):
+            self._make(
+                sources=["polymarket", "predictit"],
+                contract_ids={"polymarket": "0xabc"},  # missing "predictit"
+            ).validate()
+
+    def test_contract_ids_extra_source_raises(self):
+        with pytest.raises(ValueError, match="contract_ids keys must match sources"):
+            self._make(
+                sources=["polymarket"],
+                contract_ids={"polymarket": "0xabc", "kalshi": "XYZ"},  # extra "kalshi"
+            ).validate()
 
 
 ALL_BLOCS = RACE_IDS + RELIGION_IDS + GENDER_IDS
@@ -482,6 +583,18 @@ class TestShockResponseData:
     def test_empty_source_raises(self):
         with pytest.raises(ValueError, match="source"):
             self._make(source="").validate()
+
+    def test_non_canonical_bloc_in_deltas_raises(self):
+        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
+        bad["hispanic"] = 0.01  # not a canonical bloc ID
+        with pytest.raises(ValueError, match="canonical bloc"):
+            self._make(deltas=bad).validate()
+
+    def test_covariance_asymmetric_raises(self):
+        asym = [row[:] for row in COV_NXNX]
+        asym[0][1] = 0.05  # cov[0][1] != cov[1][0]
+        with pytest.raises(ValueError, match="symmetric"):
+            self._make(covariance=asym).validate()
 
 
 MU_SHIFTED_RACE = {r: 0.50 for r in RACE_IDS}
@@ -581,6 +694,12 @@ class TestSimulationData:
         bad = {r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS}
         bad["white"] = [0.10, 0.25, 0.35, 0.45, 1.5]  # last value > 1
         with pytest.raises(ValueError, match=r"percentiles\["):
+            self._make(percentiles=bad).validate()
+
+    def test_percentiles_not_sorted_raises(self):
+        bad = {r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS}
+        bad["white"] = [0.10, 0.25, 0.80, 0.45, 0.60]  # p50 > p75 — not non-decreasing
+        with pytest.raises(ValueError, match="non-decreasing"):
             self._make(percentiles=bad).validate()
 
     def test_zero_n_simulations_raises(self):

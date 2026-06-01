@@ -37,10 +37,11 @@ from electoral.core.io import (
 
 @pytest.fixture
 def panel_df() -> pd.DataFrame:
-    """100-row synthetic voter panel DataFrame matching the pipeline schema.
+    """100-row synthetic voter panel DataFrame matching the full pipeline schema.
 
-    Columns mirror tests/fixtures/toy_panel.csv so that io tests exercise the
-    same dtypes the real data pipeline will produce.
+    Uses the 7-column schema (cycle, stratum, bloc, vote_share, stratum_share,
+    turnout, source) that the real data pipeline produces.  Note: toy_panel.csv
+    is a 5-column cleaning fixture; this in-memory frame is the io-layer fixture.
     """
     from electoral.core.rng import make_rng
 

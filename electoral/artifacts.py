@@ -23,11 +23,18 @@ from electoral.core.schema import (
     assert_valid_share,
 )
 from electoral.core.types import (
+    CANONICAL_GENDERS,
+    CANONICAL_RACES,
+    CANONICAL_RELIGIONS,
     LAYER_WEIGHT_KEYS,
     VALID_SOURCES,
 )
 
 _VALID_PARTIES: frozenset[str] = frozenset(["democrat", "republican"])
+# Union of all three strata — used to validate any field keyed by demographic bloc.
+_ALL_CANONICAL_BLOCS: frozenset[str] = frozenset(
+    list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
+)
 
 
 # ── Envelope ────────────────────────────────────────────────────────────────
@@ -116,6 +123,24 @@ class VoterPanelData:
         assert_unique(self.races, name="races", context="VoterPanelData")
         assert_unique(self.religions, name="religions", context="VoterPanelData")
         assert_unique(self.genders, name="genders", context="VoterPanelData")
+        for r in self.races:
+            if r not in CANONICAL_RACES:
+                raise ValueError(
+                    f"VoterPanelData.races[{r!r}] is not a canonical race ID. "
+                    f"Must be one of {list(CANONICAL_RACES)}"
+                )
+        for r in self.religions:
+            if r not in CANONICAL_RELIGIONS:
+                raise ValueError(
+                    f"VoterPanelData.religions[{r!r}] is not a canonical religion ID. "
+                    f"Must be one of {list(CANONICAL_RELIGIONS)}"
+                )
+        for g in self.genders:
+            if g not in CANONICAL_GENDERS:
+                raise ValueError(
+                    f"VoterPanelData.genders[{g!r}] is not a canonical gender ID. "
+                    f"Must be one of {list(CANONICAL_GENDERS)}"
+                )
         for name, val in [
             ("n_rows_race", self.n_rows_race),
             ("n_rows_religion", self.n_rows_religion),
@@ -171,14 +196,30 @@ class BaselinePortfolioData:
                 f"BaselinePortfolioData.party must be 'democrat' or 'republican', "
                 f"got {self.party!r}"
             )
-        assert_shares_sum_to_one(self.weights, context="BaselinePortfolioData.weights")
         for k, v in self.weights.items():
+            if k not in CANONICAL_RACES:
+                raise ValueError(
+                    f"BaselinePortfolioData.weights[{k!r}] is not a canonical race ID"
+                )
             assert_valid_share(v, name=f"weights[{k}]", context="BaselinePortfolioData")
+        assert_shares_sum_to_one(self.weights, context="BaselinePortfolioData.weights")
         for k, v in self.mu_race.items():
+            if k not in CANONICAL_RACES:
+                raise ValueError(
+                    f"BaselinePortfolioData.mu_race[{k!r}] is not a canonical race ID"
+                )
             assert_valid_share(v, name=f"mu_race[{k}]", context="BaselinePortfolioData")
         for k, v in self.mu_religion.items():
+            if k not in CANONICAL_RELIGIONS:
+                raise ValueError(
+                    f"BaselinePortfolioData.mu_religion[{k!r}] is not a canonical religion ID"
+                )
             assert_valid_share(v, name=f"mu_religion[{k}]", context="BaselinePortfolioData")
         for k, v in self.mu_gender.items():
+            if k not in CANONICAL_GENDERS:
+                raise ValueError(
+                    f"BaselinePortfolioData.mu_gender[{k!r}] is not a canonical gender ID"
+                )
             assert_valid_share(v, name=f"mu_gender[{k}]", context="BaselinePortfolioData")
         assert_valid_share(self.mu_eff, name="mu_eff", context="BaselinePortfolioData")
         assert_required_keys(
@@ -221,6 +262,11 @@ class SentimentData:
 
     def validate(self) -> None:
         assert_unique(self.shocks, name="shocks", context="SentimentData")
+        for bloc_id in self.scores:
+            if bloc_id not in _ALL_CANONICAL_BLOCS:
+                raise ValueError(
+                    f"SentimentData.scores[{bloc_id!r}] is not a canonical bloc ID"
+                )
         shocks_set = set(self.shocks)
         for bloc_id, shock_scores in self.scores.items():
             actual = set(shock_scores.keys())
@@ -281,6 +327,23 @@ class SocialMediaSentimentData:
         if not self.shock:
             raise ValueError("SocialMediaSentimentData.shock must be non-empty")
         assert_unique(self.platforms, name="platforms", context="SocialMediaSentimentData")
+        platforms_set = set(self.platforms)
+        scores_platforms = set(self.scores.keys())
+        if scores_platforms != platforms_set:
+            missing = sorted(platforms_set - scores_platforms)
+            extra = sorted(scores_platforms - platforms_set)
+            raise ValueError(
+                f"SocialMediaSentimentData.scores keys must match platforms exactly. "
+                f"Missing: {missing}, extra: {extra}"
+            )
+        n_posts_platforms = set(self.n_posts.keys())
+        if n_posts_platforms != platforms_set:
+            missing = sorted(platforms_set - n_posts_platforms)
+            extra = sorted(n_posts_platforms - platforms_set)
+            raise ValueError(
+                f"SocialMediaSentimentData.n_posts keys must match platforms exactly. "
+                f"Missing: {missing}, extra: {extra}"
+            )
         if self.window_hours <= 0:
             raise ValueError(
                 f"SocialMediaSentimentData.window_hours must be positive, "
@@ -406,6 +469,15 @@ class PredictionMarketData:
                 f"PredictionMarketData.delta_prob must be finite, got {self.delta_prob}"
             )
         assert_unique(self.sources, name="sources", context="PredictionMarketData")
+        contract_keys = set(self.contract_ids.keys())
+        sources_set = set(self.sources)
+        if contract_keys != sources_set:
+            missing = sorted(sources_set - contract_keys)
+            extra = sorted(contract_keys - sources_set)
+            raise ValueError(
+                f"PredictionMarketData.contract_ids keys must match sources exactly. "
+                f"Missing: {missing}, extra: {extra}"
+            )
 
 
 # ── Stage 4: LLM shock response ───────────────────────────────────────────────
@@ -447,6 +519,10 @@ class ShockResponseData:
                 f"ShockResponseData.cycle must be a valid year (YYYY), got {self.cycle}"
             )
         for bloc_id, v in self.deltas.items():
+            if bloc_id not in _ALL_CANONICAL_BLOCS:
+                raise ValueError(
+                    f"ShockResponseData.deltas[{bloc_id!r}] is not a canonical bloc ID"
+                )
             if not math.isfinite(v):
                 raise ValueError(f"ShockResponseData.deltas[{bloc_id!r}] = {v} must be finite")
             if not (-0.15 <= v <= 0.15):
@@ -464,6 +540,13 @@ class ShockResponseData:
                     f"ShockResponseData.covariance row {i} must have {n} elements, "
                     f"got {len(row)}"
                 )
+        for i in range(n):
+            for j in range(i + 1, n):
+                if abs(self.covariance[i][j] - self.covariance[j][i]) > 1e-9:
+                    raise ValueError(
+                        f"ShockResponseData.covariance is not symmetric at "
+                        f"[{i},{j}]: {self.covariance[i][j]} != {self.covariance[j][i]}"
+                    )
         if self.source not in VALID_SOURCES:
             raise ValueError(
                 f"ShockResponseData.source must be one of {sorted(VALID_SOURCES)}, "
@@ -582,6 +665,12 @@ class SimulationData:
                     raise ValueError(
                         f"SimulationData.percentiles[{bloc_id!r}][{i}] = {p} "
                         f"must be in [0.0, 1.0]"
+                    )
+            for i in range(len(pcts) - 1):
+                if pcts[i] > pcts[i + 1]:
+                    raise ValueError(
+                        f"SimulationData.percentiles[{bloc_id!r}] must be non-decreasing; "
+                        f"got {pcts[i]} > {pcts[i + 1]} at positions [{i},{i + 1}]"
                     )
 
 
