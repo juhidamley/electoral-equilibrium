@@ -227,6 +227,81 @@ The methodology section must include:
 
 ---
 
+## Data Ingest
+
+**[2026-06] Survey source name corrections (devplan labels ≠ actual files)**
+The devplan names four sources as "ARDA", "GSS", "Gallup", "NEP", "Pew". Actual downloaded
+files do not match two of these:
+- "ARDA" → **ANES CDF** (American National Election Studies, electionstudies.org)
+- "Gallup" → **Democracy Fund VOTER Panel** (Democracy Fund + UCLA VOTER Study Group)
+All code and documentation uses the actual source names, not devplan labels.
+CES (Cooperative Election Study) added as a sixth source not in the original devplan.
+
+**[2026-06] Labeled survey subset strategy — Parquet primary, CSV for inspection**
+Each source has a labeled subset saved alongside the raw binary. Value codes mapped to
+human-readable strings at ingest time; numeric columns left numeric. Two formats each:
+- Parquet (fast, typed, preferred for Python pipeline)
+- CSV (for manual inspection, Excel, sharing)
+Labeled subsets cover only the ~20-40 columns needed for the three strata.
+Full raw files kept unchanged alongside labeled subsets.
+Readable file locations:
+- GSS: `gss_labeled_subset.{parquet,csv}` (34 cols, 75,699 rows)
+- ANES: `anes_labeled_subset.{parquet,csv}` (20 cols, 73,745 rows)
+- NPORS: `npors_2024_labeled.{parquet,csv}` (79 cols, 5,626 rows — all columns labeled)
+- CES cumulative: `ces_cumulative_labeled.{parquet,csv}` (109 cols, 701,955 rows)
+- CES 2024: `ces_2024_labeled.{parquet,csv}` (21 cols, 60,000 rows — key vars only)
+- VOTER Panel: raw `voter_panel.csv` is the only format; no labeled subset built
+- NEP: `nep_{year}_exit_poll.csv` — already tabular, no relabeling needed
+
+**[2026-06] GSS composite weight: wtssnrps → wtssps → wtss fallback chain**
+Three weight variables exist across different year ranges. Pipeline uses a single `weight`
+column computed as `wtssnrps.combine_first(wtssps).combine_first(wtss)`.
+Rationale: wtssnrps (post-strat + non-response, 2018+) is most comprehensive; wtssps
+(post-strat only, 2006–2017) is second; wtss (basic weight, pre-2006) is fallback.
+This ensures 100% non-null coverage across all years without year-conditional branching.
+
+**[2026-06] ANES VCF label dictionary auto-extracted from codebook PDF**
+`rawdata/anes_vcf_labels.json` — 1,029 entries — was parsed from
+`anes_timeseries_cdf_codebook_var_20260205.pdf` (619 pages) using pdfplumber regex.
+Used to rename VCF codes to descriptive column names in `anes_labeled_subset`.
+Quality caveat: PDF parsing can garble multi-line entries and footnotes. Spot-check
+entries for VCF0105a, VCF0128, VCF0129, VCF0704 against the source PDF before relying
+on any label in production code.
+
+**[2026-06] pyreadstat pinned to 1.2.0 (Python 3.9 incompatibility)**
+pyreadstat 1.3.x introduces `TypeAlias` from `typing`, which requires Python 3.10+.
+The project venv is Python 3.9. Downgraded to 1.2.0, which ships a CP39 wheel and
+has no TypeAlias dependency. Required for reading NPORS `.sav` and VOTER Panel `.sav`.
+Do NOT `pip install --upgrade pyreadstat` without first verifying Python version.
+Pin: `pyreadstat==1.2.0` in requirements/pyproject.toml when that section is written.
+
+**[2026-06] NEP column schema: symmetric party-based names (dem_pct / rep_pct)**
+Original scraper output used `candidate` (Democratic name) + `candidate_pct` + `trump_pct`.
+This was asymmetric and incorrect for 2004 (Bush's share labeled `trump_pct`).
+Renamed to: `dem_candidate`, `rep_candidate`, `dem_pct`, `rep_pct`, `other_pct`.
+Republican candidate auto-detected from PDF via `_detect_rep_candidate()` (scans for
+Trump/Romney/McCain/Bush/Dole/Reagan as row headers). 2004 hardcodes Bush; 2016
+hardcodes Trump; 2020/2024 detected from document.
+Consequence: any downstream code referencing `candidate_pct` or `trump_pct` is broken.
+
+**[2026-06] CES `race_h` is the canonical race variable, not `race`**
+The CES `race` column undercounts Hispanics who answered the race question as White or
+Black and then answered Yes to the Hispanic follow-up. `race_h` applies "any-part
+Hispanic" logic: if either `race` or `hispanic` indicates Hispanic identity, the
+respondent is classified as Hispanic. White/Black/Asian shares are correspondingly lower.
+All pipeline code must use `race_h`, never `race`. Difference: ~20K respondents
+misclassified as White or Black if `race` is used instead of `race_h`.
+
+**[2026-06] 10-bloc toy panel fixture (tests/fixtures/toy_panel.csv)**
+Chose 5 race + 3 religion + 2 gender = 10 blocs (not all 15 canonical blocs) for the
+20-row test fixture. Dropped: protestant, jewish, muslim, other_rel (religion) and
+other_gender (gender). Rationale: minimal set that hits all three strata and fits
+exactly 2 cycles × 10 blocs = 20 rows. Dirty row: row 20 (2020/men) has empty
+vote_share and string turnout ("high") to exercise two distinct cleaning failure modes.
+Schema: `cycle, bloc, vote_share, turnout, source` (5 cols, no stratum_share or stratum).
+
+---
+
 ## Open Items (fill in during Week 0)
 
 - [ ] Pi Tailscale IP confirmed: ___________
@@ -238,4 +313,9 @@ The methodology section must include:
 - [ ] Meta Content Library application submitted
 - [ ] Reddit API OAuth credentials obtained
 - [ ] Syncthing confirmed running on M5, Intel Mac, Windows, Pi
-- [ ] ARDA/GSS/NEP cross-tab data confirmed accessible at race × religion × gender marginal level
+- [ ] ANES/GSS/NEP cross-tab data confirmed accessible at race × religion × gender marginal level (note: "ARDA" in original item was ANES)
+- [ ] NEP sub_category → canonical bloc ID lookup table built (free-text labels vary by year)
+- [ ] CES 2024 `CC24_410` presidential vote column verified against `CES_2024_GUIDE_vv.pdf`
+- [ ] VOTER Panel race/religion numeric codes decoded per-wave (codebook not yet in repo)
+- [ ] bin_uncertainty.json sigma values populated by generate_synthetic.py
+- [ ] V_eq and lambda weights recomputed from actual panel data via build_constraint_spec

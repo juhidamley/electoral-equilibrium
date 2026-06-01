@@ -1,0 +1,96 @@
+Electoral Equilibrium — Data Source Notices
+============================================
+
+The MIT License (see LICENSE) covers the source code in this repository.
+The following data sources have their own terms that apply independently
+of the code license. Raw data files are excluded from the repository via
+.gitignore; these notices apply to any derived outputs or trained artifacts.
+
+
+Reddit (rawdata/social/reddit/)
+--------------------------------
+Data collected via the Reddit Developer API is governed by Reddit's
+Developer Terms of Service (https://www.reddit.com/dev/api/terms) and
+the Reddit Data API Terms (updated June 2023).
+
+Key restrictions:
+- Reddit data may NOT be used to train AI/ML models for commercial purposes
+  without a paid Reddit Data API license agreement.
+- Reddit data may NOT be redistributed or sublicensed.
+- Model weights or artifacts trained on Reddit data inherit these restrictions
+  and may not be commercialized without Reddit's explicit authorization.
+
+This project uses Reddit data for non-commercial academic research only
+(CMC SRP 2026, supervised by Prof. Gaston Espinosa).
+
+
+Bluesky / AT Protocol (rawdata/social/bluesky/)
+-------------------------------------------------
+Data from the AT Protocol firehose is publicly accessible.
+Redistribution of individual users' content may be subject to their
+applicable local privacy laws. Posts are used in aggregate only;
+no individual content is published or redistributed.
+
+
+CES — Cooperative Election Study
+----------------------------------
+Kuriwaki, Shiro (2025). "Cumulative CES Common Content."
+doi:10.7910/DVN/II2DB6, Harvard Dataverse, V11.
+
+CES data is made available under Harvard Dataverse terms for academic use.
+Users must cite the above when publishing results derived from CES data.
+See: https://cces.gov.harvard.edu
+
+
+GSS — General Social Survey (NORC at the University of Chicago)
+----------------------------------------------------------------
+Smith, Tom W., Michael Davern, Jeremy Freese, and Stephen Morgan.
+General Social Surveys, 1972-2024. NORC at the University of Chicago.
+
+GSS data is freely available for non-commercial research with attribution.
+See: https://gss.norc.org
+
+
+ANES — American National Election Studies
+------------------------------------------
+The American National Election Studies (https://electionstudies.org).
+These materials are based on work supported by the National Science Foundation.
+
+ANES data is freely available for non-commercial research and education
+with attribution. Any opinions, findings, and conclusions are those of the
+researcher and do not necessarily reflect the views of NSF or the ANES.
+
+
+NPORS — Pew Research Center 2024 National Public Opinion Reference Survey
+--------------------------------------------------------------------------
+Pew Research Center. (2024). National Public Opinion Reference Survey (NPORS).
+Washington, D.C.: Pew Research Center.
+
+Pew public release data is freely available for research and journalism
+with attribution. Commercial use prohibited without written permission.
+See: https://www.pewresearch.org/about/terms-and-conditions/
+
+
+Democracy Fund VOTER Panel
+---------------------------
+VOTER Study Group, Democracy Fund + UCLA.
+voter_panel data is available for academic research with citation.
+See: https://www.voterstudygroup.org
+
+
+NEP — National Election Pool Exit Polls (CNN/SSRS)
+----------------------------------------------------
+Exit poll data scraped from public CNN.com exit poll pages.
+Underlying data collected by SSRS on behalf of the National Election Pool.
+Use is for non-commercial academic research only.
+
+
+Trained Model Artifacts
+------------------------
+Model adapters or weights produced by fine-tuning on the above data sources
+inherit all applicable restrictions from those sources. In particular:
+
+- Artifacts trained on Reddit data are NON-COMMERCIAL only.
+- Artifacts trained on Pew NPORS data require Pew attribution.
+- Artifacts may not be distributed without confirming compliance with each
+  source's terms above.
