@@ -50,12 +50,21 @@ def validate_panel(
 
     # ── Invariant 3: cycle is int YYYY in [1900, 2100] ───────────────────
     if "cycle" in df.columns:
-        non_null = df["cycle"].dropna()
+        cycle_num = pd.to_numeric(df["cycle"], errors="coerce")
+        non_numeric = df["cycle"].notna() & cycle_num.isna()
+        if non_numeric.any():
+            bad_vals = sorted(df.loc[non_numeric, "cycle"].astype(str).unique().tolist())
+            raise ValueError(f"{context}.cycle: non-numeric value(s): {bad_vals}")
+        non_int = cycle_num.notna() & (cycle_num % 1 != 0)
+        if non_int.any():
+            bad_vals = sorted(cycle_num[non_int].unique().tolist())
+            raise ValueError(f"{context}.cycle: non-integer value(s): {bad_vals}")
+        non_null = cycle_num.dropna()
         bad = non_null[(non_null < _CYCLE_MIN) | (non_null > _CYCLE_MAX)]
         if len(bad):
             raise ValueError(
                 f"{context}.cycle: values outside [{_CYCLE_MIN}, {_CYCLE_MAX}]: "
-                f"{sorted(bad.tolist())}"
+                f"{sorted(bad.astype(int).unique().tolist())}"
             )
 
     # ── Invariant 4: bloc IDs are lowercase snake_case ────────────────────
