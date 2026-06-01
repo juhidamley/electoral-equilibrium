@@ -25,8 +25,7 @@ def validate_panel(
     """Enforce five structural invariants on a panel DataFrame.
 
     Raises ValueError — naming ``context`` and the offending field — on the
-    first row that violates any invariant.
-
+    first detected invariant violation.
     Invariants
     ----------
     1. Required columns present  — all names in *required_cols* exist in df.
