@@ -19,7 +19,7 @@ _READ_DTYPE: dict[str, str] = {
     "turnout": "object",
 }
 
-_COLUMN_MAPS_PATH = Path(__file__).parents[2] / "rawdata" / "column_maps.json"
+_COLUMN_MAPS_PATH = Path(__file__).parents[2] / "configs" / "column_maps.json"
 _NEP_YEAR_RE = re.compile(r"nep_(\d{4})_")
 
 
