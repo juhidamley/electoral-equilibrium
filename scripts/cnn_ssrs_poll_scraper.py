@@ -37,10 +37,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import time
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -447,8 +445,10 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
             if pending:            # flush cards that never got a sub_pct
                 records.extend(r for r, _ in pending)
                 pending = []
-            if lbl_l: lbl_left  = lbl_l
-            if lbl_r: lbl_right = lbl_r
+            if lbl_l:
+                lbl_left = lbl_l
+            if lbl_r:
+                lbl_right = lbl_r
             continue
 
         # 6-pct data row (both cards)
@@ -657,7 +657,6 @@ def _parse_stream_n_based(
         # Match "N total respondents" — also handles garbled "total" (e.g. "t t l d t")
         m = re.match(r"^([\d,]+)\s+(?:total\s+respondents|t[\s.]*[o0][\s.]*t[\s.]*a[\s.]*l)", row_text, re.I)
         if m:
-            n_total = int(m.group(1).replace(",", ""))
             category = _clean_category(" ".join(cat_buf))
             cat_buf = []
 

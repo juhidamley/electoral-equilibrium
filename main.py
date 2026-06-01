@@ -17,7 +17,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from electoral.nlp.scraper import main as scraper_main
-from electoral.pipeline import main as pipeline_main
 
 def main():
     """Main entry point for the Electoral Equilibrium project."""
