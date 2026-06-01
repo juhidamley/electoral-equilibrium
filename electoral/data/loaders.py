@@ -236,8 +236,7 @@ def load_csv_panel(path: str | Path) -> pd.DataFrame:
       bloc       — string demographic bloc identifier (snake_case)
       vote_share — Float64 (nullable) in [0, 1]
       turnout    — Float64 (nullable) in [0, 1]
-
-    Any additional columns are passed through as object dtype.
+    Any additional columns are passed through with pandas' default dtype inference.
     Non-numeric values in numeric columns become NaN; validation is the
     caller's responsibility via electoral/data/cleaning.py.
     """
