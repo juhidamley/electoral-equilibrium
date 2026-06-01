@@ -198,16 +198,12 @@ class BaselinePortfolioData:
             )
         for k, v in self.weights.items():
             if k not in CANONICAL_RACES:
-                raise ValueError(
-                    f"BaselinePortfolioData.weights[{k!r}] is not a canonical race ID"
-                )
+                raise ValueError(f"BaselinePortfolioData.weights[{k!r}] is not a canonical race ID")
             assert_valid_share(v, name=f"weights[{k}]", context="BaselinePortfolioData")
         assert_shares_sum_to_one(self.weights, context="BaselinePortfolioData.weights")
         for k, v in self.mu_race.items():
             if k not in CANONICAL_RACES:
-                raise ValueError(
-                    f"BaselinePortfolioData.mu_race[{k!r}] is not a canonical race ID"
-                )
+                raise ValueError(f"BaselinePortfolioData.mu_race[{k!r}] is not a canonical race ID")
             assert_valid_share(v, name=f"mu_race[{k}]", context="BaselinePortfolioData")
         for k, v in self.mu_religion.items():
             if k not in CANONICAL_RELIGIONS:
@@ -264,9 +260,7 @@ class SentimentData:
         assert_unique(self.shocks, name="shocks", context="SentimentData")
         for bloc_id in self.scores:
             if bloc_id not in _ALL_CANONICAL_BLOCS:
-                raise ValueError(
-                    f"SentimentData.scores[{bloc_id!r}] is not a canonical bloc ID"
-                )
+                raise ValueError(f"SentimentData.scores[{bloc_id!r}] is not a canonical bloc ID")
         shocks_set = set(self.shocks)
         for bloc_id, shock_scores in self.scores.items():
             actual = set(shock_scores.keys())
