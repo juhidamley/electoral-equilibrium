@@ -48,10 +48,10 @@ import requests
 from bs4 import BeautifulSoup
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-CNN_POLL_HUB   = "https://www.cnn.com/election/2024/polls"
-SSRS_BASE_URL  = "https://ssrs.com"
-OUTPUT_DIR     = Path("data/cnn_ssrs_polls")
-REQUEST_DELAY  = 1.5   # seconds between requests — be polite
+CNN_POLL_HUB = "https://www.cnn.com/election/2024/polls"
+SSRS_BASE_URL = "https://ssrs.com"
+OUTPUT_DIR = Path("data/cnn_ssrs_polls")
+REQUEST_DELAY = 1.5  # seconds between requests — be polite
 
 HEADERS = {
     "User-Agent": (
@@ -63,6 +63,7 @@ HEADERS = {
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def fetch(url: str, stream: bool = False) -> requests.Response:
     """GET with retries and a polite delay."""
@@ -91,6 +92,7 @@ def save_pdf(url: str, dest: Path) -> Path:
 
 # ── Step 1: Find poll links on CNN hub ─────────────────────────────────────────
 
+
 def get_poll_links(hub_url: str, limit: int = None) -> list[dict]:
     """
     Scrape the CNN polling hub for SSRS poll entries.
@@ -113,12 +115,14 @@ def get_poll_links(hub_url: str, limit: int = None) -> list[dict]:
     for a in soup.find_all("a", href=True):
         href = a["href"]
         if pdf_pattern.search(href):
-            polls.append({
-                "title":        a.get_text(strip=True) or href,
-                "date_str":     _extract_date_from_url(href),
-                "poll_page_url": hub_url,
-                "pdf_url":      href if href.startswith("http") else urljoin(hub_url, href),
-            })
+            polls.append(
+                {
+                    "title": a.get_text(strip=True) or href,
+                    "date_str": _extract_date_from_url(href),
+                    "poll_page_url": hub_url,
+                    "pdf_url": href if href.startswith("http") else urljoin(hub_url, href),
+                }
+            )
 
     # Strategy B: find article links for polls, then scrape each for the PDF
     if not polls:
@@ -128,15 +132,17 @@ def get_poll_links(hub_url: str, limit: int = None) -> list[dict]:
             href = a["href"]
             if "poll" in text and "ssrs" in text:
                 article_links.append(urljoin(hub_url, href))
-        for url in article_links[:limit or 10]:
+        for url in article_links[: limit or 10]:
             pdf_url = _find_pdf_in_article(url)
             if pdf_url:
-                polls.append({
-                    "title":        url.split("/")[-1].replace("-", " ").title(),
-                    "date_str":     _extract_date_from_url(url),
-                    "poll_page_url": url,
-                    "pdf_url":      pdf_url,
-                })
+                polls.append(
+                    {
+                        "title": url.split("/")[-1].replace("-", " ").title(),
+                        "date_str": _extract_date_from_url(url),
+                        "poll_page_url": url,
+                        "pdf_url": pdf_url,
+                    }
+                )
 
     if not polls:
         print("  Could not find SSRS poll links automatically.")
@@ -208,7 +214,7 @@ def detect_pdf_format(pdf_path: Path) -> str:
 _PAGE_CHROME = re.compile(
     r"exit poll results 2024 \| cnn politics"
     r"|https?://www\.cnn\.com"
-    r"|\d+/\d+/\d+,\s+\d+:\d+\s+[ap]m"      # browser timestamp
+    r"|\d+/\d+/\d+,\s+\d+:\d+\s+[ap]m"  # browser timestamp
     r"|politics subscribe"
     r"|road to 270"
     r"|filter results by"
@@ -217,30 +223,30 @@ _PAGE_CHROME = re.compile(
     r"|national results\s+results by state"
     r"|^national results\b"
     r"|^ent \|"
-    r"|^election \d{4}:\s+exit polls"         # page-2 nav header
+    r"|^election \d{4}:\s+exit polls"  # page-2 nav header
     r"|^location:$"
     r"|^contest:$"
     r"|^president general$"
     r"|^no filter$"
     r"|^senate$|^house$|^governor$"
-    r"|senate.{0,15}runoff|senate special"    # 2020 nav: SENATE RUNOFF / SENATE SPECIAL
+    r"|senate.{0,15}runoff|senate special"  # 2020 nav: SENATE RUNOFF / SENATE SPECIAL
     r"|^ballot measures$"
-    r"|cnn en e"                              # multilingual nav fragment
-    r"|^(?:audio\s+)?live\s+tv\b"            # 2016/2020 nav header
-    r"|^exit polls?$"                        # lone "Exit Polls" nav item
-    r"|election\d{4}\b"                     # 2016 nav: "election2016 results..."
-    r"|all states select a state"           # 2016 nav item
-    r"|voters taken after they leave"       # exit poll description
-    r"|pollsters use\b"                     # exit poll description (various forms)
-    r"|segments of voters"                  # exit poll description
-    r"|^ballot measure"                     # nav item (broader than "ballot measures$")
-    r"|^updated\s+\d{1,2}:\d{2}"           # 2016 inline timestamp (not 2024 Updated blocks)
-    r"|national president search"           # 2016 nav
-    r"|view as table"                       # 2016 nav
-    r"|^all exit polls$"                    # 2016 nav item
-    r"|elections senate house governor"      # 2020 nav bar containing race links
-    r"|exit polls?\s+are\s+surveys"          # 2020 exit poll description
-    r"|early voters are represented"         # 2020 absentee description
+    r"|cnn en e"  # multilingual nav fragment
+    r"|^(?:audio\s+)?live\s+tv\b"  # 2016/2020 nav header
+    r"|^exit polls?$"  # lone "Exit Polls" nav item
+    r"|election\d{4}\b"  # 2016 nav: "election2016 results..."
+    r"|all states select a state"  # 2016 nav item
+    r"|voters taken after they leave"  # exit poll description
+    r"|pollsters use\b"  # exit poll description (various forms)
+    r"|segments of voters"  # exit poll description
+    r"|^ballot measure"  # nav item (broader than "ballot measures$")
+    r"|^updated\s+\d{1,2}:\d{2}"  # 2016 inline timestamp (not 2024 Updated blocks)
+    r"|national president search"  # 2016 nav
+    r"|view as table"  # 2016 nav
+    r"|^all exit polls$"  # 2016 nav item
+    r"|elections senate house governor"  # 2020 nav bar containing race links
+    r"|exit polls?\s+are\s+surveys"  # 2020 exit poll description
+    r"|early voters are represented"  # 2020 absentee description
     r"|absentee and early voters"
     r"|pollsters use the results"
     r"|how exit polls work"
@@ -263,11 +269,11 @@ def _strip_chrome(line: str) -> bool:
 # ── 2004 table parser ────────────────────────────────────────────────────────
 
 _2004_ROW = re.compile(
-    r"^(.+?)\s+\((\d+)%\)\s+"          # sub-category (sub_pct%)
-    r"(\d{1,3}%|\*|n/a)\s+"            # Bush%
-    r"(?:[+\-]\d+\s+|n/a\s+)?"         # optional +/- change from 2000
-    r"(\d{1,3}%|\*|n/a)\s+"            # Kerry%
-    r"(\d{1,3}%|\*|n/a)",              # Nader%
+    r"^(.+?)\s+\((\d+)%\)\s+"  # sub-category (sub_pct%)
+    r"(\d{1,3}%|\*|n/a)\s+"  # Bush%
+    r"(?:[+\-]\d+\s+|n/a\s+)?"  # optional +/- change from 2000
+    r"(\d{1,3}%|\*|n/a)\s+"  # Kerry%
+    r"(\d{1,3}%|\*|n/a)",  # Nader%
     re.I,
 )
 
@@ -328,33 +334,31 @@ def parse_cnn_2004_exit_poll_pdf(pdf_path: Path) -> list[dict]:
         # Data row
         m = _2004_ROW.match(line)
         if m:
-            records.append({
-                "category":      category,
-                "n_total":       n_total,
-                "sub_category":  m.group(1).strip(),
-                "sub_pct":       int(m.group(2)),
-                "dem_candidate": "Kerry",
-                "rep_candidate": "Bush",
-                "dem_pct":       _pct(m.group(4)),   # Kerry column
-                "rep_pct":       _pct(m.group(3)),   # Bush column
-            })
+            records.append(
+                {
+                    "category": category,
+                    "n_total": n_total,
+                    "sub_category": m.group(1).strip(),
+                    "sub_pct": int(m.group(2)),
+                    "dem_candidate": "Kerry",
+                    "rep_candidate": "Bush",
+                    "dem_pct": _pct(m.group(4)),  # Kerry column
+                    "rep_pct": _pct(m.group(3)),  # Bush column
+                }
+            )
 
     return records
 
 
 # ── 2016 card-grid parser ─────────────────────────────────────────────────────
 
-_2016_CARD_SPLIT = 170.0      # x < 170 = left card, x >= 170 = right card
+_2016_CARD_SPLIT = 170.0  # x < 170 = left card, x >= 170 = right card
 _2016_SKIP_WORDS = frozenset({"clintontrump", "other/no", "answer"})
 
 
 def _is_2016_format(word_rows: list[list[dict]]) -> bool:
     """True when the merged 'clintontrump' header token is present."""
-    return any(
-        w["text"].lower() == "clintontrump"
-        for row in word_rows
-        for w in row
-    )
+    return any(w["text"].lower() == "clintontrump" for row in word_rows for w in row)
 
 
 def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
@@ -367,12 +371,16 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
     """
     S = _2016_CARD_SPLIT
 
-    def lw(row):  return [w for w in row if w["x0"] < S]
-    def rw(row):  return [w for w in row if w["x0"] >= S]
+    def lw(row):
+        return [w for w in row if w["x0"] < S]
+
+    def rw(row):
+        return [w for w in row if w["x0"] >= S]
 
     def label_of(ws):
         parts = [
-            w["text"] for w in ws
+            w["text"]
+            for w in ws
             if not re.match(r"^\d{1,3}%?$|^\d+$", w["text"])
             and w["text"].lower() not in _2016_SKIP_WORDS
         ]
@@ -390,8 +398,8 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
     n_total: int | None = None
     lbl_left = lbl_right = ""
     pending: list[tuple[dict, str]] = []  # (record, "left"|"right")
-    saw_colhdr = False   # True once we've seen clintontrump/other/no headers
-    cat_buf: list[str] = []   # accumulates label rows between sections (for multi-line headers)
+    saw_colhdr = False  # True once we've seen clintontrump/other/no headers
+    cat_buf: list[str] = []  # accumulates label rows between sections (for multi-line headers)
 
     for row in word_rows:
         rtext = " ".join(w["text"] for w in row)
@@ -400,7 +408,7 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
         m_n = re.search(r"\b([\d,]+)\s+respondents?\b", rtext, re.I)
         if m_n:
             n_total = int(m_n.group(1).replace(",", ""))
-            saw_colhdr = False   # between sections: next matching row may be a category header
+            saw_colhdr = False  # between sections: next matching row may be a category header
             cat_buf = []
 
         # Skip column-header rows, finalise any buffered category, mark inside card block
@@ -415,11 +423,11 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
             saw_colhdr = True
             continue
 
-        all_p  = pcts_of(row)
+        all_p = pcts_of(row)
         left_p = pcts_of(lw(row))
         right_p = pcts_of(rw(row))
-        lbl_l  = label_of(lw(row))
-        lbl_r  = label_of(rw(row))
+        lbl_l = label_of(lw(row))
+        lbl_r = label_of(rw(row))
 
         # Between sections: accumulate label rows into the category buffer.
         # Use the left-half text when different from right (candidate-name line),
@@ -442,7 +450,7 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
 
         # Label-only row inside a card block (no percentages)
         if not all_p:
-            if pending:            # flush cards that never got a sub_pct
+            if pending:  # flush cards that never got a sub_pct
                 records.extend(r for r, _ in pending)
                 pending = []
             if lbl_l:
@@ -457,25 +465,39 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
                 records.extend(r for r, _ in pending)
             pending = []
             if lbl_left:
-                pending.append(({
-                    "category": category, "n_total": n_total,
-                    "sub_category": lbl_left, "sub_pct": None,
-                    "dem_candidate": "Clinton",
-                    "rep_candidate": "Trump",
-                    "dem_pct": v(left_p[0]),
-                    "rep_pct": v(left_p[1]),
-                    "other_pct": v(left_p[2]),
-                }, "left"))
+                pending.append(
+                    (
+                        {
+                            "category": category,
+                            "n_total": n_total,
+                            "sub_category": lbl_left,
+                            "sub_pct": None,
+                            "dem_candidate": "Clinton",
+                            "rep_candidate": "Trump",
+                            "dem_pct": v(left_p[0]),
+                            "rep_pct": v(left_p[1]),
+                            "other_pct": v(left_p[2]),
+                        },
+                        "left",
+                    )
+                )
             if lbl_right:
-                pending.append(({
-                    "category": category, "n_total": n_total,
-                    "sub_category": lbl_right, "sub_pct": None,
-                    "dem_candidate": "Clinton",
-                    "rep_candidate": "Trump",
-                    "dem_pct": v(right_p[0]),
-                    "rep_pct": v(right_p[1]),
-                    "other_pct": v(right_p[2]),
-                }, "right"))
+                pending.append(
+                    (
+                        {
+                            "category": category,
+                            "n_total": n_total,
+                            "sub_category": lbl_right,
+                            "sub_pct": None,
+                            "dem_candidate": "Clinton",
+                            "rep_candidate": "Trump",
+                            "dem_pct": v(right_p[0]),
+                            "rep_pct": v(right_p[1]),
+                            "other_pct": v(right_p[2]),
+                        },
+                        "right",
+                    )
+                )
             lbl_left = lbl_right = ""
             continue
 
@@ -485,15 +507,22 @@ def _parse_2016_stream(word_rows: list[list[dict]]) -> list[dict]:
                 records.extend(r for r, _ in pending)
             pending = []
             if lbl_left:
-                pending.append(({
-                    "category": category, "n_total": n_total,
-                    "sub_category": lbl_left, "sub_pct": None,
-                    "dem_candidate": "Clinton",
-                    "rep_candidate": "Trump",
-                    "dem_pct": v(left_p[0]),
-                    "rep_pct": v(left_p[1]),
-                    "other_pct": v(left_p[2]),
-                }, "left"))
+                pending.append(
+                    (
+                        {
+                            "category": category,
+                            "n_total": n_total,
+                            "sub_category": lbl_left,
+                            "sub_pct": None,
+                            "dem_candidate": "Clinton",
+                            "rep_candidate": "Trump",
+                            "dem_pct": v(left_p[0]),
+                            "rep_pct": v(left_p[1]),
+                            "other_pct": v(left_p[2]),
+                        },
+                        "left",
+                    )
+                )
             lbl_left = ""
             continue
 
@@ -537,16 +566,17 @@ def parse_cnn_exit_poll_pdf(pdf_path: Path) -> list[dict]:
     # 2024 format uses "Updated ..." as block separators.
     # 2020 format has no "Updated" lines — detect and use N-line stream parsing.
     has_updated = any(
-        re.match(r"^Updated\b", " ".join(w["text"] for w in row), re.I)
-        for row in word_rows
+        re.match(r"^Updated\b", " ".join(w["text"] for w in row), re.I) for row in word_rows
     )
     if has_updated:
         blocks = _split_word_rows_into_blocks(word_rows)
         records: list[dict] = []
         for block in blocks:
-            records.extend(_parse_block_spatial(
-                block, dem_candidate=dem_candidate, rep_candidate=rep_candidate
-            ))
+            records.extend(
+                _parse_block_spatial(
+                    block, dem_candidate=dem_candidate, rep_candidate=rep_candidate
+                )
+            )
     else:
         records = _parse_stream_n_based(word_rows, dem_candidate, rep_candidate)
 
@@ -629,10 +659,10 @@ def _detect_rep_candidate(word_rows: list[list[dict]]) -> str:
 def _clean_category(raw: str) -> str:
     """Post-process a raw category string extracted from cat_buf."""
     # Strip trailing garbled n_total text (e.g. "Feeling if Trump elected president 22966t t l d t")
-    raw = re.sub(r'\s+\d{4,}.*$', '', raw).strip()
+    raw = re.sub(r"\s+\d{4,}.*$", "", raw).strip()
     # Remove PDF letter-spacing artifacts: 3+ consecutive single-letter tokens each followed by a space
     # e.g. "U S f I l i U.S. support for Israel is:" → "U.S. support for Israel is:"
-    raw = re.sub(r'(?:(?<=\s)|^)(?:[A-Za-z] ){3,}', '', raw).strip()
+    raw = re.sub(r"(?:(?<=\s)|^)(?:[A-Za-z] ){3,}", "", raw).strip()
     return raw
 
 
@@ -646,7 +676,7 @@ def _parse_stream_n_based(
     data) or before the N line (2024-style; handled by the primary parser).
     """
     records: list[dict] = []
-    cat_buf: list[str] = []   # text rows between previous block end and next N
+    cat_buf: list[str] = []  # text rows between previous block end and next N
     rep_pat = re.compile(rf"^{re.escape(rep_candidate)}\b", re.I)
 
     i = 0
@@ -655,7 +685,9 @@ def _parse_stream_n_based(
         row_text = " ".join(w["text"] for w in row)
 
         # Match "N total respondents" — also handles garbled "total" (e.g. "t t l d t")
-        m = re.match(r"^([\d,]+)\s+(?:total\s+respondents|t[\s.]*[o0][\s.]*t[\s.]*a[\s.]*l)", row_text, re.I)
+        m = re.match(
+            r"^([\d,]+)\s+(?:total\s+respondents|t[\s.]*[o0][\s.]*t[\s.]*a[\s.]*l)", row_text, re.I
+        )
         if m:
             category = _clean_category(" ".join(cat_buf))
             cat_buf = []
@@ -718,7 +750,9 @@ def _parse_block_spatial(
 
     for i, row in enumerate(rows):
         row_text = " ".join(w["text"] for w in row)
-        m = re.match(r"^([\d,]+)\s+(?:total\s+respondents|t[\s.]*[o0][\s.]*t[\s.]*a[\s.]*l)", row_text, re.I)
+        m = re.match(
+            r"^([\d,]+)\s+(?:total\s+respondents|t[\s.]*[o0][\s.]*t[\s.]*a[\s.]*l)", row_text, re.I
+        )
         if m:
             n_total = int(m.group(1).replace(",", ""))
             n_row_idx = i
@@ -727,11 +761,13 @@ def _parse_block_spatial(
 
     if n_total is None:
         return []
-    category = category_override if category_override is not None else _clean_category(" ".join(cat_lines))
+    category = (
+        category_override if category_override is not None else _clean_category(" ".join(cat_lines))
+    )
     if not category:
         category = "unknown"  # first block or chrome-filtered category
 
-    rest = rows[n_row_idx + 1:]
+    rest = rows[n_row_idx + 1 :]
 
     # ── Find Democratic and Republican candidate header rows ──────────────────
     dem_row: list[dict] | None = None
@@ -781,9 +817,9 @@ def _parse_block_spatial(
     col_sub_pct: dict[int, int | None] = {j: None for j in range(n_cols)}
 
     between = [
-        row for i, row in enumerate(rest)
-        if i != dem_idx and i != rep_idx
-        and (dem_idx is None or i < dem_idx)
+        row
+        for i, row in enumerate(rest)
+        if i != dem_idx and i != rep_idx and (dem_idx is None or i < dem_idx)
     ]
 
     for row in between:
@@ -803,20 +839,23 @@ def _parse_block_spatial(
     # ── Build output rows ─────────────────────────────────────────────────────
     result: list[dict] = []
     for j in range(n_cols):
-        result.append({
-            "category":      category,
-            "n_total":       n_total,
-            "sub_category":  " ".join(col_labels[j]).strip() or f"col_{j + 1}",
-            "sub_pct":       col_sub_pct[j],
-            "dem_candidate": dem_candidate,
-            "rep_candidate": rep_candidate,
-            "dem_pct":       dem_pcts[j],
-            "rep_pct":       rep_pcts[j] if j < len(rep_pcts) else None,
-        })
+        result.append(
+            {
+                "category": category,
+                "n_total": n_total,
+                "sub_category": " ".join(col_labels[j]).strip() or f"col_{j + 1}",
+                "sub_pct": col_sub_pct[j],
+                "dem_candidate": dem_candidate,
+                "rep_candidate": rep_candidate,
+                "dem_pct": dem_pcts[j],
+                "rep_pct": rep_pcts[j] if j < len(rep_pcts) else None,
+            }
+        )
     return result
 
 
 # ── Step 2: Extract tables from PDF ────────────────────────────────────────────
+
 
 def parse_topline_pdf(pdf_path: Path) -> list[dict]:
     """
@@ -854,10 +893,10 @@ def parse_topline_pdf(pdf_path: Path) -> list[dict]:
                         records.append(current_q)
                     notes_lines = []
                     current_q = {
-                        "question_num":  q_match.group(1),
+                        "question_num": q_match.group(1),
                         "question_text": q_match.group(2).strip(),
-                        "responses":     [],
-                        "notes":         "",
+                        "responses": [],
+                        "notes": "",
                     }
                     continue
 
@@ -866,7 +905,7 @@ def parse_topline_pdf(pdf_path: Path) -> list[dict]:
                 resp_match = re.match(r"^(.+?)\s{2,}(\d{1,3})%\s*$", line)
                 if resp_match and current_q:
                     label = resp_match.group(1).strip()
-                    pct   = int(resp_match.group(2))
+                    pct = int(resp_match.group(2))
                     # Filter out obvious non-responses (page numbers, dates)
                     if len(label) > 1 and not re.match(r"^\d+$", label):
                         current_q["responses"].append({"label": label, "pct": pct})
@@ -888,12 +927,12 @@ def parse_topline_pdf(pdf_path: Path) -> list[dict]:
 def extract_poll_metadata(pdf_path: Path) -> dict:
     """Pull top-level metadata from the first page of the PDF."""
     meta = {
-        "source":      "CNN/SSRS",
-        "pdf_file":    pdf_path.name,
-        "dates":       None,
+        "source": "CNN/SSRS",
+        "pdf_file": pdf_path.name,
+        "dates": None,
         "sample_size": None,
-        "moe":         None,
-        "raw_header":  "",
+        "moe": None,
+        "raw_header": "",
     }
     with pdfplumber.open(pdf_path) as pdf:
         first_page = pdf.pages[0].extract_text() or ""
@@ -910,10 +949,7 @@ def extract_poll_metadata(pdf_path: Path) -> dict:
             meta["moe"] = float(m.group(1))
 
         # Field dates
-        m = re.search(
-            r"(?:conducted|fielded|dates?)[:\s]+(.{10,60}?\d{4})",
-            first_page, re.I
-        )
+        m = re.search(r"(?:conducted|fielded|dates?)[:\s]+(.{10,60}?\d{4})", first_page, re.I)
         if m:
             meta["dates"] = m.group(1).strip()
 
@@ -922,30 +958,33 @@ def extract_poll_metadata(pdf_path: Path) -> dict:
 
 # ── Step 3: Save outputs ────────────────────────────────────────────────────────
 
+
 def records_to_dataframe(records: list[dict], meta: dict) -> pd.DataFrame:
     """Flatten the nested question/response structure into a tidy DataFrame."""
     rows = []
     for q in records:
         for r in q["responses"]:
-            rows.append({
-                "source":        meta.get("source"),
-                "poll_dates":    meta.get("dates"),
-                "sample_size":   meta.get("sample_size"),
-                "moe":           meta.get("moe"),
-                "question_num":  q["question_num"],
-                "question_text": q["question_text"],
-                "response":      r["label"],
-                "pct":           r["pct"],
-                "notes":         q.get("notes", ""),
-            })
+            rows.append(
+                {
+                    "source": meta.get("source"),
+                    "poll_dates": meta.get("dates"),
+                    "sample_size": meta.get("sample_size"),
+                    "moe": meta.get("moe"),
+                    "question_num": q["question_num"],
+                    "question_text": q["question_text"],
+                    "response": r["label"],
+                    "pct": r["pct"],
+                    "notes": q.get("notes", ""),
+                }
+            )
     return pd.DataFrame(rows)
 
 
 def save_results(
     date_slug: str,
-    records:   list[dict],
-    meta:      dict,
-    out_dir:   Path,
+    records: list[dict],
+    meta: dict,
+    out_dir: Path,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1001,11 +1040,12 @@ def _save_exit_poll_results(
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 
+
 def run(
-    pdf_url:  str = None,
+    pdf_url: str = None,
     pdf_file: str = None,
-    hub_url:  str = CNN_POLL_HUB,
-    limit:    int = None,
+    hub_url: str = CNN_POLL_HUB,
+    limit: int = None,
 ):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1030,7 +1070,7 @@ def run(
                 _save_exit_poll_results(date_slug, records, meta, OUTPUT_DIR)
                 return
             else:
-                meta    = extract_poll_metadata(pdf_path)
+                meta = extract_poll_metadata(pdf_path)
                 records = parse_topline_pdf(pdf_path)
         except Exception as e:
             print(f"  ERROR parsing PDF: {e}")
@@ -1040,6 +1080,7 @@ def run(
         meta_path = OUTPUT_DIR / "metadata.json"
         with open(meta_path, "w") as f:
             import json as _json
+
             _json.dump([meta], f, indent=2)
         print(f"\nMetadata index → {meta_path}")
         print("Done.")
@@ -1047,12 +1088,14 @@ def run(
 
     # ── URL or hub scrape ─────────────────────────────────────────────────────
     if pdf_url:
-        polls = [{
-            "title":        "manual",
-            "date_str":     _extract_date_from_url(pdf_url),
-            "poll_page_url": hub_url,
-            "pdf_url":      pdf_url,
-        }]
+        polls = [
+            {
+                "title": "manual",
+                "date_str": _extract_date_from_url(pdf_url),
+                "poll_page_url": hub_url,
+                "pdf_url": pdf_url,
+            }
+        ]
     else:
         polls = get_poll_links(hub_url, limit=limit)
 
@@ -1063,7 +1106,7 @@ def run(
     for poll in polls:
         print(f"\nProcessing: {poll['title']} [{poll['date_str']}]")
         date_slug = poll["date_str"]
-        pdf_path  = OUTPUT_DIR / f"{date_slug}_topline.pdf"
+        pdf_path = OUTPUT_DIR / f"{date_slug}_topline.pdf"
 
         # Download PDF
         try:
@@ -1074,14 +1117,14 @@ def run(
 
         # Parse
         try:
-            meta    = extract_poll_metadata(pdf_path)
+            meta = extract_poll_metadata(pdf_path)
             records = parse_topline_pdf(pdf_path)
         except Exception as e:
             print(f"  ERROR parsing PDF: {e}")
             continue
 
         meta["poll_page_url"] = poll.get("poll_page_url")
-        meta["pdf_url"]       = poll.get("pdf_url")
+        meta["pdf_url"] = poll.get("pdf_url")
         all_meta.append(meta)
 
         # Save
