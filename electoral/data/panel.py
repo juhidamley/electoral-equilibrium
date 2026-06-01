@@ -77,7 +77,12 @@ def validate_panel(
     for col in _SHARE_COLS:
         if col not in df.columns:
             continue
-        non_null = df[col].dropna()
+        share_num = pd.to_numeric(df[col], errors="coerce")
+        non_numeric = df[col].notna() & share_num.isna()
+        if non_numeric.any():
+            bad_vals = sorted(df.loc[non_numeric, col].astype(str).unique().tolist())
+            raise ValueError(f"{context}.{col}: non-numeric value(s): {bad_vals}")
+        non_null = share_num.dropna()
         out = non_null[(non_null < 0.0) | (non_null > 1.0)]
         if len(out):
-            raise ValueError(f"{context}.{col}: values outside [0, 1]: {sorted(out.tolist())}")
+            raise ValueError(f"{context}.{col}: values outside [0, 1]: {sorted(out.unique().tolist())}")
