@@ -33,7 +33,8 @@ from electoral.portfolios.cvx import solve_baseline
 
 log = logging.getLogger(__name__)
 
-_LAYER_WEIGHTS_PATH = Path("configs/layer_weights.json")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_LAYER_WEIGHTS_PATH = _REPO_ROOT / "configs" / "layer_weights.json"
 
 # Neutral prior assigned to blocs absent from the panel.
 # 0.50 = maximum uncertainty; does not bias the optimizer toward or away from the bloc.
