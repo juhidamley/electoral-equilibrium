@@ -28,6 +28,7 @@ from electoral.artifacts import (
     VoterPanelData,
 )
 from electoral.config import PipelineConfig
+from electoral.core.types import CANONICAL_RACES
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
@@ -137,9 +138,11 @@ class TestBuildBaselinePortfolio:
         result = build_baseline_portfolio(cfg, panel)
         assert result.layer_weights == panel.layer_weights
 
-    def test_weights_cover_config_races(self, cfg, panel):
+    def test_weights_cover_canonical_races(self, cfg, panel):
+        # The kernel always optimises over all five CANONICAL_RACES, not the
+        # (potentially reduced) cfg.races used by the old placeholder.
         result = build_baseline_portfolio(cfg, panel)
-        assert set(result.weights.keys()) == set(cfg.races)
+        assert set(result.weights.keys()) == set(CANONICAL_RACES)
 
     def test_envelope_written_to_disk(self, cfg, panel):
         build_baseline_portfolio(cfg, panel)

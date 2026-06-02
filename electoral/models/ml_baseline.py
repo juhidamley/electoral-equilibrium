@@ -252,7 +252,7 @@ def estimate_moments(
         if sub.empty:
             return {b: float("nan") for b in blocs}
         means = sub.groupby("bloc")["vote_share"].mean().reindex(blocs)
-        return {b: float(v) for b, v in means.items()}
+        return {b: float("nan") if pd.isna(v) else float(v) for b, v in means.items()}
 
     mu_race = _mean_over_winning(CANONICAL_RACES)
     mu_religion = _mean_over_winning(CANONICAL_RELIGIONS)

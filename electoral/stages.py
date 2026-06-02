@@ -29,6 +29,7 @@ from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
 from electoral.core.rng import make_rng
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.kernels.baseline import build_baseline_portfolio as _build_baseline_kernel
 from electoral.kernels.data import build_voter_panel as _build_voter_panel_kernel
 
 
@@ -63,22 +64,21 @@ def build_baseline_portfolio(
     panel: VoterPanelData,
 ) -> BaselinePortfolioData:
     """Week 2: ML-derived baseline demographic distribution + V_eq."""
-    placeholder_weights = {r: 1.0 / len(config.races) for r in config.races}
-    placeholder_mu_race = {r: 0.50 for r in config.races}
-    placeholder_mu_religion = {r: 0.50 for r in config.religions}
-    placeholder_mu_gender = {r: 0.50 for r in config.genders}
-    payload = BaselinePortfolioData(
-        method="placeholder",
-        party=config.party,
-        weights=placeholder_weights,
-        mu_race=placeholder_mu_race,
-        mu_religion=placeholder_mu_religion,
-        mu_gender=placeholder_mu_gender,
-        mu_eff=0.50,
-        layer_weights=panel.layer_weights,
-        target=config.target,
-    )
-    payload.validate()
+    import pandas as pd
+
+    # Reconstitute the full panel DataFrame from the parquets written by
+    # build_voter_panel.  All three strata are needed for mu_eff computation.
+    panel_dir = Path(config.output_dir) / "panel"
+    parquet_names = ("panel_race.parquet", "panel_religion.parquet", "panel_gender.parquet")
+    dfs = [pd.read_parquet(panel_dir / name) for name in parquet_names if (panel_dir / name).exists()]
+    if not dfs:
+        raise FileNotFoundError(
+            f"build_baseline_portfolio: no panel parquets found in {panel_dir}. "
+            "Run build_voter_panel first."
+        )
+    panel_df = pd.concat(dfs, ignore_index=True)
+
+    payload = _build_baseline_kernel(config, panel_df)
     envelope = StageArtifact(
         stage="baseline_portfolio",
         run_key=config.run_key,
