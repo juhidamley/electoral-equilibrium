@@ -130,7 +130,7 @@ def _summary_statistics(panel: pd.DataFrame) -> str:
         f"{'Bloc':<22}  Strat  {'N':>4}  {'Mean':>6}  {'Std':>6}"
         f"  {'Min':>6}  {'Q25':>6}  {'Q75':>6}  {'Max':>6}"
     )
-    sep = _rule("-")
+    sep = "-" * len(hdr)
     rows = [hdr, sep]
 
     for bloc in _ALL_BLOCS:
