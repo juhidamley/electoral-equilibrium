@@ -180,6 +180,14 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
     """Load all NEP exit-poll CSVs, filter to Race/Religion/Gender strata,
     scale dem_pct from integer percentage to [0, 1], and keep only rows
     whose bloc maps to a canonical ID.
+
+    Evangelical handling: NEP evangelical rows appear under a category like
+    "white evangelical/born-again?" with sub_category="Yes"/"No" (not "evangelical").
+    These rows are excluded by the "relig" filter because their category string
+    never contains that token.  We detect them via an evangelical-specific pattern
+    and remap the "Yes" sub_category to the canonical "evangelical" bloc before the
+    standard normalize_bloc pass.  The "No" (non-evangelical) rows are discarded
+    because they represent a heterogeneous residual group, not a clean bloc.
     """
     records: list[dict] = []
     for path in paths:
@@ -195,7 +203,21 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
         is_gender = s.str.contains(r"gender|sex", regex=True, na=False) & ~s.str.contains(
             r"marital|education|white|race|income", regex=True, na=False
         )
-        df = df[is_race | is_religion | is_gender].copy()
+        # Evangelical: category contains "evang" or "born" (covers "born-again" /
+        # "born again") AND the sub_category row is "Yes" (the actual evangelical
+        # respondents).  OCR noise in 2020 garbles "Yes" into a long string ending
+        # in "Y e s" — match the spaced-character form as well.
+        is_evang_cat = s.str.contains(r"evang|born", regex=True, na=False)
+        bloc_lower = df["bloc"].astype(str).str.lower().str.strip()
+        # Covers: "Yes", "yes", "Y e s" (OCR-spaced), and similar variants.
+        is_evang_yes = is_evang_cat & bloc_lower.str.contains(
+            r"\byes\b|y\s+e\s+s", regex=True, na=False
+        )
+        # Remap the "Yes" bloc to canonical "evangelical" before normalize_bloc runs.
+        df = df.copy()
+        df.loc[is_evang_yes, "bloc"] = "evangelical"
+
+        df = df[is_race | is_religion | is_gender | is_evang_yes].copy()
 
         raw_vs = pd.to_numeric(df["vote_share"], errors="coerce")
         df["vote_share"] = raw_vs / 100.0
@@ -339,6 +361,31 @@ def _from_ces(path: Path) -> pd.DataFrame:
     dem_flag.loc[mask] = norm.eq("Democratic").astype(float)
 
     weight_col = "weight_cumulative" if "weight_cumulative" in df.columns else "weight"
+
+    # Split CES Protestant into evangelical vs. mainline using relig_bornagain flag.
+    # CES asks "Are you a born-again or evangelical Christian?" (Yes/No).
+    # Protestant + born-again=Yes → "Evangelical Protestant" → canonical "evangelical".
+    # Protestant + born-again=No/null → stays "Protestant" → canonical "protestant".
+    # _CES_RELIGION already maps "Evangelical Protestant" → "evangelical".
+    df = df.copy()
+    # The labeled CES parquet exposes the born-again flag as
+    # "bloc__religion_evangelical_flag" (renamed from raw "relig_bornagain").
+    evang_flag_col = next(
+        (c for c in df.columns if "evangelical_flag" in c or c == "relig_bornagain"),
+        None,
+    )
+    if evang_flag_col and "bloc__religion" in df.columns:
+        born_again_mask = (
+            df["bloc__religion"].astype(str).str.strip() == "Protestant"
+        ) & (
+            df[evang_flag_col].astype(str).str.strip().str.title() == "Yes"
+        )
+        df.loc[born_again_mask, "bloc__religion"] = "Evangelical Protestant"
+        log.info(
+            "CES: split %d Protestant+born-again respondents → 'Evangelical Protestant'",
+            int(born_again_mask.sum()),
+        )
+
     frames = [
         _agg_stratum(df, "bloc__race", _CES_RACE, dem_flag, "cycle", weight_col, "CES"),
         _agg_stratum(df, "bloc__religion", _CES_RELIGION, dem_flag, "cycle", weight_col, "CES"),
@@ -496,6 +543,100 @@ def _log_coverage(
         log.info("Coverage complete: all (cycle, bloc) pairs present in presidential cycles")
 
 
+# ── Missing-cell imputation ──────────────────────────────────────────────────
+
+
+def _impute_missing_cells(panel: pd.DataFrame) -> pd.DataFrame:
+    """Fill structurally absent (cycle, bloc) cells with documented estimates.
+
+    Imputation rules (see DECISIONS.md §Coverage Gap Imputation):
+
+    other_gender (2012–2024, excl. 2016 which has observed data):
+        Constant 0.76 — Pew Research LGBTQ Democratic presidential vote lean,
+        consistent across 2012–2024 surveys (~70–80% range).  Pre-2012 omitted:
+        the category was not surveyed.  The 2016 ANES observation (1.0) is a
+        small-n artefact retained as-is.
+
+    other_race (1948):
+        Carry-forward from 1952.  Single-cell gap; ANES 1948 small-n produces
+        unreliable estimates so the 1952 value is a benign substitute.
+
+    Not imputed (structural data absence, documented):
+        - evangelical pre-2004: Moral Majority era break makes carry-backward
+          misleading.  LLM training restricted to 2004-2024 for this bloc.
+        - secular pre-2004: CES/GSS provide reliable 2004-2024 coverage.
+        - muslim pre-2004: Muslim-American electorate was negligibly small
+          and voted differently pre-9/11.
+        - latino / asian pre-1965: Voting Rights Act year; these blocs had
+          effectively zero electorate share before 1965.
+    """
+    present = set(zip(panel["cycle"].astype(int), panel["bloc"].astype(str)))
+    rows: list[dict] = []
+
+    # other_gender: Pew LGBTQ constant for all cycles where exit polls were conducted
+    # (category existed in surveys from ~2004 onward in some form).
+    for cycle in [2004, 2008, 2012, 2020, 2024]:
+        if (cycle, "other_gender") not in present:
+            rows.append(
+                {
+                    "cycle": cycle,
+                    "bloc": "other_gender",
+                    "vote_share": 0.76,
+                    "source": "imputed_pew_lgbtq",
+                }
+            )
+
+    # muslim 2004: carry-backward from 2008 (first available CES value).
+    # Muslim-American voters shifted heavily Democratic after 9/11; the 2004
+    # election is the first post-9/11 cycle and the 2008 estimate is the closest
+    # reliable anchor.
+    if (2004, "muslim") not in present:
+        ref = panel.loc[
+            (panel["cycle"].astype(int) == 2008) & (panel["bloc"] == "muslim"),
+            "vote_share",
+        ]
+        if not ref.empty:
+            rows.append(
+                {
+                    "cycle": 2004,
+                    "bloc": "muslim",
+                    "vote_share": float(ref.iloc[0]),
+                    "source": "imputed_carry_2008",
+                }
+            )
+
+    # other_race 1948: carry forward the 1952 observed value
+    if (1948, "other_race") not in present:
+        ref = panel.loc[
+            (panel["cycle"].astype(int) == 1952) & (panel["bloc"] == "other_race"),
+            "vote_share",
+        ]
+        if not ref.empty:
+            rows.append(
+                {
+                    "cycle": 1948,
+                    "bloc": "other_race",
+                    "vote_share": float(ref.iloc[0]),
+                    "source": "imputed_carry_1952",
+                }
+            )
+
+    if not rows:
+        return panel
+
+    imputed = pd.DataFrame(rows)
+    log.info(
+        "_impute_missing_cells: added %d imputed row(s): %s",
+        len(imputed),
+        [(int(r["cycle"]), r["bloc"]) for r in rows],
+    )
+    return (
+        pd.concat([panel, imputed], ignore_index=True)
+        .sort_values(["cycle", "bloc"])
+        .reset_index(drop=True)
+    )
+
+
 # ── Main kernel function ──────────────────────────────────────────────────────
 
 
@@ -603,6 +744,10 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
     # ── Clean ─────────────────────────────────────────────────────────────────
     panel = clean_raw_panel(panel)
     log.info("After clean_raw_panel: %d rows", len(panel))
+
+    # ── Impute structurally absent cells ─────────────────────────────────────
+    panel = _impute_missing_cells(panel)
+    log.info("After imputation: %d rows", len(panel))
 
     # ── Validate ──────────────────────────────────────────────────────────────
     validate_panel(panel, required_cols=_PANEL_REQUIRED, context="VoterPanelData")
