@@ -3,9 +3,9 @@ Race,White,67,Biden,Trump,41,57,3000
 Race,Black,12,Biden,Trump,87,12,500
 Race,Latino,11,Biden,Trump,65,32,400
 Race,Asian,3,Biden,Trump,61,34,150
-Race,Other racial/ethnic groups,7,Biden,Trump,55,41,200
-Religion,Protestant/Other Christian,39,Biden,Trump,39,60,1800
+Race,All Others,7,Biden,Trump,55,41,200
+Religion,Protestant,39,Biden,Trump,39,60,1800
 Religion,Catholic,22,Biden,Trump,52,47,1000
-Religion,Other religious affiliation,8,Biden,Trump,69,29,350
-Subgroups indicated with an n/a were interviewed for this exit poll but the sample size may be too small for estimates within those groups to be projectable with confidence to their true values in the population. Gender,Male,48,Biden,Trump,45,53,2200
-Subgroups indicated with an n/a were interviewed for this exit poll but the sample size may be too small for estimates within those groups to be projectable with confidence to their true values in the population. Gender,Female,52,Biden,Trump,57,42,2400
+Religion,Other religion,8,Biden,Trump,69,29,350
+Gender,Male,48,Biden,Trump,45,53,2200
+Gender,Female,52,Biden,Trump,57,42,2400
