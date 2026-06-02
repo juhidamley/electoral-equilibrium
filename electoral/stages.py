@@ -23,19 +23,18 @@ from electoral.artifacts import (
     StageArtifact,
     VoterPanelData,
 )
+from pathlib import Path
+
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
 from electoral.core.rng import make_rng
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.kernels.data import build_voter_panel as _build_voter_panel_kernel
 
 
 def build_voter_panel(config: PipelineConfig) -> VoterPanelData:
     """Week 1: ingest raw survey exports → validated longitudinal voter panel."""
     payload, panel = _build_voter_panel_kernel(config)
-
-    # Write stratum-split panel parquets alongside the JSON envelope.
-    from pathlib import Path
-    from electoral.core.types import CANONICAL_RACES, CANONICAL_RELIGIONS, CANONICAL_GENDERS
 
     panel_dir = Path(config.output_dir) / "panel"
     panel_dir.mkdir(parents=True, exist_ok=True)

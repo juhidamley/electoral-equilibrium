@@ -221,7 +221,15 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
     result = pd.DataFrame(records)
     # NEP PDFs can produce duplicate rows for the same bloc (e.g. "White" and
     # "White voters" in the same table both normalize to "white").  Average them.
+    n_raw = len(result)
     result = result.groupby(["cycle", "bloc", "source"], as_index=False)["vote_share"].mean()
+    n_averaged = n_raw - len(result)
+    if n_averaged:
+        log.info(
+            "NEP: averaged %d duplicate (cycle, bloc, source) row(s) — "
+            "multiple raw labels normalised to the same canonical bloc",
+            n_averaged,
+        )
     return result
 
 
@@ -265,7 +273,9 @@ def _from_gss(path: Path) -> pd.DataFrame:
         # Create a per-election sub-frame; cycle is the election year, not survey year.
         sub = df.copy()
         sub["cycle"] = election_cycle
-        dem_flag = sub[vote_col].str.lower().map(dem_map)  # NaN for non-voters
+        # astype(str) before lower() so numeric codes (int/float) don't silently
+        # produce all-NaN via pandas StringMethods on non-string dtype.
+        dem_flag = sub[vote_col].astype(str).str.lower().map(dem_map)
 
         for bloc_col, remap in [
             ("bloc__race", _GSS_RACE),
@@ -295,7 +305,15 @@ def _from_ces(path: Path) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
 
-    dem_flag = df["vote_indicator"].map({"Democratic": 1.0, "Republican": 0.0})
+    # Normalise to Title Case before mapping so "democratic", "DEMOCRATIC",
+    # "Democratic" all match.  Any other value (Other, Third Party, etc.) → NaN.
+    dem_flag = (
+        df["vote_indicator"]
+        .astype(str)
+        .str.strip()
+        .str.title()
+        .map({"Democratic": 1.0, "Republican": 0.0})
+    )
 
     weight_col = "weight_cumulative" if "weight_cumulative" in df.columns else "weight"
     frames = [
@@ -341,6 +359,10 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
     tuple[VoterPanelData, pd.DataFrame]
         payload : frozen VoterPanelData artifact ready for downstream stages
         panel   : cleaned, validated panel DataFrame (cycle, bloc, vote_share, source)
+                  Note: ``turnout`` column is absent — no current source exposes
+                  validated turnout at the per-bloc-per-cycle aggregation level.
+                  It will be added in a later sprint once VOTER Panel wave parsing
+                  is implemented.
     """
     surveys = Path(config.data_path) / "surveys"
     frames: list[pd.DataFrame] = []
