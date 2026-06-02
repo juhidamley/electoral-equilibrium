@@ -1,5 +1,443 @@
-"""data: stub — implemented in the corresponding weekly sprint."""
+"""Voter panel kernel — loads all survey sources, aggregates, cleans, and validates."""
 
 from __future__ import annotations
 
-raise NotImplementedError("data not yet implemented. See devplan for weekly schedule.")
+import json
+import logging
+from pathlib import Path
+
+import pandas as pd
+
+from electoral.artifacts import VoterPanelData
+from electoral.config import PipelineConfig
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.data.cleaning import clean_raw_panel, normalize_bloc
+from electoral.data.loaders import load_arda, load_ces, load_gss, load_nep
+from electoral.data.panel import validate_panel
+
+log = logging.getLogger(__name__)
+
+_CONFIGS_DIR = Path(__file__).parents[2] / "configs"
+_LAYER_WEIGHTS_PATH = _CONFIGS_DIR / "layer_weights.json"
+
+# ── Required columns for validate_panel ──────────────────────────────────────
+_PANEL_REQUIRED = ["cycle", "bloc"]
+
+# ── Source-specific label → canonical bloc remaps ─────────────────────────────
+#
+# Each dict maps the raw string value (as it appears in the labeled parquet)
+# to the canonical bloc ID.  Applied before the shared clean_raw_panel pass.
+# Values not present in these dicts produce NaN and are dropped by _agg_stratum.
+
+_ANES_RACE: dict[str, str] = {
+    "White non-Hispanic (1948-2012)": "white",
+    "Black non-Hispanic (1948-2012)": "african_american",
+    "Hispanic (1966-2012)": "latino",
+    "Asian or Pacific Islander, non-Hispanic (1966-2012)": "asian",
+    "Other or multiple races, non-Hispanic (1968-2012)": "other_race",
+    "American Indian or Alaska Native non-Hispanic (1966-2012)": "other_race",
+    "Non-white and non-black (1948-1964)": "other_race",
+}
+_ANES_RELIGION: dict[str, str] = {
+    "Protestant": "protestant",
+    "Catholic [Roman Catholic]": "catholic",
+    "Jewish": "jewish",
+    # "Other and none" merges secular and other_rel; assign other_rel (conservative)
+    "Other and none (also includes DK preference)": "other_rel",
+}
+_ANES_GENDER: dict[str, str] = {
+    "Female": "women",
+    "Male": "men",
+    "Other (2016)": "other_gender",
+}
+
+_GSS_RACE: dict[str, str] = {
+    "white": "white",
+    "black or african american": "african_american",
+    "hispanic": "latino",
+    "american indian or alaska native": "other_race",
+    "some other race": "other_race",
+    "asian indian": "asian",
+    "chinese": "asian",
+    "filipino": "asian",
+    "japanese": "asian",
+    "korean": "asian",
+    "vietnamese": "asian",
+    "other asian": "asian",
+}
+_GSS_RELIGION: dict[str, str] = {
+    "protestant": "protestant",
+    "catholic": "catholic",
+    "none": "secular",
+    "jewish": "jewish",
+    "other": "other_rel",
+    "christian": "protestant",
+    "buddhism": "other_rel",
+    "muslim/islam": "muslim",
+    "orthodox-christian": "other_rel",
+    "hinduism": "other_rel",
+    "other eastern": "other_rel",
+    "inter-nondenominational": "protestant",
+}
+_GSS_GENDER: dict[str, str] = {"Female": "women", "Male": "men"}
+
+# Retrospective presidential-vote columns present in the GSS labeled subset
+# and which candidate name maps to Democratic (1.0) or Republican (0.0).
+_GSS_ELECTIONS: dict[int, tuple[str, dict[str, float]]] = {
+    2016: ("pres16", {"clinton": 1.0, "trump": 0.0}),
+    2020: ("pres20", {"biden": 1.0, "trump": 0.0}),
+}
+
+_CES_RACE: dict[str, str] = {
+    "White": "white",
+    "Hispanic": "latino",
+    "Black": "african_american",
+    "Asian": "asian",
+    "Mixed": "other_race",
+    "Other": "other_race",
+    "Middle Eastern": "other_race",
+    "Native American": "other_race",
+    "Native Hawaiian / Pacific Islander": "other_race",
+}
+_CES_RELIGION: dict[str, str] = {
+    "Protestant": "protestant",
+    "Roman Catholic": "catholic",
+    "Nothing in particular": "secular",
+    "Something else": "other_rel",
+    "Agnostic": "secular",
+    "Atheist": "secular",
+    "Jewish": "jewish",
+    "Mormon": "other_rel",
+    "Buddhist": "other_rel",
+    "Muslim": "muslim",
+    "Hindu": "other_rel",
+    "Orthodox Christian": "other_rel",
+    "Evangelical Protestant": "evangelical",
+    "Mainline Protestant": "protestant",
+    "Born Again": "evangelical",
+}
+_CES_GENDER: dict[str, str] = {
+    "Female": "women",
+    "Male": "men",
+    "Non-binary": "other_gender",
+    "Other": "other_gender",
+}
+
+
+# ── Shared aggregation helper ─────────────────────────────────────────────────
+
+
+def _agg_stratum(
+    df: pd.DataFrame,
+    bloc_col: str,
+    remap: dict[str, str],
+    dem_series: pd.Series,
+    cycle_col: str,
+    weight_col: str | None,
+    source: str,
+) -> pd.DataFrame:
+    """Aggregate individual survey responses to weighted bloc-level vote_share.
+
+    dem_series must be 0.0 (Republican), 1.0 (Democrat), or NaN (excluded).
+    Rows with NaN dem or unmapped bloc are dropped before aggregation.
+    """
+    sub = pd.DataFrame(
+        {
+            "cycle": df[cycle_col].values,
+            "bloc": df[bloc_col].map(remap).values,
+            "dem": dem_series.values,
+            "w": (
+                pd.to_numeric(df[weight_col], errors="coerce").fillna(1.0).values
+                if weight_col and weight_col in df.columns
+                else 1.0
+            ),
+        },
+        index=df.index,
+    )
+    sub = sub.dropna(subset=["bloc", "dem"])
+    sub = sub[sub["dem"].isin([0.0, 1.0])]
+    if sub.empty:
+        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+
+    result = (
+        sub.groupby(["cycle", "bloc"])
+        .apply(lambda g: (g["dem"] * g["w"]).sum() / g["w"].sum(), include_groups=False)
+        .reset_index(name="vote_share")
+    )
+    result["source"] = source
+    return result[["cycle", "bloc", "vote_share", "source"]]
+
+
+# ── Source-specific extractors ────────────────────────────────────────────────
+
+
+def _from_nep(paths: list[Path]) -> pd.DataFrame:
+    """Load all NEP exit-poll CSVs, filter to Race/Religion/Gender strata,
+    scale dem_pct from integer percentage to [0, 1], and keep only rows
+    whose bloc maps to a canonical ID.
+    """
+    records: list[dict] = []
+    for path in paths:
+        df = load_nep(path)
+        stratum_col = df["stratum"] if "stratum" in df.columns else pd.Series(dtype=str)
+
+        is_race = stratum_col.eq("Race")
+        is_religion = stratum_col.eq("Religion")
+        # The gender stratum has a long name; match on "Gender" while excluding
+        # cross-tabulation strata that also contain the word.
+        is_gender = stratum_col.str.contains("Gender", na=False) & ~stratum_col.str.contains(
+            "marital|education|White|Sex|race|income", case=False, na=False
+        )
+        df = df[is_race | is_religion | is_gender].copy()
+
+        raw_vs = pd.to_numeric(df["vote_share"], errors="coerce")
+        df["vote_share"] = raw_vs / 100.0
+
+        for _, row in df.iterrows():
+            try:
+                canonical = normalize_bloc(str(row["bloc"]))
+            except (ValueError, TypeError):
+                log.debug(
+                    "NEP %s: skipping unrecognized bloc %r",
+                    path.name,
+                    row.get("bloc"),
+                )
+                continue
+            vs = row["vote_share"]
+            if pd.isna(vs):
+                continue
+            records.append(
+                {
+                    "cycle": int(row["cycle"]),
+                    "bloc": canonical,
+                    "vote_share": float(vs),
+                    "source": "NEP",
+                }
+            )
+
+    if not records:
+        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+
+    result = pd.DataFrame(records)
+    # NEP PDFs can produce duplicate rows for the same bloc (e.g. "White" and
+    # "White voters" in the same table both normalize to "white").  Average them.
+    result = result.groupby(["cycle", "bloc", "source"], as_index=False)["vote_share"].mean()
+    return result
+
+
+def _from_anes(path: Path) -> pd.DataFrame:
+    """ANES CDF labeled subset → bloc-level vote_share via weighted aggregation.
+
+    vote_indicator coding: 1.0=Democrat, 2.0=Republican, 3.0=Other, 0.0=didn't vote.
+    Only actual voters (vote_indicator ∈ {1, 2, 3}) enter the denominator.
+    """
+    df = load_arda(path)
+    # Map vote_indicator to Dem=1.0 / Rep=0.0 / NaN (excluded)
+    dem_flag = df["vote_indicator"].map({1.0: 1.0, 2.0: 0.0, 3.0: 0.0})
+
+    frames = [
+        _agg_stratum(df, "bloc__race", _ANES_RACE, dem_flag, "cycle", "weight", "ANES"),
+        _agg_stratum(df, "bloc__religion", _ANES_RELIGION, dem_flag, "cycle", "weight", "ANES"),
+        _agg_stratum(df, "bloc__gender", _ANES_GENDER, dem_flag, "cycle", "weight", "ANES"),
+    ]
+    non_empty = [f for f in frames if not f.empty]
+    return (
+        pd.concat(non_empty, ignore_index=True)
+        if non_empty
+        else pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+    )
+
+
+def _from_gss(path: Path) -> pd.DataFrame:
+    """GSS labeled subset → bloc-level vote_share via retrospective presidential vote columns.
+
+    Each election (2016, 2020) is handled separately because the GSS asks respondents
+    which presidential candidate they supported, regardless of the survey wave year.
+    """
+    df = load_gss(path)
+    frames = []
+
+    for election_cycle, (vote_col, dem_map) in _GSS_ELECTIONS.items():
+        if vote_col not in df.columns:
+            log.debug("GSS: column %r not found, skipping cycle %d", vote_col, election_cycle)
+            continue
+
+        # Create a per-election sub-frame; cycle is the election year, not survey year.
+        sub = df.copy()
+        sub["cycle"] = election_cycle
+        dem_flag = sub[vote_col].str.lower().map(dem_map)  # NaN for non-voters
+
+        for bloc_col, remap in [
+            ("bloc__race", _GSS_RACE),
+            ("bloc__religion", _GSS_RELIGION),
+            ("bloc__gender", _GSS_GENDER),
+        ]:
+            frames.append(_agg_stratum(sub, bloc_col, remap, dem_flag, "cycle", "weight", "GSS"))
+
+    non_empty = [f for f in frames if not f.empty]
+    return (
+        pd.concat(non_empty, ignore_index=True)
+        if non_empty
+        else pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+    )
+
+
+def _from_ces(path: Path) -> pd.DataFrame:
+    """CES cumulative labeled subset → bloc-level vote_share via weighted aggregation.
+
+    Only presidential-election cycles (year divisible by 4) are retained.
+    vote_indicator coding: "Democratic"=1.0, "Republican"=0.0, anything else=NaN.
+    weight_cumulative is used (appropriate for multi-year analyses).
+    """
+    df = load_ces(path)
+    cycle_num = pd.to_numeric(df["cycle"], errors="coerce")
+    df = df[cycle_num.notna() & (cycle_num % 4 == 0)].copy()
+    if df.empty:
+        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+
+    dem_flag = df["vote_indicator"].map({"Democratic": 1.0, "Republican": 0.0})
+
+    weight_col = "weight_cumulative" if "weight_cumulative" in df.columns else "weight"
+    frames = [
+        _agg_stratum(df, "bloc__race", _CES_RACE, dem_flag, "cycle", weight_col, "CES"),
+        _agg_stratum(df, "bloc__religion", _CES_RELIGION, dem_flag, "cycle", weight_col, "CES"),
+        _agg_stratum(df, "bloc__gender", _CES_GENDER, dem_flag, "cycle", weight_col, "CES"),
+    ]
+    non_empty = [f for f in frames if not f.empty]
+    return (
+        pd.concat(non_empty, ignore_index=True)
+        if non_empty
+        else pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+    )
+
+
+# ── Layer weights loader ──────────────────────────────────────────────────────
+
+
+def _load_layer_weights() -> dict[str, float]:
+    with _LAYER_WEIGHTS_PATH.open(encoding="utf-8") as fh:
+        raw = json.load(fh)
+    return {k: float(raw[k]) for k in ("lambda_1", "lambda_2", "lambda_3")}
+
+
+# ── Main kernel function ──────────────────────────────────────────────────────
+
+
+def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFrame]:
+    """Load all survey sources, aggregate, clean, validate, and return the voter panel.
+
+    Sources (in priority order):
+      1. NEP exit polls — primary source; already aggregated dem_pct per bloc per cycle.
+      2. ANES CDF labeled subset — individual-level; aggregated to bloc-level via
+         weighted mean of presidential vote_indicator.
+      3. GSS labeled subset — individual-level; pres16/pres20 retrospective vote columns.
+      4. CES cumulative labeled subset — individual-level; voted_pres_party column.
+      5. VOTER Panel (Democracy Fund) — deferred: wave-specific column parsing not yet
+         implemented.
+      6. NPORS (Pew) — deferred: party proxy only, no direct vote_share.
+
+    Returns
+    -------
+    tuple[VoterPanelData, pd.DataFrame]
+        payload : frozen VoterPanelData artifact ready for downstream stages
+        panel   : cleaned, validated panel DataFrame (cycle, bloc, vote_share, source)
+    """
+    surveys = Path(config.data_path) / "surveys"
+    frames: list[pd.DataFrame] = []
+
+    # ── 1. NEP ────────────────────────────────────────────────────────────────
+    nep_dir = surveys / "cnn_ssrs_polls"
+    nep_files = sorted(nep_dir.glob("nep_*_exit_poll.csv")) if nep_dir.exists() else []
+    if nep_files:
+        df_nep = _from_nep(nep_files)
+        frames.append(df_nep)
+        log.info("NEP: %d rows from %d file(s)", len(df_nep), len(nep_files))
+    else:
+        log.warning("NEP: no exit-poll CSVs found in %s", nep_dir)
+
+    # ── 2. ANES ───────────────────────────────────────────────────────────────
+    anes_dir = surveys / "anes_timeseries_cdf_csv_20260205"
+    anes_path = anes_dir / "anes_labeled_subset.parquet"
+    if anes_path.exists():
+        df_anes = _from_anes(anes_path)
+        frames.append(df_anes)
+        log.info("ANES: %d rows", len(df_anes))
+    else:
+        log.warning("ANES: labeled subset not found at %s", anes_path)
+
+    # ── 3. GSS ────────────────────────────────────────────────────────────────
+    gss_candidates = (
+        list((surveys / "GSS_stata (1)").glob("gss_labeled_subset.parquet"))
+        if (surveys / "GSS_stata (1)").exists()
+        else []
+    )
+    if gss_candidates:
+        df_gss = _from_gss(gss_candidates[0])
+        frames.append(df_gss)
+        log.info("GSS: %d rows", len(df_gss))
+    else:
+        log.warning("GSS: labeled subset not found under %s", surveys)
+
+    # ── 4. CES ────────────────────────────────────────────────────────────────
+    ces_path = surveys / "CES_2006_2024" / "ces_cumulative_labeled.parquet"
+    if ces_path.exists():
+        df_ces = _from_ces(ces_path)
+        frames.append(df_ces)
+        log.info("CES: %d rows", len(df_ces))
+    else:
+        log.warning("CES: labeled subset not found at %s", ces_path)
+
+    # ── 5. VOTER Panel — deferred ─────────────────────────────────────────────
+    voter_path = surveys / "VOTER Panel Data Files" / "voter_panel.csv"
+    if voter_path.exists():
+        log.info("VOTER Panel: found at %s — wave-specific column parsing deferred", voter_path)
+    else:
+        log.warning("VOTER Panel: not found at %s", voter_path)
+
+    # ── 6. NPORS — deferred ───────────────────────────────────────────────────
+    npors_dir = surveys / "NPORS-2024-Data-Release"
+    if npors_dir.exists():
+        log.info("NPORS: found — party proxy only, vote_share extraction deferred")
+
+    if not frames:
+        raise RuntimeError(
+            "build_voter_panel: no survey data loaded. "
+            f"Check config.data_path ({config.data_path!r})."
+        )
+
+    # ── Concatenate ───────────────────────────────────────────────────────────
+    panel = pd.concat(frames, ignore_index=True)
+    log.info("Concatenated panel: %d rows before cleaning", len(panel))
+
+    # ── Clean ─────────────────────────────────────────────────────────────────
+    panel = clean_raw_panel(panel)
+    log.info("After clean_raw_panel: %d rows", len(panel))
+
+    # ── Validate ──────────────────────────────────────────────────────────────
+    validate_panel(panel, required_cols=_PANEL_REQUIRED, context="VoterPanelData")
+
+    # ── Derive VoterPanelData fields ──────────────────────────────────────────
+    cycles = sorted(int(c) for c in panel["cycle"].dropna().unique())
+    n_race = int(panel["bloc"].isin(CANONICAL_RACES).sum())
+    n_religion = int(panel["bloc"].isin(CANONICAL_RELIGIONS).sum())
+    n_gender = int(panel["bloc"].isin(CANONICAL_GENDERS).sum())
+    sources_used = (
+        "+".join(sorted(panel["source"].dropna().unique())) if "source" in panel.columns else None
+    )
+
+    layer_weights = _load_layer_weights()
+
+    payload = VoterPanelData(
+        cycles=cycles,
+        races=config.races,
+        religions=config.religions,
+        genders=config.genders,
+        n_rows_race=n_race,
+        n_rows_religion=n_religion,
+        n_rows_gender=n_gender,
+        layer_weights=layer_weights,
+        source=sources_used,
+    )
+    payload.validate()
+
+    return payload, panel
