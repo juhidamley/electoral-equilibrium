@@ -190,8 +190,13 @@ cython_debug/
 
 # Project data directories (large files, not for version control)
 data/
-rawdata/
 artifacts/
+# rawdata: ignore large runtime outputs but track documentation and reports
+rawdata/social/
+rawdata/articles/
+rawdata/merged/
+rawdata/*.jsonl
+rawdata/*.parquet
 
 # Ruff stuff:
 .ruff_cache/

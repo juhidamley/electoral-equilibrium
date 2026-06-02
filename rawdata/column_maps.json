@@ -1,0 +1,224 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "canonical_columns": {
+      "primary": [
+        "cycle",
+        "bloc__race",
+        "bloc__religion",
+        "bloc__gender",
+        "vote_indicator",
+        "turnout_indicator",
+        "weight"
+      ],
+      "supplementary": [
+        "bloc__race_hisp_flag",
+        "bloc__religion_evangelical_flag",
+        "bloc__religion_denomination",
+        "bloc__religion_fund_level",
+        "bloc__religion_attendance",
+        "bloc__religion_importance",
+        "bloc__religion_prayer",
+        "bloc__gender_4cat",
+        "vote_proxy",
+        "vote_proxy_lean"
+      ],
+      "nep_only": [
+        "stratum",
+        "bloc",
+        "vote_share",
+        "vote_share_rep",
+        "vote_share_other",
+        "stratum_share",
+        "dem_candidate",
+        "rep_candidate",
+        "n_respondents",
+        "source"
+      ],
+      "_note": "primary columns are expected from every respondent-level source after loading. supplementary columns are source-specific enrichments. nep_only columns come from NEP exit polls, which use a flat stratum+bloc table format instead of per-respondent rows."
+    },
+    "conventions": [
+      "bloc__<stratum>        — raw column that determines the bloc ID within that stratum (race/religion/gender)",
+      "bloc__<stratum>_*      — supplementary column needed alongside the primary bloc column",
+      "vote_indicator         — per-respondent raw vote column (0/1 or coded); aggregated to vote_share in cleaning",
+      "turnout_indicator      — per-respondent raw voted/not column (0/1 or coded); aggregated to turnout in cleaning",
+      "weight                 — survey weight used to compute stratum_share via weighted tabulation",
+      "{wave}                 — placeholder for VOTER Panel wave suffix (e.g. 2016, 2019Nov, 2020Nov)",
+      "vote_proxy             — party affiliation used as a vote_share proxy; not a direct vote-choice question"
+    ]
+  },
+
+  "GSS": {
+    "year":       "cycle",
+    "racecen1":   "bloc__race",
+    "hispanic":   "bloc__race_hisp_flag",
+    "relig":      "bloc__religion",
+    "fund":       "bloc__religion_fund_level",
+    "evangclx":   "bloc__religion_evangelical_flag",
+    "sex":        "bloc__gender",
+    "pres16":     "vote_indicator",
+    "pres20":     "vote_indicator",
+    "vote16":     "turnout_indicator",
+    "vote20":     "turnout_indicator",
+    "wtssnrps":   "weight",
+    "_notes": {
+      "cycle": "year is integer YYYY. Range 1972–2024; no transformation needed.",
+      "bloc__race": "racecen1 codes: 1=White, 2=Black/AA, 3=AIAN, 4=Asian Indian, 5=Chinese, 6=Filipino, 7=Japanese, 8=Korean, 9=Vietnamese, 10=Other Asian, 14=Other PI, 15=Some other race, 16=Hispanic. Combine with hispanic to separate Latino from other_race: (racecen1==16 OR hispanic not null) → latino; racecen1 in [4..14] → asian; racecen1==15 AND hispanic null → other_race.",
+      "bloc__race_hisp_flag": "hispanic is a country-of-origin code (non-null/non-0 → Hispanic identity). Available ~1980+.",
+      "bloc__religion": "relig codes: 1=Protestant, 2=Catholic, 3=Jewish, 4=None, 5=Other, 6=Buddhism, 7=Hinduism, 8=Other Eastern, 9=Muslim/Islam, 10=Orthodox, 11=Christian, 13=Inter-nondenominational. Map: 2→catholic, 3→jewish, 9→muslim, 4→secular, 1→evangelical or protestant (split with fund/evangclx).",
+      "bloc__religion_fund_level": "fund: 1=Fundamentalist, 2=Moderate, 3=Liberal. Evangelical proxy pre-2018: relig==1 AND fund==1. Replaced by evangclx from 2018.",
+      "bloc__religion_evangelical_flag": "evangclx: 1=Yes born-again/evangelical, 2=No. Available 2018+ only. Preferred over fund+relig when present.",
+      "bloc__gender": "sex: 1=Male, 2=Female. From 2021 onwards, sexnow/sexnow1 add transgender/non-binary categories for other_gender stratum.",
+      "vote_indicator": "pres20: 1=Biden (Dem), 2=Trump (Rep), 3=Other. pres16: 1=Clinton, 2=Trump, 3=Other. Pattern presXX exists for all cycles 1968–2020 plus whovote24 for 2024. Recode Dem candidate=1, Rep=0, Other=null, not asked=null.",
+      "turnout_indicator": "voteXX: 1=Voted, 2=Did not vote. Pattern vote68–vote20 plus whovote24. Recode 1→1, 2→0.",
+      "weight": "wtssnrps: post-stratification + non-response adjustment (recommended 2018+). Use wtssps (post-strat only) for 2006–2017. Use wtss for 1972–2005. All three are present in the file; select based on year."
+    }
+  },
+
+  "ANES": {
+    "VCF0004":   "cycle",
+    "VCF0105a":  "bloc__race",
+    "VCF0107":   "bloc__race_hisp_flag",
+    "VCF0128":   "bloc__religion",
+    "VCF0129":   "bloc__religion_denomination",
+    "VCF0130":   "bloc__religion_attendance",
+    "VCF0104":   "bloc__gender",
+    "VCF0704":   "vote_indicator",
+    "VCF0702":   "turnout_indicator",
+    "VCF0010x":  "weight",
+    "_notes": {
+      "cycle": "VCF0004 is integer YYYY. File covers 1948–2024.",
+      "bloc__race": "VCF0105a codes: 1=White non-Hispanic, 2=Black non-Hispanic, 3=Asian/PI non-Hispanic, 4=Native American non-Hispanic, 5=Hispanic White, 6=Hispanic Black, 7=Other. Available from 1966. Map: 1→white, 2→african_american, 3→asian, 4→other_race, 5→latino, 6→african_american, 7→other_race. For years before 1966 use VCF0106 (4-cat: 1=White, 2=Black, 3=Other).",
+      "bloc__race_hisp_flag": "VCF0107: 1=Mexican/Chicano, 2=Puerto Rican, 3=Cuban, 4=Other Hispanic; 7=Not Hispanic. Only partially available. Use as supplement when VCF0105a Hispanic codes are ambiguous.",
+      "bloc__religion": "VCF0128: 0=No preference/atheist/agnostic (→secular), 1=Protestant (→split with VCF0129 for evangelical vs protestant), 2=Catholic (→catholic), 3=Jewish (→jewish), 4=Other/non-Christian (→other_rel). Cannot distinguish evangelical from mainline without VCF0129.",
+      "bloc__religion_denomination": "VCF0129: detailed denomination codes. Protestant (VCF0128==1) evangelical identification: codes 100–199 (Baptist, especially Southern Baptist) tend evangelical; codes 200–299 (Methodist) mainline; codes 120 (Pentecostal) evangelical. See ANES codebook for full mapping. Available only in select years.",
+      "bloc__religion_attendance": "VCF0130: 0=Never, 1=Few times/yr, 2=Once/mo, 3=Almost weekly, 4=Every week, 5=More than weekly. Use for religion stratum validation and evangelical weighting, not primary bloc classification.",
+      "bloc__gender": "VCF0104: 1=Male (→men), 2=Female (→women). Binary only; no non-binary category in the CDF. Code 0=missing.",
+      "vote_indicator": "VCF0704: 0=Did not vote, 1=Voted Democrat, 2=Voted Republican, 3=Voted other. Post-election wave. Recode 1→1, 2,3→0, 0→null. Note: VCF0704==0 can also serve as a non-voter flag for turnout computation when VCF0702 is unavailable.",
+      "turnout_indicator": "VCF0702: self-reported voter turnout. 1=Voted in presidential election, 2=Did not vote, 0=NA. Available in most years; complement is VCF0704 code 0 (non-voter) from the vote question.",
+      "weight": "VCF0010x: cross-section full-sample weight (recommended for most analyses). VCF0009x = pre-election wave weight. VCF0011x = post-election wave weight."
+    }
+  },
+
+  "VOTER_PANEL": {
+    "race_{wave}":         "bloc__race",
+    "bornagain_{wave}":    "bloc__religion_evangelical_flag",
+    "religion_{wave}":     "bloc__religion",
+    "gender_{wave}":       "bloc__gender",
+    "presvote_{wave}":     "vote_indicator",
+    "turnout_{wave}":      "turnout_indicator",
+    "weight_genpop_{wave}":"weight",
+    "_notes": {
+      "cycle": "Derived from the wave suffix. Mapping: '2011'→2012 (survey recalls 2008 and 2012 vote), '2012'→2012, '2016'→2016, '2017'–'2019'→no presidential cycle (off-year), '2020Sep'/'2020Nov'→2020. Use the presvote stem to identify which election the vote_indicator records.",
+      "bloc__race": "race_{wave}: numeric codes. Text labels in race_t_{wave} (available 2016, 2019Nov). Codebook required for per-wave decoding.",
+      "bloc__religion_evangelical_flag": "bornagain_{wave}: 1=Yes, 2=No. Available all waves except 2011. Evangelical = bornagain==1 AND religion==Protestant.",
+      "bloc__religion": "religion_{wave}: numeric codes. Text labels in religion_t_{wave} (available 2011, 2016, 2019Nov). Codebook required.",
+      "bloc__gender": "gender_{wave}: available 2011, 2018, 2019Jan, 2019Nov, 2020Sep. NOT available in 2016 or 2020Nov.",
+      "vote_indicator": "presvote_{wave}: presidential vote choice. Available waves: 2011 (2008+2012 recall), 2012, 2016, 2019Jan, 2019Nov, 2020Sep, 2020Nov. presvote16_{wave} and presvote08_{wave} are retrospective recall columns.",
+      "turnout_indicator": "turnout_{wave}: validated or self-reported turnout. Available 2012, 2016, 2019Jan, 2020Nov.",
+      "weight": "weight_genpop_{wave}: general population weight (use for stratum_share estimation). weight_panel_{wave} for within-panel consistency; weight_allpanel_{wave} for all-panel pooled analyses."
+    }
+  },
+
+  "NPORS": {
+    "RACETHN":  "bloc__race",
+    "HISP":     "bloc__race_hisp_flag",
+    "RELIG":    "bloc__religion",
+    "BORN":     "bloc__religion_evangelical_flag",
+    "RELIMP":   "bloc__religion_importance",
+    "PRAY":     "bloc__religion_prayer",
+    "GENDER":   "bloc__gender",
+    "PARTY":    "vote_proxy",
+    "PARTYLN":  "vote_proxy_lean",
+    "WEIGHT":   "weight",
+    "_notes": {
+      "cycle": "No cycle column — NPORS is a single cross-section. Hardcode cycle=2024 in loader. Field dates: Feb 1–Jun 10, 2024.",
+      "turnout": "Not available. NPORS is a general-public reference survey, not an election survey; it does not ask about voting behavior or election turnout.",
+      "bloc__race": "RACETHN: preferred combined race+ethnicity variable. Full value labels in SAV file. Encodes Hispanic ethnicity alongside race.",
+      "bloc__race_hisp_flag": "HISP: explicit Hispanic identity flag. Use to confirm or override RACETHN Hispanic classification.",
+      "bloc__religion": "RELIG: religious affiliation categorical. Value labels in SAV. Map to canonical strata: Protestant (→protestant/evangelical with BORN), Catholic (→catholic), Jewish (→jewish), Muslim (→muslim), None/Atheist/Agnostic (→secular), other (→other_rel).",
+      "bloc__religion_evangelical_flag": "BORN: born-again Christian flag. 1=Yes. Evangelical = BORN==1 AND RELIG==Protestant.",
+      "bloc__religion_importance": "RELIMP: importance of religion. Supplementary — use for evangelical weighting validation, not primary classification.",
+      "bloc__religion_prayer": "PRAY: prayer frequency. Supplementary — not used directly for bloc classification.",
+      "bloc__gender": "GENDER: categorical gender. Value labels in SAV.",
+      "vote_proxy": "PARTY: party affiliation. NPORS does not ask presidential vote choice. Use PARTY==Democrat proportion per bloc as a vote_share proxy; note this systematically differs from actual vote share by ~3–5 pp.",
+      "vote_proxy_lean": "PARTYLN: party lean for independents. Combine PARTY + PARTYLN → Dem-leaning proportion per bloc as the best available vote proxy.",
+      "weight": "WEIGHT: final calibration weight. BASEWT is the raw design weight before calibration."
+    }
+  },
+
+  "NEP": {
+    "category":      "stratum",
+    "sub_category":  "bloc",
+    "sub_pct":       "stratum_share",
+    "dem_candidate": "dem_candidate",
+    "rep_candidate": "rep_candidate",
+    "dem_pct":       "vote_share",
+    "rep_pct":       "vote_share_rep",
+    "other_pct":     "vote_share_other",
+    "n_total":       "n_respondents",
+    "_notes": {
+      "cycle": "No cycle column in the CSV — derived from filename: nep_{year}_exit_poll.csv. Hardcode in loader from the year extracted from the path.",
+      "stratum": "category is free-text (e.g. 'Race', 'Vote by religion', 'Age'). Normalize to canonical stratum via keyword match: 'race'→race, 'relig'→religion, 'gender'/'sex'→gender.",
+      "bloc": "sub_category is a free-text label (e.g. 'White', 'Catholic', 'Women'). Must be mapped to canonical bloc IDs via a lookup table: 'White'→white, 'African-American'/'Black'→african_american, 'Latino'/'Hispanic'→latino, 'Asian'→asian, 'Evangelical'→evangelical, etc. Labels vary by year.",
+      "stratum_share": "sub_pct: share of the total electorate that voted AND belongs to this sub-group (%). Divide by 100 for float [0,1]. NOTE: these sum to >100% for categories where the same demographic appears in multiple sub-tables (expected — see SOURCE NOTES.md).",
+      "dem_candidate": "Name of the Democratic presidential candidate (e.g. Kerry, Clinton, Biden, Harris). Constant within a file; varies by year.",
+      "rep_candidate": "Name of the Republican presidential candidate (e.g. Bush, Trump). Constant within a file; varies by year.",
+      "vote_share": "dem_pct: Democratic candidate's vote share within the sub-group (%). Divide by 100 for float [0,1].",
+      "vote_share_rep": "rep_pct: Republican candidate's vote share within the sub-group (%). Divide by 100. Symmetric with dem_pct.",
+      "vote_share_other": "other_pct: third-party vote share. Present in 2016 file only (Gary Johnson era). Not present in 2004, 2020, 2024.",
+      "source": "Not present in CSVs. Add 'NEP' as a literal column in the loader."
+    }
+  },
+
+  "CES": {
+    "year":              "cycle",
+    "race_h":            "bloc__race",
+    "hispanic":          "bloc__race_hisp_flag",
+    "religion":          "bloc__religion",
+    "relig_bornagain":   "bloc__religion_evangelical_flag",
+    "relig_church":      "bloc__religion_attendance",
+    "gender":            "bloc__gender",
+    "gender4":           "bloc__gender_4cat",
+    "voted_pres_party":  "vote_indicator",
+    "vv_turnout_gvm":    "turnout_indicator",
+    "weight_cumulative": "weight",
+    "_notes": {
+      "cycle": "year is integer YYYY. Range 2006–2024. Even years (2008, 2012, …) are presidential cycles.",
+      "bloc__race": "race_h ('any-part Hispanic' definition): 1=White, 2=Black, 3=Hispanic, 4=Asian, 5=Native American, 6=Mixed, 7=Other, 8=Middle Eastern. Map: 1→white, 2→african_american, 3→latino, 4→asian, 5+6+7+8→other_race. Preferred over raw race column.",
+      "bloc__race_hisp_flag": "hispanic: 'Yes'/'No'. Needed only when using raw race column instead of race_h. race_h already incorporates Hispanic identification.",
+      "bloc__religion": "religion: 1=Protestant, 2=Roman Catholic, 3=Mormon, 4=Orthodox, 5=Jewish, 6=Muslim, 7=Buddhist, 8=Hindu, 9=Atheist, 10=Agnostic, 11=Nothing in particular, 12=Something else. Map: 1→split with relig_bornagain, 2→catholic, 5→jewish, 6→muslim, 9+10+11→secular, 3+4+7+8+12→other_rel.",
+      "bloc__religion_evangelical_flag": "relig_bornagain: 'Yes'/'No'. Evangelical = relig_bornagain=='Yes' AND religion==1 (Protestant). Protestant = relig_bornagain=='No' AND religion==1.",
+      "bloc__religion_attendance": "relig_church: 'More Than Once a Week', 'Once a Week', 'Once or Twice a Month', 'A Few Times a Year', 'Seldom', 'Never'. Used for validation and evangelical weighting, not primary bloc assignment.",
+      "bloc__gender": "gender: 1=Male (→men), 2=Female (→women). Standardized binary across all years (2006–2024). Note: before 2021, question was 'Are you male or female?'. Covers the men/women split only.",
+      "bloc__gender_4cat": "gender4: 1=Man (→men), 2=Woman (→women), 3=Non-Binary (→other_gender), 4=Other (→other_gender). Available 2021+ only. Use gender for the standardized 2-cat version across all years.",
+      "vote_indicator": "voted_pres_party: 'Democratic', 'Republican', 'Third Party', 'Other', 'Undervote'. Post-election wave only (rows where tookpost==1). Recode 'Democratic'→1, all others→0. Use voted_pres_{YY} for candidate-specific columns (e.g. voted_pres_20 for Biden/Trump).",
+      "turnout_indicator": "vv_turnout_gvm: 'Voted', 'No Record of Voting', 'No Voter File'. Validated against voter files (Catalist 2006–2020; TargetSmart 2022+). Recode 'Voted'→1, others→0.",
+      "weight": "weight_cumulative for pooled multi-year analyses (divides each year's weight by a normalizing factor so all years contribute equally). Use weight for single-year analyses. Use vvweight for analyses restricted to validated registered voters (2018+)."
+    }
+  },
+
+  "CES_2024": {
+    "race":          "bloc__race",
+    "hispanic":      "bloc__race_hisp_flag",
+    "religpew":      "bloc__religion",
+    "pew_bornagain": "bloc__religion_evangelical_flag",
+    "pew_churatd":   "bloc__religion_attendance",
+    "gender4":       "bloc__gender",
+    "CC24_410":      "vote_indicator",
+    "TS_g2024":      "turnout_indicator",
+    "commonweight":  "weight",
+    "_notes": {
+      "cycle": "No cycle column — this is a 2024 single-year file. Hardcode cycle=2024.",
+      "bloc__race": "race: 1=White, 2=Black, 3=Hispanic, 4=Asian, 5=Native American, 6=Mixed, 7=Other, 8=Middle Eastern. Combine with hispanic column to replicate the race_h 'any-part Hispanic' definition from the cumulative file: if hispanic=='Yes' AND race in [1,2,7,8], reclassify to 3 (Hispanic).",
+      "bloc__race_hisp_flag": "hispanic: 'Yes'/'No'. Asked of all respondents from 2018 onward. Use to reclassify White/Black Hispanic respondents from race codes 1/2 into the latino canonical bloc.",
+      "bloc__religion": "religpew: same categories as CES cumulative religion column. See CES._notes.bloc__religion for canonical mapping.",
+      "bloc__religion_evangelical_flag": "pew_bornagain: 1=Yes, 2=No. Evangelical = pew_bornagain==1 AND religpew==1.",
+      "bloc__religion_attendance": "pew_churatd: church attendance. Same scale as relig_church in cumulative.",
+      "bloc__gender": "gender4: 1=Man (→men), 2=Woman (→women), 3=Non-Binary (→other_gender), 4=Other (→other_gender). This is the 2024 gender question — 4-category. No 2-category gender variable in the year-specific file.",
+      "vote_indicator": "CC24_410: 2024 presidential vote choice (post-election wave). Numeric codes; text labels in CC24_410_t. Recode Democratic candidate (Harris)→1, Republican (Trump)→0. CC24_410_nv is the non-voter version ('who would you have voted for'). Confirm coding against CES_2024_GUIDE_vv.pdf.",
+      "turnout_indicator": "TS_g2024: TargetSmart validated 2024 general election turnout. Values: 'Voted', 'No Record'. Recode 'Voted'→1. Also see TS_voterstatus for registration status.",
+      "weight": "commonweight: pre-election wave weight (covers all respondents). Use commonpostweight for analyses restricted to post-election respondents. Use vvweight for analyses of validated registered voters."
+    }
+  }
+}
