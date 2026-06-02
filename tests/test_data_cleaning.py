@@ -11,7 +11,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from electoral.data.cleaning import CANONICAL_BLOCS, clean_raw_panel, normalize_bloc
+from electoral.data.cleaning import (
+    CANONICAL_BLOCS,
+    clean_raw_panel,
+    impute_missing_cells,
+    normalize_bloc,
+)
 from electoral.data.loaders import load_csv_panel
 
 TOY_PANEL = Path("tests/fixtures/toy_panel.csv")
@@ -280,3 +285,130 @@ def test_input_not_mutated():
     assert df["cycle"].dtype == original_cycle_dtype
     assert df["bloc"].iloc[0] == original_bloc
     assert df["vote_share"].iloc[0] == original_vote_share
+
+
+# ── impute_missing_cells tests ────────────────────────────────────────────────
+
+
+def test_impute_other_gender_constant_fills_missing_cycles():
+    """2004/2008/2012/2020/2024 other_gender rows are added at 0.76 when absent."""
+    df = _df(cycle=[2016], bloc=["other_gender"], vote_share=[1.0], source=["ANES"])
+    out = impute_missing_cells(df)
+    og = out[out["bloc"].astype(str) == "other_gender"].sort_values("cycle").reset_index(drop=True)
+    # 2016 observed + 5 imputed = 6 rows
+    assert set(og["cycle"].astype(int)) == {2004, 2008, 2012, 2016, 2020, 2024}
+    imputed = og[og["cycle"].astype(int) != 2016]
+    assert list(imputed["vote_share"]) == pytest.approx([0.76] * len(imputed))
+    assert list(imputed["source"]) == ["imputed_pew_lgbtq"] * len(imputed)
+
+
+def test_impute_other_gender_does_not_overwrite_observed_2016():
+    """The 2016 ANES observation (1.0) is retained even though 2016 is not in the constant list."""
+    df = _df(cycle=[2016], bloc=["other_gender"], vote_share=[1.0], source=["ANES"])
+    out = impute_missing_cells(df)
+    obs = out[(out["bloc"].astype(str) == "other_gender") & (out["cycle"].astype(int) == 2016)]
+    assert len(obs) == 1
+    assert float(obs["vote_share"].iloc[0]) == pytest.approx(1.0)
+
+
+def test_impute_other_gender_skips_cycles_already_present():
+    """Cycles that already have other_gender data are not duplicated."""
+    all_cycles = [2004, 2008, 2012, 2016, 2020, 2024]
+    df = _df(
+        cycle=all_cycles,
+        bloc=["other_gender"] * 6,
+        vote_share=[0.76] * 6,
+        source=["test"] * 6,
+    )
+    out = impute_missing_cells(df)
+    assert len(out[out["bloc"].astype(str) == "other_gender"]) == 6
+
+
+def test_impute_muslim_2004_carry_backward_from_2008():
+    """2004 muslim value is the 2008 observed value when 2004 is absent."""
+    df = _df(cycle=[2008], bloc=["muslim"], vote_share=[0.93], source=["CES"])
+    out = impute_missing_cells(df)
+    m04 = out[(out["bloc"].astype(str) == "muslim") & (out["cycle"].astype(int) == 2004)]
+    assert len(m04) == 1
+    assert float(m04["vote_share"].iloc[0]) == pytest.approx(0.93)
+    assert m04["source"].iloc[0] == "imputed_carry_2008"
+
+
+def test_impute_muslim_2004_skipped_when_2008_absent():
+    """No 2004 muslim row is added when the 2008 reference is also missing."""
+    df = _df(cycle=[2012], bloc=["muslim"], vote_share=[0.85], source=["CES"])
+    out = impute_missing_cells(df)
+    m04 = out[(out["bloc"].astype(str) == "muslim") & (out["cycle"].astype(int) == 2004)]
+    assert len(m04) == 0
+
+
+def test_impute_muslim_2004_not_overwritten_when_present():
+    """When 2004 muslim is observed, imputation does not add a second row."""
+    df = _df(
+        cycle=[2004, 2008],
+        bloc=["muslim", "muslim"],
+        vote_share=[0.75, 0.93],
+        source=["NEP", "CES"],
+    )
+    out = impute_missing_cells(df)
+    m04 = out[(out["bloc"].astype(str) == "muslim") & (out["cycle"].astype(int) == 2004)]
+    assert len(m04) == 1
+    assert float(m04["vote_share"].iloc[0]) == pytest.approx(0.75)
+
+
+def test_impute_other_race_1948_carry_forward_from_1952():
+    """1948 other_race value is the 1952 observed value when 1948 is absent."""
+    df = _df(cycle=[1952], bloc=["other_race"], vote_share=[1.0], source=["ANES"])
+    out = impute_missing_cells(df)
+    r48 = out[(out["bloc"].astype(str) == "other_race") & (out["cycle"].astype(int) == 1948)]
+    assert len(r48) == 1
+    assert float(r48["vote_share"].iloc[0]) == pytest.approx(1.0)
+    assert r48["source"].iloc[0] == "imputed_carry_1952"
+
+
+def test_impute_other_race_1948_skipped_when_1952_absent():
+    """No 1948 other_race row is added when the 1952 reference is missing."""
+    df = _df(cycle=[1956], bloc=["other_race"], vote_share=[0.8], source=["ANES"])
+    out = impute_missing_cells(df)
+    r48 = out[(out["bloc"].astype(str) == "other_race") & (out["cycle"].astype(int) == 1948)]
+    assert len(r48) == 0
+
+
+def test_impute_no_rows_added_when_all_targets_present():
+    """Panel is returned unchanged (same length) when every imputation target exists."""
+    rows = [
+        *[
+            {"cycle": c, "bloc": "other_gender", "vote_share": 0.76, "source": "test"}
+            for c in [2004, 2008, 2012, 2016, 2020, 2024]
+        ],
+        {"cycle": 2004, "bloc": "muslim", "vote_share": 0.93, "source": "test"},
+        {"cycle": 1948, "bloc": "other_race", "vote_share": 1.0, "source": "test"},
+        {"cycle": 1952, "bloc": "other_race", "vote_share": 1.0, "source": "test"},
+        {"cycle": 2008, "bloc": "muslim", "vote_share": 0.93, "source": "test"},
+    ]
+    df = pd.DataFrame(rows)
+    out = impute_missing_cells(df)
+    assert len(out) == len(df)
+
+
+def test_impute_output_sorted_by_cycle_then_bloc():
+    """Output rows are in ascending (cycle, bloc) order regardless of input order."""
+    df = _df(
+        cycle=[2012, 2008, 2020],
+        bloc=["muslim", "african_american", "muslim"],
+        vote_share=[0.85, 0.93, 0.83],
+        source=["CES", "NEP", "CES"],
+    )
+    out = impute_missing_cells(df)
+    pairs = list(zip(out["cycle"].astype(int), out["bloc"].astype(str)))
+    assert pairs == sorted(pairs)
+
+
+def test_impute_input_not_mutated():
+    """The input DataFrame is never modified in-place."""
+    df = _df(cycle=[2008], bloc=["muslim"], vote_share=[0.93], source=["CES"])
+    original_len = len(df)
+    original_cols = list(df.columns)
+    impute_missing_cells(df)
+    assert len(df) == original_len
+    assert list(df.columns) == original_cols

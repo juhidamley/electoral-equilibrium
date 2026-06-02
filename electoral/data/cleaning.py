@@ -191,6 +191,86 @@ def _normalize_bloc(s: pd.Series) -> pd.Series:
     return out
 
 
+def impute_missing_cells(panel: pd.DataFrame) -> pd.DataFrame:
+    """Fill structurally absent (cycle, bloc) cells with documented estimates.
+
+    Rules from DECISIONS.md §Coverage Gap Imputation:
+
+    other_gender (2004, 2008, 2012, 2020, 2024):
+        Constant 0.76 — Pew Research LGBTQ Democratic presidential vote lean.
+        2016 ANES observation retained as-is (small-n artefact at 1.0).
+
+    muslim (2004):
+        Carry-backward from 2008. Skipped when 2008 value is absent.
+
+    other_race (1948):
+        Carry-forward from 1952. Skipped when 1952 value is absent.
+
+    Blocs NOT imputed: evangelical pre-2004 (Moral Majority break),
+    secular pre-2004, muslim pre-2000, latino/asian pre-1965 (VRA).
+    """
+    cycle_num = pd.to_numeric(panel["cycle"], errors="coerce")
+    bloc_str = panel["bloc"].astype(str)
+    valid = cycle_num.notna() & panel["bloc"].notna()
+    present: set[tuple[int, str]] = set(
+        zip(cycle_num[valid].astype(int), bloc_str[valid])
+    )
+
+    rows: list[dict] = []
+
+    for cycle in [2004, 2008, 2012, 2020, 2024]:
+        if (cycle, "other_gender") not in present:
+            rows.append(
+                {
+                    "cycle": cycle,
+                    "bloc": "other_gender",
+                    "vote_share": 0.76,
+                    "source": "imputed_pew_lgbtq",
+                }
+            )
+
+    if (2004, "muslim") not in present:
+        ref_mask = valid & (cycle_num == 2008) & (bloc_str == "muslim")
+        ref = panel.loc[ref_mask, "vote_share"]
+        if not ref.empty:
+            rows.append(
+                {
+                    "cycle": 2004,
+                    "bloc": "muslim",
+                    "vote_share": float(ref.iloc[0]),
+                    "source": "imputed_carry_2008",
+                }
+            )
+
+    if (1948, "other_race") not in present:
+        ref_mask = valid & (cycle_num == 1952) & (bloc_str == "other_race")
+        ref = panel.loc[ref_mask, "vote_share"]
+        if not ref.empty:
+            rows.append(
+                {
+                    "cycle": 1948,
+                    "bloc": "other_race",
+                    "vote_share": float(ref.iloc[0]),
+                    "source": "imputed_carry_1952",
+                }
+            )
+
+    if not rows:
+        return panel
+
+    imputed = pd.DataFrame(rows)
+    log.info(
+        "impute_missing_cells: added %d imputed row(s): %s",
+        len(imputed),
+        [(int(r["cycle"]), r["bloc"]) for r in rows],
+    )
+    return (
+        pd.concat([panel, imputed], ignore_index=True)
+        .sort_values(["cycle", "bloc"])
+        .reset_index(drop=True)
+    )
+
+
 def clean_raw_panel(df: pd.DataFrame) -> pd.DataFrame:
     """Apply all cleaning steps to a raw survey panel DataFrame.
 

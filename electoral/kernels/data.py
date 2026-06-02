@@ -11,7 +11,7 @@ import pandas as pd
 from electoral.artifacts import VoterPanelData
 from electoral.config import PipelineConfig
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
-from electoral.data.cleaning import clean_raw_panel, normalize_bloc
+from electoral.data.cleaning import clean_raw_panel, impute_missing_cells, normalize_bloc
 from electoral.data.loaders import load_arda, load_ces, load_gss, load_nep
 from electoral.data.panel import validate_panel
 
@@ -543,100 +543,6 @@ def _log_coverage(
         log.info("Coverage complete: all (cycle, bloc) pairs present in presidential cycles")
 
 
-# ── Missing-cell imputation ──────────────────────────────────────────────────
-
-
-def _impute_missing_cells(panel: pd.DataFrame) -> pd.DataFrame:
-    """Fill structurally absent (cycle, bloc) cells with documented estimates.
-
-    Imputation rules (see DECISIONS.md §Coverage Gap Imputation):
-
-    other_gender (2012–2024, excl. 2016 which has observed data):
-        Constant 0.76 — Pew Research LGBTQ Democratic presidential vote lean,
-        consistent across 2012–2024 surveys (~70–80% range).  Pre-2012 omitted:
-        the category was not surveyed.  The 2016 ANES observation (1.0) is a
-        small-n artefact retained as-is.
-
-    other_race (1948):
-        Carry-forward from 1952.  Single-cell gap; ANES 1948 small-n produces
-        unreliable estimates so the 1952 value is a benign substitute.
-
-    Not imputed (structural data absence, documented):
-        - evangelical pre-2004: Moral Majority era break makes carry-backward
-          misleading.  LLM training restricted to 2004-2024 for this bloc.
-        - secular pre-2004: CES/GSS provide reliable 2004-2024 coverage.
-        - muslim pre-2004: Muslim-American electorate was negligibly small
-          and voted differently pre-9/11.
-        - latino / asian pre-1965: Voting Rights Act year; these blocs had
-          effectively zero electorate share before 1965.
-    """
-    present = set(zip(panel["cycle"].astype(int), panel["bloc"].astype(str)))
-    rows: list[dict] = []
-
-    # other_gender: Pew LGBTQ constant for all cycles where exit polls were conducted
-    # (category existed in surveys from ~2004 onward in some form).
-    for cycle in [2004, 2008, 2012, 2020, 2024]:
-        if (cycle, "other_gender") not in present:
-            rows.append(
-                {
-                    "cycle": cycle,
-                    "bloc": "other_gender",
-                    "vote_share": 0.76,
-                    "source": "imputed_pew_lgbtq",
-                }
-            )
-
-    # muslim 2004: carry-backward from 2008 (first available CES value).
-    # Muslim-American voters shifted heavily Democratic after 9/11; the 2004
-    # election is the first post-9/11 cycle and the 2008 estimate is the closest
-    # reliable anchor.
-    if (2004, "muslim") not in present:
-        ref = panel.loc[
-            (panel["cycle"].astype(int) == 2008) & (panel["bloc"] == "muslim"),
-            "vote_share",
-        ]
-        if not ref.empty:
-            rows.append(
-                {
-                    "cycle": 2004,
-                    "bloc": "muslim",
-                    "vote_share": float(ref.iloc[0]),
-                    "source": "imputed_carry_2008",
-                }
-            )
-
-    # other_race 1948: carry forward the 1952 observed value
-    if (1948, "other_race") not in present:
-        ref = panel.loc[
-            (panel["cycle"].astype(int) == 1952) & (panel["bloc"] == "other_race"),
-            "vote_share",
-        ]
-        if not ref.empty:
-            rows.append(
-                {
-                    "cycle": 1948,
-                    "bloc": "other_race",
-                    "vote_share": float(ref.iloc[0]),
-                    "source": "imputed_carry_1952",
-                }
-            )
-
-    if not rows:
-        return panel
-
-    imputed = pd.DataFrame(rows)
-    log.info(
-        "_impute_missing_cells: added %d imputed row(s): %s",
-        len(imputed),
-        [(int(r["cycle"]), r["bloc"]) for r in rows],
-    )
-    return (
-        pd.concat([panel, imputed], ignore_index=True)
-        .sort_values(["cycle", "bloc"])
-        .reset_index(drop=True)
-    )
-
-
 # ── Main kernel function ──────────────────────────────────────────────────────
 
 
@@ -746,7 +652,7 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
     log.info("After clean_raw_panel: %d rows", len(panel))
 
     # ── Impute structurally absent cells ─────────────────────────────────────
-    panel = _impute_missing_cells(panel)
+    panel = impute_missing_cells(panel)
     log.info("After imputation: %d rows", len(panel))
 
     # ── Validate ──────────────────────────────────────────────────────────────
