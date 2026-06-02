@@ -148,6 +148,8 @@ def test_input_dataframe_not_modified():
     df = _df(cycle=["2020"], bloc=["WHITE"], vote_share=["0.41"])
     original_dtype = df["cycle"].dtype
     original_bloc = df["bloc"].iloc[0]
+    original_vote_share = df["vote_share"].iloc[0]
     clean_raw_panel(df)
     assert df["cycle"].dtype == original_dtype
     assert df["bloc"].iloc[0] == original_bloc
+    assert df["vote_share"].iloc[0] == original_vote_share

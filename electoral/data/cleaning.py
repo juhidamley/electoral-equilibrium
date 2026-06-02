@@ -30,7 +30,8 @@ def _normalise_bloc(s: pd.Series) -> pd.Series:
         out = out.str.replace(pattern, repl, regex=True)
     out = out.astype("string")
     # Restore original nulls and values that normalised to empty string.
-    out[null_mask | (out == "")] = pd.NA
+    # Use .eq("") rather than == "" to avoid Python-level comparison on StringArray.
+    out[null_mask | out.eq("")] = pd.NA
     return out
 
 
@@ -45,6 +46,9 @@ def clean_raw_panel(df: pd.DataFrame) -> pd.DataFrame:
     5. Sort by (cycle, bloc); reset index.
     6. Raise ValueError on duplicate (cycle, bloc, source) tuples.
        Falls back to (cycle, bloc) when ``source`` column is absent.
+       Note: ``pd.NA`` in ``source`` is treated as equal by pandas
+       ``duplicated()`` — rows with missing source can be flagged as
+       duplicates of each other even if they represent distinct provenance.
 
     Returns a new DataFrame; the input is not modified.
     """
