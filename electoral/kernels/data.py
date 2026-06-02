@@ -138,7 +138,7 @@ def _agg_stratum(
 ) -> pd.DataFrame:
     """Aggregate individual survey responses to weighted bloc-level vote_share.
 
-    dem_series must be 0.0 (Republican), 1.0 (Democrat), or NaN (excluded).
+    dem_series must be 1.0 (Democratic vote), 0.0 (non-Democratic vote), or NaN (excluded).
     Rows with NaN dem or unmapped bloc are dropped before aggregation.
     """
     sub = pd.DataFrame(
