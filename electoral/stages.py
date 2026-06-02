@@ -23,25 +23,31 @@ from electoral.artifacts import (
     StageArtifact,
     VoterPanelData,
 )
+from pathlib import Path
+
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
 from electoral.core.rng import make_rng
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.kernels.data import build_voter_panel as _build_voter_panel_kernel
 
 
 def build_voter_panel(config: PipelineConfig) -> VoterPanelData:
     """Week 1: ingest raw survey exports → validated longitudinal voter panel."""
-    payload = VoterPanelData(
-        cycles=[2020],
-        races=config.races,
-        religions=config.religions,
-        genders=config.genders,
-        n_rows_race=0,
-        n_rows_religion=0,
-        n_rows_gender=0,
-        layer_weights={"lambda_1": 0.50, "lambda_2": 0.30, "lambda_3": 0.20},
-        source=None,
+    payload, panel = _build_voter_panel_kernel(config)
+
+    panel_dir = Path(config.output_dir) / "panel"
+    panel_dir.mkdir(parents=True, exist_ok=True)
+    panel[panel["bloc"].isin(CANONICAL_RACES)].to_parquet(
+        panel_dir / "panel_race.parquet", index=False
     )
-    payload.validate()
+    panel[panel["bloc"].isin(CANONICAL_RELIGIONS)].to_parquet(
+        panel_dir / "panel_religion.parquet", index=False
+    )
+    panel[panel["bloc"].isin(CANONICAL_GENDERS)].to_parquet(
+        panel_dir / "panel_gender.parquet", index=False
+    )
+
     envelope = StageArtifact(
         stage="voter_panel",
         run_key=config.run_key,
