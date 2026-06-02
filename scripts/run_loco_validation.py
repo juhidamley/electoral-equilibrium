@@ -30,20 +30,18 @@ import math
 import pathlib
 import sys
 
-import numpy as np
 import pandas as pd
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from electoral.config import PipelineConfig
-from electoral.core.rng import make_rng, derive_seed
-from electoral.kernels.data import build_voter_panel as _panel_kernel
-from electoral.models.ml_baseline import (
+from electoral.config import PipelineConfig  # noqa: E402
+from electoral.core.rng import make_rng, derive_seed  # noqa: E402
+from electoral.kernels.data import build_voter_panel as _panel_kernel  # noqa: E402
+from electoral.models.ml_baseline import (  # noqa: E402
     fit_gp_classifier,
     ground_truth_winning_cycles,
-    platt_scale_loco,
     save_loco_json,
 )
 
@@ -84,9 +82,14 @@ def _load_or_build_panel(config: PipelineConfig) -> pd.DataFrame:
 
     panel_dir.mkdir(parents=True, exist_ok=True)
     from electoral.core.types import CANONICAL_RACES, CANONICAL_RELIGIONS, CANONICAL_GENDERS
+
     df[df["bloc"].isin(CANONICAL_RACES)].to_parquet(panel_dir / "panel_race.parquet", index=False)
-    df[df["bloc"].isin(CANONICAL_RELIGIONS)].to_parquet(panel_dir / "panel_religion.parquet", index=False)
-    df[df["bloc"].isin(CANONICAL_GENDERS)].to_parquet(panel_dir / "panel_gender.parquet", index=False)
+    df[df["bloc"].isin(CANONICAL_RELIGIONS)].to_parquet(
+        panel_dir / "panel_religion.parquet", index=False
+    )
+    df[df["bloc"].isin(CANONICAL_GENDERS)].to_parquet(
+        panel_dir / "panel_gender.parquet", index=False
+    )
     print(f"  Wrote panel parquets to {panel_dir}")
     return df
 
@@ -131,9 +134,11 @@ def _build_market_comparison(
             flagged_cycles.append(fold.cycle)
         divergences[str(fold.cycle)] = {
             "gp_prob_win": round(fold.prob_win, 4),
-            "calibrated_prob_win": round(fold.calibrated_prob_win, 4)
-            if not math.isnan(fold.calibrated_prob_win)
-            else None,
+            "calibrated_prob_win": (
+                round(fold.calibrated_prob_win, 4)
+                if not math.isnan(fold.calibrated_prob_win)
+                else None
+            ),
             "market_prob_win": round(mkt, 4),
             "divergence_pp": round(div_pp, 2),
             "flagged": flagged,
@@ -154,6 +159,7 @@ def _build_market_comparison(
 
 def run(party: str, out_path: pathlib.Path) -> None:
     import dataclasses
+
     _base = PipelineConfig.from_json(_ROOT / "configs" / "base.json")
     config = dataclasses.replace(_base, party=party)
 
@@ -203,21 +209,27 @@ def run(party: str, out_path: pathlib.Path) -> None:
     nan_folds = [f for f in result.folds if math.isnan(f.prob_win)]
 
     print(f"Total folds:              {len(result.folds)}")
-    print(f"Valid folds:              {len(valid_folds)}  "
-          f"(NaN: {len(nan_folds)} — single-class training sets)")
+    print(
+        f"Valid folds:              {len(valid_folds)}  "
+        f"(NaN: {len(nan_folds)} — single-class training sets)"
+    )
     print(f"Raw accuracy:             {result.accuracy:.3f}")
     print(f"Raw Brier score:          {result.brier_score:.4f}")
     print(f"Calibrated accuracy:      {result.calibrated_accuracy:.3f}")
     print(f"Calibrated Brier score:   {result.calibrated_brier_score:.4f}")
     print()
-    print(f"{'Cycle':<8} {'y':<4} {'Raw':<8} {'Std':<8} {'Cal':<8} "
-          f"{'Market':<8} {'Raw Δ':<8} {'Cal Δ':<8} {'Flag'}")
+    print(
+        f"{'Cycle':<8} {'y':<4} {'Raw':<8} {'Std':<8} {'Cal':<8} "
+        f"{'Market':<8} {'Raw Δ':<8} {'Cal Δ':<8} {'Flag'}"
+    )
     print("-" * 80)
     for fold in result.folds:
         mkt = _market_prob_for_party(fold.cycle, party)
         if math.isnan(fold.prob_win):
-            print(f"{fold.cycle:<8} {fold.y_true:<4} {'NaN':<8} {'NaN':<8} "
-                  f"{'NaN':<8} {'—':<8} {'—':<8} {'—':<8}")
+            print(
+                f"{fold.cycle:<8} {fold.y_true:<4} {'NaN':<8} {'NaN':<8} "
+                f"{'NaN':<8} {'—':<8} {'—':<8} {'—':<8}"
+            )
             continue
 
         raw_str = f"{fold.prob_win:.3f}"
@@ -235,30 +247,40 @@ def run(party: str, out_path: pathlib.Path) -> None:
         else:
             mkt_str, raw_d_str, cal_d_str, flag = "—", "—", "—", ""
 
-        print(f"{fold.cycle:<8} {fold.y_true:<4} {raw_str:<8} {std_str:<8} "
-              f"{cal_str:<8} {mkt_str:<8} {raw_d_str:<8} {cal_d_str:<8}{flag}")
+        print(
+            f"{fold.cycle:<8} {fold.y_true:<4} {raw_str:<8} {std_str:<8} "
+            f"{cal_str:<8} {mkt_str:<8} {raw_d_str:<8} {cal_d_str:<8}{flag}"
+        )
 
     print()
     print("Market comparison — calibrated (2004+):")
     if market_comp_cal["calibration_ok"]:
-        print(f"  ✓ All divergences ≤ {_DIVERGENCE_FLAG_PP:.0f} pp  "
-              f"(max = {market_comp_cal['max_divergence_pp']:.1f} pp)")
+        print(
+            f"  ✓ All divergences ≤ {_DIVERGENCE_FLAG_PP:.0f} pp  "
+            f"(max = {market_comp_cal['max_divergence_pp']:.1f} pp)"
+        )
     else:
         flagged = market_comp_cal["flagged_cycles"]
         max_div = market_comp_cal["max_divergence_pp"]
-        print(f"  ✗ {len(flagged)} cycle(s) diverge > {_DIVERGENCE_FLAG_PP:.0f} pp "
-              f"(max {max_div:.1f} pp): {flagged}")
+        print(
+            f"  ✗ {len(flagged)} cycle(s) diverge > {_DIVERGENCE_FLAG_PP:.0f} pp "
+            f"(max {max_div:.1f} pp): {flagged}"
+        )
 
     print()
     print("Market comparison — raw GP (2004+):")
     if market_comp_raw["calibration_ok"]:
-        print(f"  ✓ All divergences ≤ {_DIVERGENCE_FLAG_PP:.0f} pp  "
-              f"(max = {market_comp_raw['max_divergence_pp']:.1f} pp)")
+        print(
+            f"  ✓ All divergences ≤ {_DIVERGENCE_FLAG_PP:.0f} pp  "
+            f"(max = {market_comp_raw['max_divergence_pp']:.1f} pp)"
+        )
     else:
         flagged = market_comp_raw["flagged_cycles"]
         max_div = market_comp_raw["max_divergence_pp"]
-        print(f"  ✗ {len(flagged)} cycle(s) diverge > {_DIVERGENCE_FLAG_PP:.0f} pp "
-              f"(max {max_div:.1f} pp): {flagged}")
+        print(
+            f"  ✗ {len(flagged)} cycle(s) diverge > {_DIVERGENCE_FLAG_PP:.0f} pp "
+            f"(max {max_div:.1f} pp): {flagged}"
+        )
 
     print()
     print(f"Saved → {out_path}")

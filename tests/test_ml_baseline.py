@@ -14,7 +14,6 @@ import pytest
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.models.ml_baseline import (
     GPBaselineResult,
-    LocoFoldResult,
     MomentEstimates,
     _EC_DEM_WIN,
     _PEROT_1992_SHARE,
@@ -61,9 +60,7 @@ def test_rep_winning_cycles(toy):
 
 
 def _panel_1992(blocs: list[str], raw_share: float = 0.43) -> pd.DataFrame:
-    rows = [{"cycle": c, "bloc": b, "vote_share": raw_share}
-            for b in blocs
-            for c in [1992, 2020]]
+    rows = [{"cycle": c, "bloc": b, "vote_share": raw_share} for b in blocs for c in [1992, 2020]]
     return pd.DataFrame(rows)
 
 
@@ -95,23 +92,22 @@ def test_correction_result_in_unit_interval():
 def test_correction_african_american_smaller_than_white():
     # Perot took 7% of Black votes vs 21% of white votes, so the
     # correction is larger for white voters (bigger denominator reduction).
-    df = pd.DataFrame([
-        {"cycle": 1992, "bloc": "african_american", "vote_share": 0.85},
-        {"cycle": 1992, "bloc": "white", "vote_share": 0.40},
-    ])
+    df = pd.DataFrame(
+        [
+            {"cycle": 1992, "bloc": "african_american", "vote_share": 0.85},
+            {"cycle": 1992, "bloc": "white", "vote_share": 0.40},
+        ]
+    )
     corrected = correct_three_party_1992(df)
-    aa_gain = (corrected.loc[corrected["bloc"] == "african_american", "vote_share"].iloc[0]
-               - 0.85)
-    wh_gain = (corrected.loc[corrected["bloc"] == "white", "vote_share"].iloc[0]
-               - 0.40)
+    aa_gain = corrected.loc[corrected["bloc"] == "african_american", "vote_share"].iloc[0] - 0.85
+    wh_gain = corrected.loc[corrected["bloc"] == "white", "vote_share"].iloc[0] - 0.40
     assert wh_gain > aa_gain, "White correction should be larger than AA (higher Perot share)"
 
 
 def test_correction_no_1992_rows_is_noop():
     df = pd.DataFrame([{"cycle": 2020, "bloc": "white", "vote_share": 0.41}])
     corrected = correct_three_party_1992(df)
-    pd.testing.assert_frame_equal(df.reset_index(drop=True),
-                                  corrected.reset_index(drop=True))
+    pd.testing.assert_frame_equal(df.reset_index(drop=True), corrected.reset_index(drop=True))
 
 
 def test_correction_national_average_approx_two_party():
@@ -225,6 +221,7 @@ def test_ground_truth_dem_rep_are_complementary():
     dem = set(ground_truth_winning_cycles("democrat"))
     rep = set(ground_truth_winning_cycles("republican"))
     from electoral.models.ml_baseline import _PRES_DEM_2P_SHARE
+
     all_cycles = set(_PRES_DEM_2P_SHARE.keys())
     assert dem | rep == all_cycles
     assert dem & rep == set()
@@ -514,9 +511,7 @@ _WIN_6 = [2008, 2012, 2020]  # 3 wins, 3 losses
 @pytest.fixture(scope="module")
 def gp_result_6() -> GPBaselineResult:
     df = _gp_panel(_CYCLES_6)
-    return fit_gp_classifier(
-        df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(0)
-    )
+    return fit_gp_classifier(df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(0))
 
 
 # ── fold count and structure ──────────────────────────────────────────────────
@@ -565,7 +560,9 @@ def test_gp_prob_std_is_not_bernoulli_std(gp_result_6):
     # GPR posterior std can exceed 0.5; Bernoulli std is always <= 0.5.
     # Verify at least one valid fold has prob_std > 0.5, which proves we are
     # using GPR posterior uncertainty rather than sqrt(p*(1-p)).
-    large_stds = [f.prob_std for f in gp_result_6.folds if not math.isnan(f.prob_std) and f.prob_std > 0.5]
+    large_stds = [
+        f.prob_std for f in gp_result_6.folds if not math.isnan(f.prob_std) and f.prob_std > 0.5
+    ]
     assert large_stds, (
         "No fold had prob_std > 0.5; this suggests sqrt(p*(1-p)) is being used "
         "instead of the GPR posterior std."
@@ -671,8 +668,12 @@ def test_save_loco_json_schema(gp_result_6):
         save_loco_json(gp_result_6, p)
         data = json.loads(p.read_text())
         expected_top = {
-            "party", "accuracy", "brier_score",
-            "calibrated_accuracy", "calibrated_brier_score", "folds",
+            "party",
+            "accuracy",
+            "brier_score",
+            "calibrated_accuracy",
+            "calibrated_brier_score",
+            "folds",
         }
         assert set(data.keys()) == expected_top
         assert data["party"] == "democrat"
@@ -729,9 +730,9 @@ def test_platt_returns_gp_baseline_result(gp_calibrated_6):
 def test_platt_calibrated_prob_in_unit_interval(gp_calibrated_6):
     for f in gp_calibrated_6.folds:
         if not math.isnan(f.calibrated_prob_win):
-            assert 0.0 <= f.calibrated_prob_win <= 1.0, (
-                f"cycle {f.cycle}: calibrated_prob_win={f.calibrated_prob_win}"
-            )
+            assert (
+                0.0 <= f.calibrated_prob_win <= 1.0
+            ), f"cycle {f.cycle}: calibrated_prob_win={f.calibrated_prob_win}"
 
 
 def test_platt_calibrated_accuracy_in_unit_interval(gp_calibrated_6):
@@ -773,18 +774,15 @@ def test_platt_nan_folds_pass_through():
 
 def test_platt_calibrated_accuracy_matches_manual(gp_calibrated_6):
     valid = [f for f in gp_calibrated_6.folds if not math.isnan(f.calibrated_prob_win)]
-    expected = (
-        sum(1 for f in valid if (f.calibrated_prob_win >= 0.5) == bool(f.y_true))
-        / len(valid)
+    expected = sum(1 for f in valid if (f.calibrated_prob_win >= 0.5) == bool(f.y_true)) / len(
+        valid
     )
     assert gp_calibrated_6.calibrated_accuracy == pytest.approx(expected, abs=1e-12)
 
 
 def test_platt_calibrated_brier_matches_manual(gp_calibrated_6):
     valid = [f for f in gp_calibrated_6.folds if not math.isnan(f.calibrated_prob_win)]
-    expected = (
-        sum((f.calibrated_prob_win - f.y_true) ** 2 for f in valid) / len(valid)
-    )
+    expected = sum((f.calibrated_prob_win - f.y_true) ** 2 for f in valid) / len(valid)
     assert gp_calibrated_6.calibrated_brier_score == pytest.approx(expected, abs=1e-12)
 
 
@@ -797,9 +795,9 @@ def test_platt_idempotent_result_is_frozen(gp_calibrated_6):
 def test_platt_all_valid_folds_have_calibrated_prob(gp_calibrated_6):
     for f in gp_calibrated_6.folds:
         if not math.isnan(f.prob_win):
-            assert not math.isnan(f.calibrated_prob_win), (
-                f"cycle {f.cycle} has valid prob_win but NaN calibrated_prob_win"
-            )
+            assert not math.isnan(
+                f.calibrated_prob_win
+            ), f"cycle {f.cycle} has valid prob_win but NaN calibrated_prob_win"
 
 
 def test_save_loco_json_cycle_types(gp_result_6):

@@ -41,19 +41,19 @@ _APPROX_RACE_SHARE: dict[str, float] = {
 # Approximate electorate share per religion bloc. Source: Pew Research + ANES.
 # Used by _weighted_stratum_averages() to compute coalition-strength features.
 _APPROX_RELIGION_SHARE: dict[str, float] = {
-    "evangelical":  0.24,
-    "catholic":     0.21,
-    "protestant":   0.13,
-    "secular":      0.26,
-    "jewish":       0.02,
-    "muslim":       0.01,
-    "other_rel":    0.13,
+    "evangelical": 0.24,
+    "catholic": 0.21,
+    "protestant": 0.13,
+    "secular": 0.26,
+    "jewish": 0.02,
+    "muslim": 0.01,
+    "other_rel": 0.13,
 }
 
 # Approximate electorate share per gender bloc. Source: CPS / ANES.
 _APPROX_GENDER_SHARE: dict[str, float] = {
-    "women":        0.52,
-    "men":          0.47,
+    "women": 0.52,
+    "men": 0.47,
     "other_gender": 0.01,
 }
 
@@ -67,28 +67,29 @@ _EPS_DEFAULT: float = 1e-6
 _PEROT_1992_SHARE: dict[str, float] = {
     # Race — NEP 1992
     "african_american": 0.07,
-    "latino":           0.14,
-    "asian":            0.15,  # NEP not disaggregated; ANES estimate
-    "white":            0.21,
-    "other_race":       0.189, # national average
+    "latino": 0.14,
+    "asian": 0.15,  # NEP not disaggregated; ANES estimate
+    "white": 0.21,
+    "other_race": 0.189,  # national average
     # Religion — NEP 1992 / ANES 1992
-    "evangelical":      0.12,  # Social conservatives less likely to vote Perot
-    "catholic":         0.22,
-    "protestant":       0.19,
-    "secular":          0.22,
-    "jewish":           0.10,
-    "muslim":           0.15,  # Not reported; approximate
-    "other_rel":        0.189, # national average
+    "evangelical": 0.12,  # Social conservatives less likely to vote Perot
+    "catholic": 0.22,
+    "protestant": 0.19,
+    "secular": 0.22,
+    "jewish": 0.10,
+    "muslim": 0.15,  # Not reported; approximate
+    "other_rel": 0.189,  # national average
     # Gender — NEP 1992
-    "women":            0.17,
-    "men":              0.21,
-    "other_gender":     0.189, # Not reported; national average
+    "women": 0.17,
+    "men": 0.21,
+    "other_gender": 0.189,  # Not reported; national average
 }
 
 # After correct_three_party_1992() is applied, the 1992 panel rows carry
 # two-party fractions consistent with their y_true=1 label.  No cycles need
 # to be excluded from GP training on contamination grounds.
 _CONTAMINATED_CYCLES: frozenset[int] = frozenset()
+
 
 def correct_three_party_1992(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy of *df* with 1992 vote_shares converted to two-party fractions.
@@ -483,10 +484,10 @@ class GPBaselineResult:
 
     party: str
     folds: tuple[LocoFoldResult, ...]
-    accuracy: float       # fraction of valid folds correctly classified (p>=0.5 → win)
-    brier_score: float    # mean (prob_win − y_true)² over valid folds
-    calibrated_accuracy: float = float("nan")       # populated by platt_scale_loco()
-    calibrated_brier_score: float = float("nan")    # populated by platt_scale_loco()
+    accuracy: float  # fraction of valid folds correctly classified (p>=0.5 → win)
+    brier_score: float  # mean (prob_win − y_true)² over valid folds
+    calibrated_accuracy: float = float("nan")  # populated by platt_scale_loco()
+    calibrated_brier_score: float = float("nan")  # populated by platt_scale_loco()
 
 
 def _weighted_stratum_averages(
@@ -525,11 +526,10 @@ def _weighted_stratum_averages(
             cols.append(np.full(len(cycles), 0.0))
             continue
 
-        pivot = (
-            sub.pivot_table(index="cycle", columns="bloc", values="vote_share", aggfunc="mean")
-            .reindex(index=cycles, columns=blocs)
-        )
-        vals = pivot.to_numpy(dtype=float)          # (n_cycles, n_blocs)
+        pivot = sub.pivot_table(
+            index="cycle", columns="bloc", values="vote_share", aggfunc="mean"
+        ).reindex(index=cycles, columns=blocs)
+        vals = pivot.to_numpy(dtype=float)  # (n_cycles, n_blocs)
         w = np.array([share_dict.get(b, 0.0) for b in blocs])
 
         # Per-row renormalisation: zero out weights for NaN blocs so the sum
@@ -538,7 +538,7 @@ def _weighted_stratum_averages(
         w_sum = w_mat.sum(axis=1, keepdims=True)
         w_norm = np.where(w_sum > 0, w_mat / w_sum, 0.0)
         vals_filled = np.where(np.isnan(vals), 0.0, vals)
-        mu = (vals_filled * w_norm).sum(axis=1)     # (n_cycles,)
+        mu = (vals_filled * w_norm).sum(axis=1)  # (n_cycles,)
 
         # Cycles where every bloc was absent → mean-impute.
         all_absent = w_sum.squeeze() == 0.0
@@ -820,7 +820,9 @@ def fit_gp_classifier(
 
     valid = [f for f in folds if not np.isnan(f.prob_win)]
     if valid:
-        accuracy = float(sum(1 for f in valid if (f.prob_win >= 0.5) == bool(f.y_true)) / len(valid))
+        accuracy = float(
+            sum(1 for f in valid if (f.prob_win >= 0.5) == bool(f.y_true)) / len(valid)
+        )
         brier = float(sum((f.prob_win - f.y_true) ** 2 for f in valid) / len(valid))
     else:
         accuracy = float("nan")
@@ -880,9 +882,7 @@ def platt_scale_loco(result: GPBaselineResult) -> GPBaselineResult:
     cal_probs: dict[int, float] = {}  # fold position in result.folds → calibrated prob
 
     for i, fold in enumerate(valid_folds):
-        cal_X = np.array(
-            [[f.prob_win] for j, f in enumerate(valid_folds) if j != i]
-        )
+        cal_X = np.array([[f.prob_win] for j, f in enumerate(valid_folds) if j != i])
         cal_y = np.array(
             [f.y_true for j, f in enumerate(valid_folds) if j != i],
             dtype=int,
@@ -916,8 +916,7 @@ def platt_scale_loco(result: GPBaselineResult) -> GPBaselineResult:
             / len(cal_valid)
         )
         cal_brier = float(
-            sum((f.calibrated_prob_win - f.y_true) ** 2 for f in cal_valid)
-            / len(cal_valid)
+            sum((f.calibrated_prob_win - f.y_true) ** 2 for f in cal_valid) / len(cal_valid)
         )
     else:
         cal_acc = float("nan")

@@ -100,27 +100,21 @@ def test_psd_repair_sigma_from_panel_is_psd(panel):
 
 
 def test_solve_baseline_weights_sum_to_one():
-    mu = {b: v for b, v in zip(
-        CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55]
-    )}
+    mu = {b: v for b, v in zip(CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55])}
     cov = np.diag([0.01, 0.011, 0.060, 0.005, 0.054])
     result = solve_baseline(mu, cov, target=0.55)
     assert sum(result.values()) == pytest.approx(1.0, abs=1e-9)
 
 
 def test_solve_baseline_weights_nonneg():
-    mu = {b: v for b, v in zip(
-        CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55]
-    )}
+    mu = {b: v for b, v in zip(CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55])}
     cov = np.diag([0.01, 0.011, 0.060, 0.005, 0.054])
     result = solve_baseline(mu, cov, target=0.55)
     assert all(v >= 0.0 for v in result.values())
 
 
 def test_solve_baseline_loyalty_constraint_met():
-    mu = {b: v for b, v in zip(
-        CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55]
-    )}
+    mu = {b: v for b, v in zip(CANONICAL_RACES, [0.87, 0.63, 0.72, 0.41, 0.55])}
     cov = np.diag([0.01, 0.011, 0.060, 0.005, 0.054])
     target = 0.55
     result = solve_baseline(mu, cov, target=target)
@@ -165,10 +159,10 @@ def test_solve_baseline_infeasible_raises_valueerror():
         solve_baseline(mu, cov, target=0.65, blocs=["a", "b"])
 
 
-def test_solve_baseline_infeasible_error_names_best_bloc():
+def test_solve_baseline_infeasible_error_names_target():
     mu = {"african_american": 0.87, "white": 0.41}
     cov = np.eye(2)
-    with pytest.raises(ValueError, match="african_american"):
+    with pytest.raises(ValueError, match="0.900000"):
         solve_baseline(mu, cov, target=0.90, blocs=["african_american", "white"])
 
 
@@ -183,7 +177,8 @@ def test_mu_eff_respects_layer_weights(panel):
     n_gen = len(CANONICAL_GENDERS)
     mu_eff = (
         _LAYER_WEIGHTS["lambda_1"] * sum(result.mu_race[b] / n_race for b in CANONICAL_RACES)
-        + _LAYER_WEIGHTS["lambda_2"] * sum(result.mu_religion[b] / n_rel for b in CANONICAL_RELIGIONS)
+        + _LAYER_WEIGHTS["lambda_2"]
+        * sum(result.mu_religion[b] / n_rel for b in CANONICAL_RELIGIONS)
         + _LAYER_WEIGHTS["lambda_3"] * sum(result.mu_gender[b] / n_gen for b in CANONICAL_GENDERS)
     )
     assert math.isfinite(mu_eff), f"mu_eff is not finite: {mu_eff}"
@@ -198,9 +193,9 @@ def test_v_eq_derived_from_winning_cycles_only(panel):
     # Three-cycle mean will differ unless all three cycle values are identical.
     aa_3 = result_3.mu_race["african_american"]
     aa_1 = result_1.mu_race["african_american"]
-    assert aa_3 != pytest.approx(aa_1, abs=1e-9), (
-        "mu_race should differ between 3-cycle and 1-cycle winning sets"
-    )
+    assert aa_3 != pytest.approx(
+        aa_1, abs=1e-9
+    ), "mu_race should differ between 3-cycle and 1-cycle winning sets"
 
 
 def test_loco_cv_leaves_one_cycle_out(panel):

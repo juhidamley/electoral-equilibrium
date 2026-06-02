@@ -70,7 +70,9 @@ def build_baseline_portfolio(
     # build_voter_panel.  All three strata are needed for mu_eff computation.
     panel_dir = Path(config.output_dir) / "panel"
     parquet_names = ("panel_race.parquet", "panel_religion.parquet", "panel_gender.parquet")
-    dfs = [pd.read_parquet(panel_dir / name) for name in parquet_names if (panel_dir / name).exists()]
+    dfs = [
+        pd.read_parquet(panel_dir / name) for name in parquet_names if (panel_dir / name).exists()
+    ]
     if not dfs:
         raise FileNotFoundError(
             f"build_baseline_portfolio: no panel parquets found in {panel_dir}. "

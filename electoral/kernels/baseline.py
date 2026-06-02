@@ -133,13 +133,15 @@ def build_baseline_portfolio(
     lam = layer_weights
     n_rel = len(CANONICAL_RELIGIONS)
     n_gen = len(CANONICAL_GENDERS)
-    mu_eff = float(np.clip(
-        lam["lambda_1"] * sum(weights[b] * mu_race[b] for b in CANONICAL_RACES)
-        + lam["lambda_2"] * sum(mu_religion[r] / n_rel for r in CANONICAL_RELIGIONS)
-        + lam["lambda_3"] * sum(mu_gender[g] / n_gen for g in CANONICAL_GENDERS),
-        0.0,
-        1.0,
-    ))
+    mu_eff = float(
+        np.clip(
+            lam["lambda_1"] * sum(weights[b] * mu_race[b] for b in CANONICAL_RACES)
+            + lam["lambda_2"] * sum(mu_religion[r] / n_rel for r in CANONICAL_RELIGIONS)
+            + lam["lambda_3"] * sum(mu_gender[g] / n_gen for g in CANONICAL_GENDERS),
+            0.0,
+            1.0,
+        )
+    )
 
     payload = BaselinePortfolioData(
         method=method,

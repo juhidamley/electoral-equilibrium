@@ -1,12 +1,12 @@
 {
-  "lambda_1": 0.50,
-  "lambda_2": 0.30,
-  "lambda_3": 0.20,
+  "lambda_1": 0.5,
+  "lambda_2": 0.3,
+  "lambda_3": 0.2,
   "note": "Calibrated by build_constraint_spec from historical NEP data. lambda_1+lambda_2+lambda_3 must sum to 1.0",
   "raked": {
-    "lambda_1": 0.50,
-    "lambda_2": 0.30,
-    "lambda_3": 0.20,
-    "note": "Raked (IPF-calibrated) weights — filled by kernels/raking.py"
+    "lambda_1": 0.1136144,
+    "lambda_2": 0.22431494,
+    "lambda_3": 0.66207066,
+    "note": "Raked (IPF-calibrated) weights \u2014 filled by kernels/raking.py"
   }
 }

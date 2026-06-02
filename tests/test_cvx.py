@@ -159,11 +159,11 @@ def test_target_above_max_mu_raises_valueerror():
         solve_baseline(mu, cov, target=0.65, blocs=blocs)
 
 
-def test_error_message_names_best_bloc():
+def test_error_message_names_target():
     blocs = ["a", "b"]
     mu = {"a": 0.6, "b": 0.4}
     cov = np.eye(2)
-    with pytest.raises(ValueError, match="'a'"):
+    with pytest.raises(ValueError, match="0.650000"):
         solve_baseline(mu, cov, target=0.65, blocs=blocs)
 
 
@@ -345,3 +345,50 @@ def test_noninfeasible_solver_error_raises_runtimeerror_immediately(monkeypatch)
         solve_baseline(mu, cov, target=0.55, blocs=blocs, max_retries=5)
 
     assert call_count[0] == 1  # raised immediately, no retries
+
+
+# ── Edge cases ────────────────────────────────────────────────────────────────
+
+
+def test_single_bloc_returns_full_weight():
+    """With one bloc the only feasible point is w=[1]; no solver call needed."""
+    mu = {"african_american": 0.89}
+    cov = np.array([[0.01]])
+    result = solve_baseline(mu, cov, target=0.80, blocs=["african_american"])
+    assert result == {"african_american": pytest.approx(1.0)}
+
+
+def test_single_bloc_sum_is_one():
+    """Single-bloc output sums to exactly 1.0."""
+    result = solve_baseline({"x": 0.70}, np.array([[0.05]]), target=0.60, blocs=["x"])
+    assert sum(result.values()) == pytest.approx(1.0)
+
+
+def test_equal_weight_feasible_when_loyalty_meets_target():
+    """Equal-weight allocation is a feasible solution when mu_avg >= target."""
+    # mu_avg = (0.80 + 0.60 + 0.50) / 3 = 0.633 > 0.60
+    blocs = ["a", "b", "c"]
+    mu = {"a": 0.80, "b": 0.60, "c": 0.50}
+    cov = np.eye(3)
+    result = solve_baseline(mu, cov, target=0.60, blocs=blocs)
+    # Solver may concentrate weight, but a feasible solution must exist
+    assert sum(result.values()) == pytest.approx(1.0)
+    achieved = sum(result[b] * mu[b] for b in blocs)
+    assert achieved >= 0.60 - 1e-4
+
+
+def test_target_above_one_raises_immediately():
+    """target > 1.0 is impossible and raises before any solver or spec work."""
+    mu = {"a": 0.90, "b": 0.80}
+    cov = np.eye(2)
+    with pytest.raises(ValueError, match="1.0"):
+        solve_baseline(mu, cov, target=1.01, blocs=["a", "b"])
+
+
+def test_target_exactly_one_raises():
+    """target = 1.0 is only achievable if a bloc has mu = 1.0 exactly."""
+    mu = {"a": 0.90, "b": 0.80}
+    cov = np.eye(2)
+    # max achievable = 0.90 < 1.0, so pre-flight catches this
+    with pytest.raises(ValueError):
+        solve_baseline(mu, cov, target=1.0, blocs=["a", "b"])

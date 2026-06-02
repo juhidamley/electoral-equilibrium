@@ -30,6 +30,7 @@ import cvxpy as cp
 import numpy as np
 
 from electoral.core.types import CANONICAL_RACES
+from electoral.portfolios.constraints import ConstraintSpec
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ def solve_baseline(
     target: float,
     *,
     blocs: list[str] | None = None,
+    spec: ConstraintSpec | None = None,
     relax_step: float = 0.01,
     max_retries: int = 5,
 ) -> dict[str, float]:
@@ -72,6 +74,10 @@ def solve_baseline(
     blocs:
         Ordered bloc identifiers for the rows/cols of *cov*.  Defaults to
         ``CANONICAL_RACES`` (the five race blocs used by the optimizer).
+        Ignored when *spec* is provided — the spec's blocs take precedence.
+    spec:
+        ``ConstraintSpec`` with per-bloc lower/upper bounds.  When None, an
+        unconstrained simplex is used (all weights in [0, 1]).
     relax_step:
         Amount to subtract from *target* on each retry (default 0.01 = 1 pp).
     max_retries:
@@ -94,9 +100,24 @@ def solve_baseline(
         If the CVXPY solver returns a non-infeasibility failure (e.g.
         ``solver_error``, ``unbounded``) that relaxation cannot resolve.
     """
-    if blocs is None:
+    # ── Trivial rejection: impossible target ──────────────────────────────────
+    # Vote share is bounded by [0, 1]; no convex combination can exceed 1.
+    # Checked before anything else so callers get a clear message immediately,
+    # without building the spec or touching the covariance matrix.
+    if target > 1.0:
+        raise ValueError(
+            f"solve_baseline: target={target:.6f} > 1.0 is impossible; "
+            "loyalty is a vote share in [0, 1]."
+        )
+
+    if spec is not None:
+        blocs = list(spec.blocs)
+    elif blocs is None:
         blocs = list(CANONICAL_RACES)
     n = len(blocs)
+
+    if spec is None:
+        spec = ConstraintSpec.default(blocs)
 
     # ── Input validation ───────────────────────────────────────────────────────
     nan_blocs = [b for b in blocs if math.isnan(float(mu.get(b, float("nan"))))]
@@ -116,17 +137,20 @@ def solve_baseline(
     mu_vec = np.array([float(mu[b]) for b in blocs])
 
     # ── Pre-flight feasibility check ───────────────────────────────────────────
-    # The loyalty constraint mu^T w >= target requires target <= max(mu_i),
-    # since w lies on the probability simplex (convex hull of unit vectors).
-    max_achievable = float(mu_vec.max())
-    best_bloc = blocs[int(mu_vec.argmax())]
+    # Upper bound on achievable loyalty given per-bloc weight caps in spec.
+    max_achievable = spec.max_achievable_loyalty(mu)
     if target > max_achievable + 1e-9:
         raise ValueError(
             f"solve_baseline: target={target:.6f} exceeds the maximum achievable "
-            f"loyalty {max_achievable:.6f} (best bloc: '{best_bloc}'). "
-            "No convex combination of the available blocs can satisfy the "
-            "loyalty constraint. Reduce target or add higher-loyalty blocs."
+            f"loyalty {max_achievable:.6f} given the ConstraintSpec bounds. "
+            "Reduce target, widen upper bounds, or lower the floor constraints."
         )
+
+    # ── Single-bloc short-circuit ─────────────────────────────────────────────
+    # With one bloc the simplex has a single point (w = [1]).  No solver call
+    # is needed; the pre-flight check above already confirmed target is met.
+    if n == 1:
+        return {blocs[0]: 1.0}
 
     # ── Symmetrize covariance ──────────────────────────────────────────────────
     # Corrects floating-point asymmetry before quad_form (CVXPY requires a
@@ -155,7 +179,7 @@ def solve_baseline(
                 max_retries,
             )
 
-        constraints = [cp.sum(w) == 1, mu_vec @ w >= current_target]
+        constraints = spec.cvxpy_constraints(w) + [mu_vec @ w >= current_target]
         problem = cp.Problem(cp.Minimize(cp.quad_form(w, sym_cov)), constraints)
         problem.solve()
         last_status = problem.status

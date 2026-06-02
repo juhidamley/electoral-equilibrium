@@ -153,7 +153,9 @@ def _mu_table(moments: MomentEstimates, party: str, threshold: float) -> str:
             est = mu_dict.get(bloc, float("nan"))
             ref = benchmarks.get(bloc, float("nan"))
             if np.isnan(est):
-                rows.append(f"  {bloc:<22}  {stratum_name:<9}  {'n/a':>9}  {ref:>9.4f}  {'n/a':>7}  MISSING")
+                rows.append(
+                    f"  {bloc:<22}  {stratum_name:<9}  {'n/a':>9}  {ref:>9.4f}  {'n/a':>7}  MISSING"
+                )
                 continue
             delta = est - ref
             flag = _flag(delta, threshold)
@@ -186,15 +188,21 @@ def _sigma_block(moments: MomentEstimates) -> str:
         rows.append(row_str)
     rows.append("  " + _DASH)
     rows.append(f"  Eigenvalues : {np.array2string(eigs, precision=6, floatmode='fixed')}")
-    rows.append(f"  Condition # : {cond:.2f}  ({'well-conditioned' if cond < 100 else 'ILL-CONDITIONED — check LedoitWolf shrinkage'})")
-    rows.append(f"  Min eigenval: {eigs.min():.2e}  ({'PSD ok' if eigs.min() >= 0 else 'NOT PSD — psd_repair fired'})")
+    rows.append(
+        f"  Condition # : {cond:.2f}  ({'well-conditioned' if cond < 100 else 'ILL-CONDITIONED — check LedoitWolf shrinkage'})"
+    )
+    rows.append(
+        f"  Min eigenval: {eigs.min():.2e}  ({'PSD ok' if eigs.min() >= 0 else 'NOT PSD — psd_repair fired'})"
+    )
     return "\n".join(rows)
 
 
 def _summary_flags(flags: list[tuple[str, str, float, float, float]], threshold: float) -> str:
     if not flags:
         return f"  All blocs within ±{threshold:.0%} of benchmark. No discrepancies to report."
-    rows = [f"  {'Flag':<6}  {'Bloc':<22}  {'Estimated':>9}  {'Benchmark':>9}  {'Delta':>8}  Action"]
+    rows = [
+        f"  {'Flag':<6}  {'Bloc':<22}  {'Estimated':>9}  {'Benchmark':>9}  {'Delta':>8}  Action"
+    ]
     rows.append("  " + _DASH)
     for flag, bloc, est, ref, delta in sorted(flags, key=lambda x: -abs(x[4])):
         action = "verify data sources" if flag == "ALERT" else "review coverage"
@@ -279,16 +287,29 @@ def build_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--config", default="configs/base.json")
-    parser.add_argument("--party", choices=["democrat", "republican"], default=None,
-                        help="Override party from config.")
-    parser.add_argument("--threshold", type=float, default=0.05,
-                        help="Discrepancy threshold in vote-share units (default 0.05 = 5 pp).")
-    parser.add_argument("--derive-from-panel", action="store_true",
-                        help="Derive winning cycles from the panel rather than using the "
-                             "certified election results table. Not recommended for real data "
-                             "(produces four known misclassifications).")
+    parser.add_argument(
+        "--party",
+        choices=["democrat", "republican"],
+        default=None,
+        help="Override party from config.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.05,
+        help="Discrepancy threshold in vote-share units (default 0.05 = 5 pp).",
+    )
+    parser.add_argument(
+        "--derive-from-panel",
+        action="store_true",
+        help="Derive winning cycles from the panel rather than using the "
+        "certified election results table. Not recommended for real data "
+        "(produces four known misclassifications).",
+    )
     parser.add_argument("--out", default="rawdata/moment_inspection.md")
     args = parser.parse_args()
 
