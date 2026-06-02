@@ -163,7 +163,7 @@ def _outliers(panel: pd.DataFrame) -> str:
         return f"No outliers found — all vote_share values in " f"[{_OUTLIER_LO}, {_OUTLIER_HI}].\n"
 
     hdr = f"{'Cycle':>5}  {'Bloc':<22}  Strat  {'vote_share':>10}" f"  {'Flag':<5}  Source"
-    sep = _rule("-")
+    sep = "-" * len(hdr)
     rows = [
         f"Threshold: vote_share < {_OUTLIER_LO}  OR  vote_share > {_OUTLIER_HI}",
         f"Found {len(out)} outlier row(s).\n",
