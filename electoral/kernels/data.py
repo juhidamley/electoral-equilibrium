@@ -184,14 +184,14 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
     records: list[dict] = []
     for path in paths:
         df = load_nep(path)
-        stratum_col = df["stratum"] if "stratum" in df.columns else pd.Series(dtype=str)
+        stratum_col = df["stratum"].astype("string") if "stratum" in df.columns else pd.Series(dtype="string")
+        s = stratum_col.str.lower()
 
-        is_race = stratum_col.eq("Race")
-        is_religion = stratum_col.eq("Religion")
-        # The gender stratum has a long name; match on "Gender" while excluding
-        # cross-tabulation strata that also contain the word.
-        is_gender = stratum_col.str.contains("Gender", na=False) & ~stratum_col.str.contains(
-            "marital|education|White|Sex|race|income", case=False, na=False
+        is_race = s.str.contains(r"\brace\b", na=False)
+        is_religion = s.str.contains("relig", na=False)
+        # Match Gender/Sex while excluding cross-tab strata that also contain these tokens.
+        is_gender = s.str.contains(r"gender|sex", regex=True, na=False) & ~s.str.contains(
+            r"marital|education|white|race|income", regex=True, na=False
         )
         df = df[is_race | is_religion | is_gender].copy()
 
