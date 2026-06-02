@@ -20,6 +20,177 @@ _BLOC_SUBS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^_+|_+$"), ""),  # strip leading/trailing underscores
 ]
 
+# ── Bloc name normalisation ───────────────────────────────────────────────────
+
+# The 15 canonical bloc IDs confirmed by Prof. Espinosa (DECISIONS.md).
+# Three parallel strata — race (5), religion (7), gender (3) — no cross-tabs.
+CANONICAL_BLOCS: frozenset[str] = frozenset(
+    {
+        # race
+        "african_american",
+        "latino",
+        "asian",
+        "white",
+        "other_race",
+        # religion
+        "evangelical",
+        "catholic",
+        "protestant",
+        "secular",
+        "jewish",
+        "muslim",
+        "other_rel",
+        # gender
+        "women",
+        "men",
+        "other_gender",
+    }
+)
+
+# Maps snake_case-normalised labels → canonical bloc ID.
+# Keys are produced by applying _BLOC_SUBS to the lowercased raw label.
+# Ambiguous labels (e.g. bare "other") are intentionally absent — callers
+# must use the stratum-qualified form ("other_race", "other_rel", "other_gender").
+_BLOC_MAP: dict[str, str] = {
+    # ── Race (DECISIONS.md §Demographic Architecture) ─────────────────────────
+    # canonical
+    "african_american": "african_american",
+    "latino": "latino",
+    "asian": "asian",
+    "white": "white",
+    "other_race": "other_race",
+    # survey aliases
+    "black": "african_american",
+    "black_african_american": "african_american",
+    "hispanic": "latino",
+    "hispanic_latino": "latino",
+    "latino_hispanic": "latino",
+    "latina": "latino",
+    "latinx": "latino",
+    "chicano": "latino",
+    "chicana": "latino",
+    "asian_american": "asian",
+    "non_hispanic_white": "white",
+    "white_non_hispanic": "white",
+    "other_races": "other_race",
+    "all_others": "other_race",  # NEP exit-poll label
+    "multiracial": "other_race",
+    "two_or_more_races": "other_race",
+    "indigenous": "other_race",
+    "native_american": "other_race",
+    # ── Religion (DECISIONS.md §Seven religion groups) ────────────────────────
+    # canonical
+    "evangelical": "evangelical",
+    "catholic": "catholic",
+    "protestant": "protestant",
+    "secular": "secular",
+    "jewish": "jewish",
+    "muslim": "muslim",
+    "other_rel": "other_rel",
+    # evangelical aliases — "White" prefix is common in NEP religion rows;
+    # these map to the religion-only stratum (not a race×religion cross-tab)
+    "white_evangelical": "evangelical",
+    "born_again": "evangelical",
+    "born_again_christian": "evangelical",
+    "evangelical_born_again": "evangelical",
+    "white_evangelical_born_again": "evangelical",
+    "evangelical_christian": "evangelical",
+    "white_evangelical_christian": "evangelical",
+    "protestant_evangelical": "evangelical",
+    "white_evangelical_born_again_christian": "evangelical",
+    "white_evangelical_or_born_again_christian": "evangelical",
+    # catholic aliases
+    "roman_catholic": "catholic",
+    "catholics": "catholic",
+    # protestant aliases
+    "protestants": "protestant",
+    "mainline_protestant": "protestant",
+    "other_protestant": "protestant",
+    "non_evangelical_protestant": "protestant",
+    "protestants_non_evangelical": "protestant",  # NEP parenthetical label
+    # secular aliases
+    "none": "secular",
+    "no_religion": "secular",
+    "unaffiliated": "secular",
+    "religiously_unaffiliated": "secular",
+    "agnostic": "secular",
+    "atheist": "secular",
+    "no_religion_secular": "secular",
+    "nones": "secular",
+    # jewish aliases
+    "jew": "jewish",
+    "judaism": "jewish",
+    # muslim aliases
+    "islam": "muslim",
+    "islamic": "muslim",
+    # other_rel aliases
+    "other_religion": "other_rel",
+    "other_religions": "other_rel",
+    "other_faith": "other_rel",
+    "other_faiths": "other_rel",
+    "other_dk": "other_rel",
+    "something_else": "other_rel",
+    # ── Gender (DECISIONS.md §Three-stratum architecture) ─────────────────────
+    # canonical
+    "women": "women",
+    "men": "men",
+    "other_gender": "other_gender",
+    # aliases
+    "woman": "women",
+    "female": "women",
+    "man": "men",
+    "male": "men",
+    "non_binary": "other_gender",
+    "nonbinary": "other_gender",
+    "transgender": "other_gender",
+}
+
+
+def _to_key(raw: str) -> str:
+    """Apply the same snake_case normalisation as _normalise_bloc to a scalar."""
+    s = raw.strip().lower()
+    for pattern, repl in _BLOC_SUBS:
+        s = pattern.sub(repl, s)
+    return s
+
+
+def normalize_bloc(raw: str) -> str:
+    """Map a source-specific demographic label to its canonical bloc ID.
+
+    Applies snake_case normalisation, then looks up the result against the
+    project's bloc alias table (built from DECISIONS.md and survey lexicons).
+    Canonical IDs (e.g. ``"evangelical"``) are accepted directly.
+
+    Ambiguous bare labels such as ``"other"`` are not in the table — use the
+    stratum-qualified form: ``"other_race"``, ``"other_rel"``, or
+    ``"other_gender"``.
+
+    Parameters
+    ----------
+    raw:
+        Raw demographic label as it appears in the source (e.g. from a NEP
+        exit-poll sub_category column).  Case and whitespace are ignored.
+
+    Returns
+    -------
+    str
+        One of the 15 canonical bloc IDs.
+
+    Raises
+    ------
+    ValueError
+        If *raw* does not resolve to any known alias or canonical ID.
+    """
+    key = _to_key(raw)
+    canonical = _BLOC_MAP.get(key)
+    if canonical is None:
+        raise ValueError(
+            f"normalize_bloc: unrecognized bloc label {raw!r} "
+            f"(normalised key: {key!r}). "
+            f"Canonical blocs: {sorted(CANONICAL_BLOCS)}."
+        )
+    return canonical
+
 
 def _normalise_bloc(s: pd.Series) -> pd.Series:
     """Lowercase and snake_case a string Series; preserve NA as pd.NA."""

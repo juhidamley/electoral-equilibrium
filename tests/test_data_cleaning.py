@@ -1,4 +1,4 @@
-"""Tests for electoral/data/cleaning.py — clean_raw_panel."""
+"""Tests for electoral/data/cleaning.py — clean_raw_panel and normalize_bloc."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 import pytest
 
-from electoral.data.cleaning import clean_raw_panel
+from electoral.data.cleaning import CANONICAL_BLOCS, clean_raw_panel, normalize_bloc
 
 
 def _df(**cols) -> pd.DataFrame:
@@ -153,3 +153,76 @@ def test_input_dataframe_not_modified():
     assert df["cycle"].dtype == original_dtype
     assert df["bloc"].iloc[0] == original_bloc
     assert df["vote_share"].iloc[0] == original_vote_share
+
+
+# ── normalize_bloc ────────────────────────────────────────────────────────────
+
+
+def test_all_canonical_ids_pass_through():
+    for bloc in CANONICAL_BLOCS:
+        assert normalize_bloc(bloc) == bloc
+
+
+def test_white_evangelical_to_evangelical():
+    # Key example from DECISIONS.md / task spec.
+    assert normalize_bloc("White Evangelical") == "evangelical"
+
+
+def test_nep_religion_label_with_born_again():
+    assert normalize_bloc("White evangelical/born-again Christian") == "evangelical"
+
+
+def test_case_insensitive():
+    assert normalize_bloc("WHITE") == "white"
+    assert normalize_bloc("CATHOLIC") == "catholic"
+    assert normalize_bloc("MEN") == "men"
+
+
+def test_strips_leading_trailing_whitespace():
+    assert normalize_bloc("  women  ") == "women"
+
+
+def test_race_aliases():
+    assert normalize_bloc("Black") == "african_american"
+    assert normalize_bloc("Hispanic") == "latino"
+    assert normalize_bloc("Hispanic/Latino") == "latino"
+    assert normalize_bloc("Asian American") == "asian"
+    assert normalize_bloc("All Others") == "other_race"
+    assert normalize_bloc("Multiracial") == "other_race"
+
+
+def test_religion_aliases():
+    assert normalize_bloc("No religion") == "secular"
+    assert normalize_bloc("Roman Catholic") == "catholic"
+    assert normalize_bloc("Non-evangelical Protestant") == "protestant"
+    assert normalize_bloc("Protestants (non-evangelical)") == "protestant"
+    assert normalize_bloc("Unaffiliated") == "secular"
+    assert normalize_bloc("Islam") == "muslim"
+    assert normalize_bloc("Jew") == "jewish"
+
+
+def test_gender_aliases():
+    assert normalize_bloc("Female") == "women"
+    assert normalize_bloc("Male") == "men"
+    assert normalize_bloc("Non-binary") == "other_gender"
+
+
+def test_ambiguous_other_raises():
+    # Bare "Other" has no stratum context — must use other_race / other_rel / other_gender.
+    with pytest.raises(ValueError, match="unrecognized"):
+        normalize_bloc("Other")
+
+
+def test_empty_string_raises():
+    with pytest.raises(ValueError, match="unrecognized"):
+        normalize_bloc("")
+
+
+def test_unknown_label_raises():
+    with pytest.raises(ValueError, match="unrecognized"):
+        normalize_bloc("Zoroastrian")
+
+
+def test_error_message_names_canonical_blocs():
+    with pytest.raises(ValueError, match="evangelical"):
+        normalize_bloc("not_a_real_bloc")
