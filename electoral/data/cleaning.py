@@ -7,6 +7,8 @@ import re
 
 import pandas as pd
 
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+
 log = logging.getLogger(__name__)
 
 # Columns that must be non-null to keep a row.
@@ -22,29 +24,10 @@ _BLOC_SUBS: list[tuple[re.Pattern, str]] = [
 
 # ── Bloc name normalisation ───────────────────────────────────────────────────
 
-# The 15 canonical bloc IDs confirmed by Prof. Espinosa (DECISIONS.md).
-# Three parallel strata — race (5), religion (7), gender (3) — no cross-tabs.
+# The 15 canonical bloc IDs — derived from the authoritative enums in
+# electoral.core.types so they can never diverge from Race/Religion/Gender.
 CANONICAL_BLOCS: frozenset[str] = frozenset(
-    {
-        # race
-        "african_american",
-        "latino",
-        "asian",
-        "white",
-        "other_race",
-        # religion
-        "evangelical",
-        "catholic",
-        "protestant",
-        "secular",
-        "jewish",
-        "muslim",
-        "other_rel",
-        # gender
-        "women",
-        "men",
-        "other_gender",
-    }
+    {*CANONICAL_RACES, *CANONICAL_RELIGIONS, *CANONICAL_GENDERS}
 )
 
 # Maps snake_case-normalised labels → canonical bloc ID.
@@ -147,7 +130,7 @@ _BLOC_MAP: dict[str, str] = {
 
 
 def _to_key(raw: str) -> str:
-    """Apply the same snake_case normalisation as _normalise_bloc to a scalar."""
+    """Apply the same snake_case normalisation as _normalize_bloc to a scalar."""
     s = raw.strip().lower()
     for pattern, repl in _BLOC_SUBS:
         s = pattern.sub(repl, s)
@@ -181,18 +164,20 @@ def normalize_bloc(raw: str) -> str:
     ValueError
         If *raw* does not resolve to any known alias or canonical ID.
     """
+    if not isinstance(raw, str):
+        raise ValueError(f"normalize_bloc: expected a non-null str, got {type(raw).__name__}")
     key = _to_key(raw)
     canonical = _BLOC_MAP.get(key)
     if canonical is None:
         raise ValueError(
             f"normalize_bloc: unrecognized bloc label {raw!r} "
-            f"(normalised key: {key!r}). "
+            f"(normalized key: {key!r}). "
             f"Canonical blocs: {sorted(CANONICAL_BLOCS)}."
         )
     return canonical
 
 
-def _normalise_bloc(s: pd.Series) -> pd.Series:
+def _normalize_bloc(s: pd.Series) -> pd.Series:
     """Lowercase and snake_case a string Series; preserve NA as pd.NA."""
     null_mask = s.isna()
     # fillna("") so str operations see an empty string for nulls, not "nan".
@@ -229,9 +214,12 @@ def clean_raw_panel(df: pd.DataFrame) -> pd.DataFrame:
     if "cycle" in df.columns:
         df["cycle"] = pd.to_numeric(df["cycle"], errors="coerce").astype("Int64")
 
-    # ── Step 2: bloc → lowercase snake_case ──────────────────────────────────
+    # ── Step 2: bloc → snake_case → canonical ID ─────────────────────────────
     if "bloc" in df.columns:
-        df["bloc"] = _normalise_bloc(df["bloc"])
+        df["bloc"] = _normalize_bloc(df["bloc"])
+        df["bloc"] = (
+            df["bloc"].map(lambda x: normalize_bloc(x) if pd.notna(x) else pd.NA).astype("string")
+        )
 
     # ── Step 3: vote_share / turnout → Float64 ────────────────────────────────
     for col in ("vote_share", "turnout"):

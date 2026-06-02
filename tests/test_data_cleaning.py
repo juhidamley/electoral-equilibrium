@@ -65,15 +65,17 @@ def test_bloc_spaces_replaced_with_underscore():
 
 
 def test_bloc_hyphens_replaced_with_underscore():
-    df = _df(cycle=[2020], bloc=["non-white"])
+    # "born-again" is a valid alias → "evangelical"
+    df = _df(cycle=[2020], bloc=["born-again"])
     out = clean_raw_panel(df)
-    assert out["bloc"].iloc[0] == "non_white"
+    assert out["bloc"].iloc[0] == "evangelical"
 
 
 def test_bloc_slashes_replaced_with_underscore():
+    # "Latino/Hispanic" normalises to "latino_hispanic" then maps to canonical "latino"
     df = _df(cycle=[2020], bloc=["Latino/Hispanic"])
     out = clean_raw_panel(df)
-    assert out["bloc"].iloc[0] == "latino_hispanic"
+    assert out["bloc"].iloc[0] == "latino"
 
 
 # ── Drop on missing required values ──────────────────────────────────────────
@@ -211,6 +213,16 @@ def test_ambiguous_other_raises():
     # Bare "Other" has no stratum context — must use other_race / other_rel / other_gender.
     with pytest.raises(ValueError, match="unrecognized"):
         normalize_bloc("Other")
+
+
+def test_none_input_raises():
+    with pytest.raises(ValueError, match="non-null str"):
+        normalize_bloc(None)  # type: ignore[arg-type]
+
+
+def test_na_input_raises():
+    with pytest.raises(ValueError, match="non-null str"):
+        normalize_bloc(pd.NA)  # type: ignore[arg-type]
 
 
 def test_empty_string_raises():
