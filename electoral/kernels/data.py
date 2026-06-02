@@ -434,6 +434,47 @@ def resolve_conflicts(panel: pd.DataFrame) -> pd.DataFrame:
     return result.sort_values(["cycle", "bloc"]).reset_index(drop=True)
 
 
+# ── Coverage diagnostics ─────────────────────────────────────────────────────
+
+
+def _log_coverage(panel: pd.DataFrame, config: PipelineConfig) -> None:
+    """Log per-source-per-cycle row counts and flag missing (cycle, bloc) pairs."""
+    from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+
+    all_blocs = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
+
+    # Per-source-per-cycle counts (source column may be composite after resolution)
+    pres_cycles = [c for c in sorted(panel["cycle"].dropna().unique()) if int(c) % 4 == 0]
+    log.info(
+        "=== Panel coverage: %d rows, %d presidential cycles ===", len(panel), len(pres_cycles)
+    )
+
+    # Counts per resolved-source label per cycle (presidential only)
+    pres_panel = panel[panel["cycle"].isin(pres_cycles)]
+    src_cycle = pres_panel.groupby(["cycle", "source"]).size().unstack(fill_value=0)
+    for cycle in sorted(src_cycle.index):
+        row = src_cycle.loc[cycle]
+        non_zero = {str(src): int(n) for src, n in row.items() if n > 0}
+        log.info("  cycle=%d blocs=%d source_breakdown=%s", cycle, row.sum(), non_zero)
+
+    # Flag missing (cycle, bloc) pairs in presidential cycles
+    missing = []
+    for cycle in pres_cycles:
+        present = set(pres_panel.loc[pres_panel["cycle"] == cycle, "bloc"].dropna())
+        for bloc in all_blocs:
+            if bloc not in present:
+                missing.append((int(cycle), bloc))
+
+    if missing:
+        log.warning(
+            "Missing (cycle, bloc) pairs across all sources (%d total): %s",
+            len(missing),
+            [(c, b) for c, b in sorted(missing)],
+        )
+    else:
+        log.info("Coverage complete: all (cycle, bloc) pairs present in presidential cycles")
+
+
 # ── Main kernel function ──────────────────────────────────────────────────────
 
 
@@ -541,6 +582,9 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
 
     # ── Validate ──────────────────────────────────────────────────────────────
     validate_panel(panel, required_cols=_PANEL_REQUIRED, context="VoterPanelData")
+
+    # ── Log per-source-per-cycle counts ──────────────────────────────────────
+    _log_coverage(panel, config)
 
     # ── Derive VoterPanelData fields ──────────────────────────────────────────
     cycles = sorted(int(c) for c in panel["cycle"].dropna().unique())
