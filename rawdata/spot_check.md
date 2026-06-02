@@ -202,6 +202,7 @@ the CES–NEP catholic gap is worth noting in the limitations section of the pap
 
 ## Summary of Discrepancies for Supervision Check-in
 
+_Note: 5 cells are marked **DISCREPANCY** in the spot-check table; they are grouped into 4 root-cause flags below._
 | Flag | Cells affected | Root cause | Severity |
 |------|---------------|------------|----------|
 | **F-1** | SC-01, SC-09 (2020 white, men) | ANES 2020 weights all-null; unweighted ANES inflates merged estimate by ~3 pp | High — affects two strata |
