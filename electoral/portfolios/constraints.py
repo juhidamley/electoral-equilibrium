@@ -153,10 +153,17 @@ class ConstraintSpec:
         respecting upper bounds, until the simplex fills.  Used by
         solve_baseline() for a fast pre-flight infeasibility check.
         """
-        remaining = 1.0
-        loyalty = 0.0
+        remaining = 1.0 - sum(self.lower_bound(b) for b in self.blocs)
+        loyalty = sum(self.lower_bound(b) * mu.get(b, 0.0) for b in self.blocs)
+
+        if remaining <= 1e-12:
+            return loyalty
+
         for b in sorted(self.blocs, key=lambda b: mu.get(b, 0.0), reverse=True):
-            alloc = min(remaining, self.upper_bound(b))
+            slack = self.upper_bound(b) - self.lower_bound(b)
+            if slack <= 0.0:
+                continue
+            alloc = min(remaining, slack)
             loyalty += alloc * mu.get(b, 0.0)
             remaining -= alloc
             if remaining <= 1e-12:
