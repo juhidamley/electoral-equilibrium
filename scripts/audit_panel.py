@@ -75,9 +75,7 @@ def _coverage_matrix(panel: pd.DataFrame) -> str:
 
     # Header: cycle years
     header = f"{'Bloc':<{lbl_w}}  Strat" + "".join(f"{c:>{col_w}}" for c in cycles) + "  Coverage"
-    sep = _rule("-")
-
-    rows = [header, sep]
+    sep = "-" * len(header)
 
     total_cells = 0
     filled_cells = 0
