@@ -1,14 +1,15 @@
 {
   "democrat": {
-    "V_eq": 0.525,
-    "V_eq_low": 0.520,
-    "V_eq_high": 0.535,
-    "note": "Empirically derived from NEP 2016/2020; update via build_constraint_spec"
+    "V_eq": 0.5066,
+    "V_eq_low": 0.501,
+    "V_eq_high": 0.515,
+    "note": "EC-adjusted V_eq derived via logistic regression on (popular_2p_share → EC_outcome) across all 20 cycles 1948-2024. Threshold = popular-vote share where P(Dem EC win) = 0.50. Accounts for geographic inefficiency: Dems lost EC with 50.3% (2000) and 51.1% (2016). Recompute via derive_ec_veq('democrat') in electoral/models/ml_baseline.py."
   },
   "republican": {
-    "V_eq": 0.500,
-    "V_eq_low": 0.490,
-    "V_eq_high": 0.510,
-    "note": "Empirically derived from NEP 2016/2020; update via build_constraint_spec"
-  }
+    "V_eq": 0.4934,
+    "V_eq_low": 0.485,
+    "V_eq_high": 0.499,
+    "note": "EC-adjusted V_eq = 1 - dem_threshold. Republicans won EC with 49.7% (2000), reflecting geographic efficiency advantage. Expressed as Republican two-party share (1 - dem_share) to match the optimizer's coordinate system. Recompute via derive_ec_veq('republican') in electoral/models/ml_baseline.py."
+  },
+  "_methodology": "Logistic regression: P(Dem EC win) = sigmoid(A * dem_2p_share + B), fit on 20 cycles, C=1e4 (no regularisation). Threshold = -B/A. See DECISIONS.md §GP Classifier for derivation rationale."
 }

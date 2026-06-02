@@ -1,4 +1,4 @@
-"""Tests for electoral/data/cleaning.py — clean_raw_panel and normalize_bloc.
+"""Tests for electoral/data/cleaning.py and kernels/data.resolve_conflicts.
 
 Four integration scenarios (i)–(iv) sit at the top; unit tests follow.
 """
@@ -18,6 +18,7 @@ from electoral.data.cleaning import (
     normalize_bloc,
 )
 from electoral.data.loaders import load_csv_panel
+from electoral.kernels.data import resolve_conflicts
 
 TOY_PANEL = Path("tests/fixtures/toy_panel.csv")
 
@@ -412,3 +413,97 @@ def test_impute_input_not_mutated():
     impute_missing_cells(df)
     assert len(df) == original_len
     assert list(df.columns) == original_cols
+
+
+# ── resolve_conflicts ─────────────────────────────────────────────────────────
+
+
+def test_resolve_conflicts_single_source_unchanged():
+    """When every (cycle, bloc) pair has exactly one source, rows are untouched."""
+    df = _df(
+        cycle=[2020, 2020],
+        bloc=["white", "african_american"],
+        vote_share=[0.42, 0.89],
+        source=["NEP", "NEP"],
+    )
+    out = resolve_conflicts(df)
+    assert len(out) == 2
+    assert pytest.approx(out.loc[out["bloc"] == "white", "vote_share"].iloc[0]) == 0.42
+
+
+def test_resolve_conflicts_inverse_se_weighting():
+    """Higher-precision source (lower SE) receives more weight."""
+    df = _df(
+        cycle=[2020, 2020],
+        bloc=["white", "white"],
+        vote_share=[0.41, 0.45],
+        source=["NEP", "ANES"],
+        se=[0.01, 0.04],  # NEP is 4× more precise → merged value closer to 0.41
+    )
+    out = resolve_conflicts(df)
+    assert len(out) == 1
+    merged = float(out["vote_share"].iloc[0])
+    # w_NEP = 100, w_ANES = 25 → expected = (100*0.41 + 25*0.45) / 125 = 0.418
+    assert pytest.approx(merged, abs=1e-4) == (100 * 0.41 + 25 * 0.45) / 125
+
+
+def test_resolve_conflicts_equal_weight_when_no_se():
+    """Without SE column, sources are averaged with equal weight."""
+    df = _df(
+        cycle=[2020, 2020],
+        bloc=["white", "white"],
+        vote_share=[0.40, 0.44],
+        source=["ANES", "CES"],
+    )
+    out = resolve_conflicts(df)
+    assert len(out) == 1
+    assert pytest.approx(float(out["vote_share"].iloc[0]), abs=1e-6) == 0.42
+
+
+def test_resolve_conflicts_source_field_is_sorted_join():
+    """Merged row source is the sorted '+'-join of contributing sources."""
+    df = _df(
+        cycle=[2020, 2020, 2020],
+        bloc=["white", "white", "white"],
+        vote_share=[0.40, 0.43, 0.41],
+        source=["NEP", "ANES", "CES"],
+    )
+    out = resolve_conflicts(df)
+    assert out["source"].iloc[0] == "ANES+CES+NEP"
+
+
+def test_resolve_conflicts_uncontested_rows_preserved():
+    """Single-source rows coexist with merged rows in the output."""
+    df = _df(
+        cycle=[2020, 2020, 2020],
+        bloc=["white", "white", "african_american"],
+        vote_share=[0.40, 0.44, 0.90],
+        source=["ANES", "CES", "NEP"],
+    )
+    out = resolve_conflicts(df)
+    assert len(out) == 2
+    blocs = set(out["bloc"].tolist())
+    assert blocs == {"white", "african_american"}
+    aa_row = out[out["bloc"] == "african_american"]
+    assert pytest.approx(float(aa_row["vote_share"].iloc[0])) == 0.90
+    assert aa_row["source"].iloc[0] == "NEP"
+
+
+def test_resolve_conflicts_empty_panel():
+    """Empty input returns empty output without error."""
+    df = pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+    out = resolve_conflicts(df)
+    assert out.empty
+
+
+def test_resolve_conflicts_se_column_dropped_from_output():
+    """The internal 'se' column is never present in the returned DataFrame."""
+    df = _df(
+        cycle=[2020, 2020],
+        bloc=["white", "white"],
+        vote_share=[0.40, 0.44],
+        source=["ANES", "CES"],
+        se=[0.02, 0.03],
+    )
+    out = resolve_conflicts(df)
+    assert "se" not in out.columns

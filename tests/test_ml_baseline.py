@@ -16,9 +16,15 @@ from electoral.models.ml_baseline import (
     GPBaselineResult,
     LocoFoldResult,
     MomentEstimates,
+    _EC_DEM_WIN,
+    _PEROT_1992_SHARE,
+    _PRES_DEM_2P_SHARE,
+    correct_three_party_1992,
+    derive_ec_veq,
     estimate_moments,
     fit_gp_classifier,
     ground_truth_winning_cycles,
+    platt_scale_loco,
     psd_repair,
     save_loco_json,
 )
@@ -49,6 +55,132 @@ def test_dem_winning_cycles(toy):
 def test_rep_winning_cycles(toy):
     result = estimate_moments(toy, "republican")
     assert result.winning_cycles == [2016]
+
+
+# ── correct_three_party_1992 ─────────────────────────────────────────────────
+
+
+def _panel_1992(blocs: list[str], raw_share: float = 0.43) -> pd.DataFrame:
+    rows = [{"cycle": c, "bloc": b, "vote_share": raw_share}
+            for b in blocs
+            for c in [1992, 2020]]
+    return pd.DataFrame(rows)
+
+
+def test_correction_increases_1992_dem_share():
+    df = _panel_1992(["white"])
+    corrected = correct_three_party_1992(df)
+    orig = df.loc[df["cycle"] == 1992, "vote_share"].iloc[0]
+    fixed = corrected.loc[corrected["cycle"] == 1992, "vote_share"].iloc[0]
+    assert fixed > orig, "Two-party share must exceed raw three-party share"
+
+
+def test_correction_leaves_other_cycles_unchanged():
+    df = _panel_1992(["white"])
+    corrected = correct_three_party_1992(df)
+    orig_2020 = df.loc[df["cycle"] == 2020, "vote_share"].iloc[0]
+    fixed_2020 = corrected.loc[corrected["cycle"] == 2020, "vote_share"].iloc[0]
+    assert orig_2020 == pytest.approx(fixed_2020)
+
+
+def test_correction_result_in_unit_interval():
+    blocs = list(_PEROT_1992_SHARE.keys())
+    df = _panel_1992(blocs, raw_share=0.50)
+    corrected = correct_three_party_1992(df)
+    rows_1992 = corrected[corrected["cycle"] == 1992]
+    for _, row in rows_1992.iterrows():
+        assert 0.0 <= row["vote_share"] <= 1.0
+
+
+def test_correction_african_american_smaller_than_white():
+    # Perot took 7% of Black votes vs 21% of white votes, so the
+    # correction is larger for white voters (bigger denominator reduction).
+    df = pd.DataFrame([
+        {"cycle": 1992, "bloc": "african_american", "vote_share": 0.85},
+        {"cycle": 1992, "bloc": "white", "vote_share": 0.40},
+    ])
+    corrected = correct_three_party_1992(df)
+    aa_gain = (corrected.loc[corrected["bloc"] == "african_american", "vote_share"].iloc[0]
+               - 0.85)
+    wh_gain = (corrected.loc[corrected["bloc"] == "white", "vote_share"].iloc[0]
+               - 0.40)
+    assert wh_gain > aa_gain, "White correction should be larger than AA (higher Perot share)"
+
+
+def test_correction_no_1992_rows_is_noop():
+    df = pd.DataFrame([{"cycle": 2020, "bloc": "white", "vote_share": 0.41}])
+    corrected = correct_three_party_1992(df)
+    pd.testing.assert_frame_equal(df.reset_index(drop=True),
+                                  corrected.reset_index(drop=True))
+
+
+def test_correction_national_average_approx_two_party():
+    # Nationally: Clinton 43.01% raw → 53.5% two-party.
+    # A uniform 0.4301 vote_share should correct to approximately 0.535.
+    df = pd.DataFrame([{"cycle": 1992, "bloc": "other_race", "vote_share": 0.4301}])
+    corrected = correct_three_party_1992(df)
+    # other_race uses national Perot share (0.189): 0.4301 / 0.811 = 0.530
+    result = corrected.loc[corrected["cycle"] == 1992, "vote_share"].iloc[0]
+    assert result == pytest.approx(0.4301 / (1 - 0.189), abs=1e-4)
+
+
+# ── _EC_DEM_WIN integrity ─────────────────────────────────────────────────────
+
+
+def test_ec_dem_win_covers_all_cycles():
+    assert set(_EC_DEM_WIN.keys()) == set(_PRES_DEM_2P_SHARE.keys())
+
+
+def test_ec_dem_win_mismatch_cycles_coded_correctly():
+    # 2000: Gore won popular vote but Bush won EC → coded as 0 (Rep EC win)
+    assert _EC_DEM_WIN[2000] == 0
+    # 2016: Clinton won popular vote but Trump won EC → coded as 0 (Rep EC win)
+    assert _EC_DEM_WIN[2016] == 0
+
+
+def test_ec_dem_win_is_binary():
+    assert set(_EC_DEM_WIN.values()) == {0, 1}
+
+
+# ── derive_ec_veq ─────────────────────────────────────────────────────────────
+
+
+def test_derive_ec_veq_dem_above_half():
+    # Democrats need more than 50% popular vote due to geographic inefficiency.
+    assert derive_ec_veq("democrat") > 0.50
+
+
+def test_derive_ec_veq_rep_below_half():
+    # Republicans need less than 50% popular vote due to geographic efficiency.
+    assert derive_ec_veq("republican") < 0.50
+
+
+def test_derive_ec_veq_symmetric():
+    # By construction: dem_threshold + rep_threshold = 1.0
+    assert derive_ec_veq("democrat") + derive_ec_veq("republican") == pytest.approx(1.0, abs=1e-9)
+
+
+def test_derive_ec_veq_dem_within_plausible_range():
+    # Historical data constrains the threshold to [0.50, 0.53].
+    # Above 0.53 would mean Democrats need a near-landslide; below 0.50 is impossible
+    # given the 2000/2016 mismatches at 50.3% and 51.1%.
+    v = derive_ec_veq("democrat")
+    assert 0.500 < v < 0.530, f"Democrat V_eq {v:.4f} outside plausible range (0.50, 0.53)"
+
+
+def test_derive_ec_veq_rep_within_plausible_range():
+    v = derive_ec_veq("republican")
+    assert 0.470 < v < 0.500, f"Republican V_eq {v:.4f} outside plausible range (0.47, 0.50)"
+
+
+def test_derive_ec_veq_above_2000_mismatch():
+    # Dem V_eq must be above 0.503 — the popular vote share that FAILED to win EC in 2000.
+    assert derive_ec_veq("democrat") > 0.503
+
+
+def test_derive_ec_veq_raises_on_invalid_party():
+    with pytest.raises(ValueError, match="party must be"):
+        derive_ec_veq("libertarian")  # type: ignore[arg-type]
 
 
 # ── ground_truth_winning_cycles ───────────────────────────────────────────────
@@ -538,12 +670,136 @@ def test_save_loco_json_schema(gp_result_6):
     try:
         save_loco_json(gp_result_6, p)
         data = json.loads(p.read_text())
-        assert set(data.keys()) == {"party", "accuracy", "brier_score", "folds"}
+        expected_top = {
+            "party", "accuracy", "brier_score",
+            "calibrated_accuracy", "calibrated_brier_score", "folds",
+        }
+        assert set(data.keys()) == expected_top
         assert data["party"] == "democrat"
         fold_keys = set(data["folds"][0].keys())
-        assert fold_keys == {"cycle", "y_true", "prob_win", "prob_std"}
+        assert fold_keys == {"cycle", "y_true", "prob_win", "prob_std", "calibrated_prob_win"}
     finally:
         p.unlink(missing_ok=True)
+
+
+def test_save_loco_json_calibrated_null_before_scaling(gp_result_6):
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        p = Path(f.name)
+    try:
+        save_loco_json(gp_result_6, p)
+        data = json.loads(p.read_text())
+        # platt_scale_loco not yet applied → calibrated fields are null
+        assert data["calibrated_accuracy"] is None
+        assert data["calibrated_brier_score"] is None
+        for fold in data["folds"]:
+            assert fold["calibrated_prob_win"] is None
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def test_save_loco_json_calibrated_populated_after_scaling(gp_result_6):
+    calibrated = platt_scale_loco(gp_result_6)
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        p = Path(f.name)
+    try:
+        save_loco_json(calibrated, p)
+        data = json.loads(p.read_text())
+        assert data["calibrated_accuracy"] is not None
+        assert data["calibrated_brier_score"] is not None
+        # Every valid fold must have a calibrated_prob_win
+        for fold in data["folds"]:
+            if fold["prob_win"] is not None:
+                assert fold["calibrated_prob_win"] is not None
+    finally:
+        p.unlink(missing_ok=True)
+
+
+# ── platt_scale_loco ──────────────────────────────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def gp_calibrated_6(gp_result_6) -> GPBaselineResult:
+    return platt_scale_loco(gp_result_6)
+
+
+def test_platt_returns_gp_baseline_result(gp_calibrated_6):
+    assert isinstance(gp_calibrated_6, GPBaselineResult)
+
+
+def test_platt_calibrated_prob_in_unit_interval(gp_calibrated_6):
+    for f in gp_calibrated_6.folds:
+        if not math.isnan(f.calibrated_prob_win):
+            assert 0.0 <= f.calibrated_prob_win <= 1.0, (
+                f"cycle {f.cycle}: calibrated_prob_win={f.calibrated_prob_win}"
+            )
+
+
+def test_platt_calibrated_accuracy_in_unit_interval(gp_calibrated_6):
+    assert not math.isnan(gp_calibrated_6.calibrated_accuracy)
+    assert 0.0 <= gp_calibrated_6.calibrated_accuracy <= 1.0
+
+
+def test_platt_calibrated_brier_nonneg(gp_calibrated_6):
+    assert not math.isnan(gp_calibrated_6.calibrated_brier_score)
+    assert gp_calibrated_6.calibrated_brier_score >= 0.0
+
+
+def test_platt_raw_prob_win_unchanged(gp_result_6, gp_calibrated_6):
+    # Platt scaling must never overwrite raw GP predictions.
+    for raw, cal in zip(gp_result_6.folds, gp_calibrated_6.folds):
+        if math.isnan(raw.prob_win):
+            assert math.isnan(cal.prob_win)
+        else:
+            assert cal.prob_win == pytest.approx(raw.prob_win, abs=1e-12)
+
+
+def test_platt_prob_std_unchanged(gp_result_6, gp_calibrated_6):
+    # prob_std is epistemic uncertainty from the GP posterior — not touched.
+    for raw, cal in zip(gp_result_6.folds, gp_calibrated_6.folds):
+        if not math.isnan(raw.prob_std):
+            assert cal.prob_std == pytest.approx(raw.prob_std, abs=1e-12)
+
+
+def test_platt_nan_folds_pass_through():
+    # A fold with NaN prob_win (constant-label training set) should have
+    # NaN calibrated_prob_win after scaling.
+    df = _gp_panel([2008, 2012, 2016])
+    result = fit_gp_classifier(df, "democrat", winning_cycles=[2008, 2012])
+    calibrated = platt_scale_loco(result)
+    nan_fold = next(f for f in calibrated.folds if f.cycle == 2016)
+    assert math.isnan(nan_fold.prob_win)
+    assert math.isnan(nan_fold.calibrated_prob_win)
+
+
+def test_platt_calibrated_accuracy_matches_manual(gp_calibrated_6):
+    valid = [f for f in gp_calibrated_6.folds if not math.isnan(f.calibrated_prob_win)]
+    expected = (
+        sum(1 for f in valid if (f.calibrated_prob_win >= 0.5) == bool(f.y_true))
+        / len(valid)
+    )
+    assert gp_calibrated_6.calibrated_accuracy == pytest.approx(expected, abs=1e-12)
+
+
+def test_platt_calibrated_brier_matches_manual(gp_calibrated_6):
+    valid = [f for f in gp_calibrated_6.folds if not math.isnan(f.calibrated_prob_win)]
+    expected = (
+        sum((f.calibrated_prob_win - f.y_true) ** 2 for f in valid) / len(valid)
+    )
+    assert gp_calibrated_6.calibrated_brier_score == pytest.approx(expected, abs=1e-12)
+
+
+def test_platt_idempotent_result_is_frozen(gp_calibrated_6):
+    # Result must still be a frozen dataclass.
+    with pytest.raises(Exception):
+        gp_calibrated_6.calibrated_accuracy = 0.99  # type: ignore[misc]
+
+
+def test_platt_all_valid_folds_have_calibrated_prob(gp_calibrated_6):
+    for f in gp_calibrated_6.folds:
+        if not math.isnan(f.prob_win):
+            assert not math.isnan(f.calibrated_prob_win), (
+                f"cycle {f.cycle} has valid prob_win but NaN calibrated_prob_win"
+            )
 
 
 def test_save_loco_json_cycle_types(gp_result_6):

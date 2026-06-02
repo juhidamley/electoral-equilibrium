@@ -2,7 +2,7 @@
   "run_key": "base_2026",
   "seed": 42,
   "party": "democrat",
-  "target": 0.535,
+  "target": 0.5066,
   "data_path": "data/",
   "output_dir": "artifacts/",
   "pipeline_mode": "historical",
