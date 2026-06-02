@@ -9,7 +9,12 @@ import pandas as pd
 import pytest
 
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
-from electoral.models.ml_baseline import MomentEstimates, estimate_moments
+from electoral.models.ml_baseline import (
+    MomentEstimates,
+    estimate_moments,
+    ground_truth_winning_cycles,
+    psd_repair,
+)
 
 TOY_PANEL = Path("tests/fixtures/toy_panel.csv")
 
@@ -26,7 +31,7 @@ def toy() -> pd.DataFrame:
     return pd.read_csv(TOY_PANEL)
 
 
-# ── winning cycle identification ───────────────────────────────────────────────
+# ── panel-derived winning cycle identification (no override) ───────────────────
 
 
 def test_dem_winning_cycles(toy):
@@ -37,6 +42,77 @@ def test_dem_winning_cycles(toy):
 def test_rep_winning_cycles(toy):
     result = estimate_moments(toy, "republican")
     assert result.winning_cycles == [2016]
+
+
+# ── ground_truth_winning_cycles ───────────────────────────────────────────────
+
+
+def test_ground_truth_dem_includes_known_wins():
+    cycles = ground_truth_winning_cycles("democrat")
+    for c in [1948, 1960, 1964, 1976, 1992, 1996, 2008, 2012, 2020]:
+        assert c in cycles, f"expected Democrat win {c} missing from ground truth"
+
+
+def test_ground_truth_dem_excludes_known_losses():
+    cycles = ground_truth_winning_cycles("democrat")
+    for c in [1952, 1956, 1972, 1980, 1984, 1988, 2004, 2024]:
+        assert c not in cycles, f"expected Democrat loss {c} incorrectly in ground truth"
+
+
+def test_ground_truth_1992_is_dem_win():
+    # 1992: Clinton won; panel misclassifies as R due to Perot 1-flip artifact.
+    assert 1992 in ground_truth_winning_cycles("democrat")
+    assert 1992 not in ground_truth_winning_cycles("republican")
+
+
+def test_ground_truth_1988_is_rep_win():
+    # 1988: Bush won; panel incorrectly flags as D.
+    assert 1988 not in ground_truth_winning_cycles("democrat")
+    assert 1988 in ground_truth_winning_cycles("republican")
+
+
+def test_ground_truth_rep_includes_known_wins():
+    cycles = ground_truth_winning_cycles("republican")
+    for c in [1952, 1956, 1968, 1972, 1980, 1984, 1988, 2004, 2024]:
+        assert c in cycles, f"expected Republican win {c} missing from ground truth"
+
+
+def test_ground_truth_raises_on_invalid_party():
+    with pytest.raises(ValueError, match="party must be"):
+        ground_truth_winning_cycles("libertarian")  # type: ignore[arg-type]
+
+
+def test_ground_truth_dem_rep_are_complementary():
+    dem = set(ground_truth_winning_cycles("democrat"))
+    rep = set(ground_truth_winning_cycles("republican"))
+    from electoral.models.ml_baseline import _PRES_DEM_2P_SHARE
+    all_cycles = set(_PRES_DEM_2P_SHARE.keys())
+    assert dem | rep == all_cycles
+    assert dem & rep == set()
+
+
+# ── winning_cycles override parameter ─────────────────────────────────────────
+
+
+def test_winning_cycles_override_used_for_mu(toy):
+    # Force both cycles to be "winning" — mu should average over 2016 + 2020.
+    result = estimate_moments(toy, "democrat", winning_cycles=[2016, 2020])
+    expected_aa = (0.89 + 0.87) / 2
+    assert result.mu_race["african_american"] == pytest.approx(expected_aa)
+    assert result.winning_cycles == [2016, 2020]
+
+
+def test_winning_cycles_override_empty_gives_nan_mu(toy):
+    result = estimate_moments(toy, "democrat", winning_cycles=[])
+    assert result.winning_cycles == []
+    assert all(np.isnan(v) for v in result.mu_race.values())
+
+
+def test_winning_cycles_override_does_not_affect_sigma(toy):
+    # Sigma is always derived from all cycles regardless of winning_cycles.
+    result_default = estimate_moments(toy, "democrat")
+    result_override = estimate_moments(toy, "democrat", winning_cycles=[2016])
+    np.testing.assert_array_equal(result_default.Sigma, result_override.Sigma)
 
 
 # ── mu_race ───────────────────────────────────────────────────────────────────
@@ -153,7 +229,56 @@ def test_race_blocs_matches_canonical_order(toy):
     assert result.race_blocs == list(CANONICAL_RACES)
 
 
-# ── PSD safeguard ─────────────────────────────────────────────────────────────
+# ── psd_repair ────────────────────────────────────────────────────────────────
+
+
+def test_psd_repair_near_singular_matrix():
+    # Rank-1 outer product with a tiny negative perturbation on the diagonal
+    # — a known near-singular matrix that is NOT positive semi-definite.
+    v = np.array([1.0, 0.5, 0.2, 0.8, 0.3])
+    M = np.outer(v, v)  # rank-1, PSD
+    M[0, 0] -= 0.05  # push smallest eigenvalue negative
+
+    assert np.linalg.eigvalsh(M).min() < 0, "precondition: M must be non-PSD"
+
+    repaired = psd_repair(M, eps=1e-6)
+
+    eigenvalues = np.linalg.eigvalsh(repaired)
+    assert np.all(eigenvalues >= 0.0), f"still non-PSD after repair: {eigenvalues}"
+
+
+def test_psd_repair_already_psd_unchanged():
+    # A strictly positive diagonal matrix is already PSD — psd_repair must
+    # return the identical object (no copy, no shift).
+    M = np.diag([1.0, 2.0, 3.0, 4.0, 5.0])
+    result = psd_repair(M)
+    assert result is M
+
+
+def test_psd_repair_preserves_shape_and_dtype():
+    rng = np.random.default_rng(0)
+    A = rng.standard_normal((5, 5))
+    M = A @ A.T  # guaranteed PSD
+    result = psd_repair(M)
+    assert result.shape == (5, 5)
+    assert result.dtype == np.float64
+
+
+def test_psd_repair_shift_amount_respects_eps():
+    # With eps=0.01, all eigenvalues of the repaired matrix must be >= 0,
+    # and the minimum should be close to eps (since we added exactly
+    # (-min_eig + eps) * I).
+    v = np.array([1.0, 0.5, 0.2, 0.8, 0.3])
+    M = np.outer(v, v)
+    M[0, 0] -= 0.05  # force negative eigenvalue
+    eps = 0.01
+    repaired = psd_repair(M, eps=eps)
+    min_eig = np.linalg.eigvalsh(repaired).min()
+    assert min_eig >= 0.0
+    assert min_eig == pytest.approx(eps, abs=1e-10)
+
+
+# ── PSD safeguard (via estimate_moments) ──────────────────────────────────────
 
 
 def test_psd_safeguard_triggers_on_degenerate_panel():

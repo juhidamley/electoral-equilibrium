@@ -3,7 +3,7 @@
 **Project:** Electoral Equilibrium — Stochastic Coalition Optimization  
 **Student:** Juhi Damley  
 **Supervisor:** Prof. Gaston Espinosa, Claremont McKenna College  
-**Document updated:** 2026-06-01 (end of Week 1)
+**Document updated:** 2026-06-01 (Week 1–2)
 
 Questions are grouped by topic and tagged with urgency: **[Week 2]** must be resolved before the next sprint begins, **[Paper]** are methodology decisions that must appear explicitly in the paper, and **[Open]** can be discussed whenever.
 
@@ -184,3 +184,108 @@ The following items remain unchecked in `DECISIONS.md §Open Items`:
 | Meta Content Library application | Unknown status | Week 3 |
 | Reddit API OAuth credentials | Unknown status | Week 3 |
 | Syncthing running on all machines | Unknown status | Open |
+
+---
+
+## 10. Moment Inspection — μ and Σ Cross-Validation
+
+`estimate_moments()` was run against the full 234-row voter panel (20 cycles, all 15 blocs). Results cross-referenced against NEP exit-poll benchmarks, Pew Research reports, and AAPI Data. This section records the findings and flags items for the supervision check-in.
+
+**Run date:** 2026-06-01  
+**Panel:** 234 rows · 20 presidential cycles 1948–2024 · sources ANES + CES + GSS + NEP
+
+---
+
+### 10.1 — Democratic μ (winning cycles = 13) [Open]
+
+All values within ±0.06 of published reference ranges. No automatic discrepancy flags triggered.
+
+| Bloc | μ | Reference range | Notes |
+|------|---|----------------|-------|
+| african_american | 0.883 | [0.87, 0.94] | ✓ consistent with NEP |
+| latino | 0.663 | [0.60, 0.72] | ✓ |
+| asian | 0.610 | [0.62, 0.77] | borderline low; see §10.4 |
+| white | 0.456 | [0.37, 0.45] | marginally above; 1948–1960 cycles inflate this |
+| other_race | 0.644 | [0.50, 0.65] | borderline high; acceptable |
+| evangelical | 0.275 | [0.20, 0.30] | ✓ consistent with ~24% Dem reference |
+| catholic | 0.568 | [0.45, 0.56] | slightly above; reflects older cycles |
+| protestant | 0.460 | [0.38, 0.55] | ✓ |
+| secular | 0.703 | [0.60, 0.75] | ✓ |
+| jewish | 0.789 | [0.65, 0.80] | ✓ |
+| muslim | 0.851 | [0.60, 0.80] | above ceiling; see §10.5 |
+| women | 0.534 | [0.52, 0.60] | ✓ |
+| men | 0.487 | [0.38, 0.48] | slightly above; historical cycles have smaller gender gap |
+| other_gender | 0.808 | [0.70, 0.95] | ✓ consistent with Pew LGBTQ lean |
+
+---
+
+### 10.2 — Republican μ (winning cycles = 7: 1956, 1968, 1972, 1980, 1984, 1992, 2024) [Week 2]
+
+Three automatic discrepancy flags (Dem-equivalent falls outside reference ± 0.06):
+
+**Flag R1 — Latino (Dem-equiv 0.513, below [0.60, 0.72])**  
+The reference range reflects 2016–2024 Pew/NEP data. Republican-winning cycles span 1956–2024, when Latino-Democratic alignment was weaker. The 1992 cycle is also misclassified (see §10.3). Probably acceptable given the historical breadth, but the optimizer uses this as μ_rep_latino — worth confirming with Prof. Espinosa whether the full historical range or a modern-only window is correct for the paper.
+
+**Flag R2 — Asian (Dem-equiv 0.311, below [0.62, 0.77]) — most anomalous**  
+The σ for Asian is 0.245 (vs. 0.073 for White) — the largest variance in Σ. Sparse pre-1968 data (Asian electorate was tiny before the 1965 Immigration Act), three-party race contamination from 1992, and genuine Trump-era gains in 2024 all contribute. **Recommend restricting Asian bloc to post-1968 data for the paper**, or explicitly documenting the high uncertainty bounds.
+
+**Question:** Is it correct to include Asian vote_share data from pre-1968 cycles in Σ estimation, given that the eligible Asian electorate was less than 0.5% before the Immigration and Nationality Act of 1965?
+
+**Flag R3 — Women (Dem-equiv 0.442, below [0.52, 0.60])**  
+The modern gender gap (women +8–12pp Democratic) is a post-1980 phenomenon. In 1956, 1972, 1980, 1984, the gap was near zero. Reference range uses 2016–2024 data only. This is historically correct, not a data error. No action needed unless the paper's baseline claims are restricted to modern elections.
+
+---
+
+### 10.3 — Winning-Cycle Misclassifications [Week 2] ⚠
+
+Cross-referencing `estimate_moments` winning-cycle output against actual two-party popular vote (CQ Press/FEC), **4 of 20 cycles are misclassified**:
+
+| Cycle | Actual Dem 2P share | Model says | Actual winner | Root cause |
+|-------|---------------------|-----------|---------------|-----------|
+| 1952 | 0.447 | DEM | REP (Eisenhower) | Panel overestimates Dem; ANES sampling bias |
+| 1988 | 0.461 | DEM | REP (Bush) | Panel overestimates Dem; borderline race |
+| 1992 | 0.537 | REP | DEM (Clinton) | Three-party race — Perot took 18.9%; `1 − dem_share ≠ rep_share` |
+| 2004 | 0.487 | DEM | REP (Bush) | Panel overestimates Dem; borderline race |
+
+The 1992 misclassification is the most consequential: it moves a Democrat-winning cycle into the Republican set, inflating μ_rep values (especially for Asian, §10.2 Flag R2) and adding a spurious data point to Σ.
+
+**Root causes:**
+1. **Three-party contamination** (1992, 1968): The panel stores raw Democratic fraction, not two-party fraction. When a third-party candidate takes >5%, `national_dem_share < 0.50` even if Democrats won the two-party contest (Clinton 1992: 43% raw, 53.7% two-party).
+2. **Survey-weight mismatch** (1952, 1988, 2004): The approximate race weights (0.62 White) are calibrated to the modern electorate. Applied to 1952 ANES (much smaller Black and Latino electorate shares), the weighted estimate diverges from actual national results.
+
+**Recommended fix — Q10.3a:**  
+Replace the panel-derived winning-cycle criterion with a ground-truth lookup table of actual Dem two-party popular-vote shares by cycle. This is a one-line change to `estimate_moments` — add an optional `actual_vote_shares: dict[int, float]` parameter and fall back to the panel-derived method only when absent.
+
+**Question:** Should we use the two-party popular vote as the winning criterion, or the Electoral College result? In 2000 and 2016, these diverge: Gore/Clinton won the popular vote but lost the Electoral College. The V_eq target should arguably be the Electoral College threshold, not the popular vote.
+
+---
+
+### 10.4 — Asian High Variance in Σ [Paper]
+
+Σ diagonal for Asian: var = 0.060, σ = 0.245. This is 3× larger than the next most volatile bloc (other_race: σ = 0.233) and 3.4× larger than White (σ = 0.073).
+
+This will directly inflate the Monte Carlo 90% CI bounds when the optimizer places weight on the Asian bloc. The Logistic-Normal ILR draws will have high spread in the Asian dimension.
+
+**Question:** Should the paper explicitly document that Asian bloc CI bounds are unreliable for pre-1968 cycles, and report separate results with Asian data restricted to 1968+? This is relevant to both the LOCO-CV evaluation and the paper's claim about the optimizer's reliability.
+
+---
+
+### 10.5 — Muslim μ = 0.851 (above 0.80 ceiling) [Open]
+
+Muslim Dem share of 0.851 is above the 0.80 upper reference but not flagged automatically (within ±0.06 threshold). The elevated value is historically supported: post-9/11 Muslim Democratic support reached 90%+ in CAIR 2004 surveys and stayed elevated through 2012. However, 2024 saw documented erosion of Muslim support for Democrats (Gaza protests; exit polls show Trump at ~14% among Muslim respondents, down from <5%).
+
+Because Muslim data is only present in post-2000 cycles, and 2024 is a Republican-winning cycle excluded from μ_dem, the average is dominated by the 2008–2020 high-loyalty era.
+
+**Question:** Is the Muslim bloc large enough (~1% of electorate) to meaningfully affect μ_eff, or is it primarily included for completeness? If we are paper-claiming optimizer precision at the 1pp level, the Muslim Δμ from 2024 deserves explicit mention.
+
+---
+
+### 10.6 — Σ Structure Notes [Paper]
+
+Key covariance observations from the inspection (all cycles, 5×5 race bloc):
+
+- **Largest positive covariance:** asian × other_race (+0.018). Both are smaller blocs with sparse pre-1968 data — their correlation is partly artifactual.
+- **Largest negative covariance:** african_american × other_race (−0.017). In high-mobilisation cycles (2008, 2012), African American turnout and loyalty are highest while the heterogeneous "other_race" category is more volatile. Economically plausible.
+- **All eigenvalues positive** (min = 0.00355); no PSD repair needed on the real data. The `psd_repair()` safeguard is available but inactive on this dataset.
+
+**Question (Q3.3 follow-up):** Given that the minimum eigenvalue (0.00355) is ~23× the next-smallest (0.00403), the condition number of Σ is ≈ 22.5. This is well-conditioned for a 5×5 matrix. Should we still apply LedoitWolf shrinkage as documented in DECISIONS.md, or is it unnecessary given the condition number? If we apply it, what is the expected shrinkage intensity ρ?

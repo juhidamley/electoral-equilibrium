@@ -289,3 +289,6 @@ elec-equilibrium/node_modules/
 elec-equilibrium/dist/
 elec-equilibrium/.devvit/
 elec-equilibrium/*.lock
+
+# ── Devlog drafts (published separately at devlog.juhi.studio) ────────────────
+devlog/

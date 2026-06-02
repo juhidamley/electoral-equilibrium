@@ -34,6 +34,67 @@ _APPROX_RACE_SHARE: dict[str, float] = {
 
 _EPS_DEFAULT: float = 1e-6
 
+# ── Ground-truth presidential election results ────────────────────────────────
+# Democrat popular-vote two-party share per cycle (dem / (dem + rep)).
+# Source: National Archives certified FEC results. Third-party votes excluded
+# from the denominator so the fraction is always in (0, 1).
+#
+# Ambiguous cycles (popular vote ≠ Electoral College outcome):
+#   2000: Gore won popular vote (50.3%) but Bush won EC.
+#   2016: H. Clinton won popular vote (51.1%) but Trump won EC.
+#   Both are treated as Democratic wins under the popular-vote criterion used
+#   here. Switch to EC-based ground truth once Prof. Espinosa confirms which
+#   criterion V_eq should reflect (ESPINOSA.md §Q2.3).
+_PRES_DEM_2P_SHARE: dict[int, float] = {
+    1948: 0.524,  # Truman     D win
+    1952: 0.446,  # Stevenson  R win — panel incorrectly flags as D
+    1956: 0.422,  # Stevenson  R win
+    1960: 0.501,  # Kennedy    D win (margin: 0.1 pp)
+    1964: 0.613,  # Johnson    D win
+    1968: 0.496,  # Humphrey   R win (Nixon; Wallace split)
+    1972: 0.382,  # McGovern   R win
+    1976: 0.511,  # Carter     D win
+    1980: 0.447,  # Carter     R win
+    1984: 0.406,  # Mondale    R win
+    1988: 0.461,  # Dukakis    R win — panel incorrectly flags as D
+    1992: 0.535,  # Clinton    D win — panel misses due to 1−dem_share Perot flip
+    1996: 0.547,  # Clinton    D win
+    2000: 0.503,  # Gore       D win (popular); Bush won EC
+    2004: 0.488,  # Kerry      R win — panel incorrectly flags as D
+    2008: 0.537,  # Obama      D win
+    2012: 0.520,  # Obama      D win
+    2016: 0.511,  # H. Clinton D win (popular); Trump won EC
+    2020: 0.523,  # Biden      D win
+    2024: 0.492,  # Harris     R win
+}
+
+
+def ground_truth_winning_cycles(party: Party, threshold: float = 0.50) -> list[int]:
+    """Return cycles where *party* won the popular-vote two-party share.
+
+    Uses the hardcoded _PRES_DEM_2P_SHARE table rather than deriving from the
+    voter panel, fixing four known panel-derived misclassifications:
+
+      - 1952, 1988, 2004 : panel overestimates Dem share → false D wins
+      - 1992             : Perot 1-flip artifact → Clinton win missed
+
+    Parameters
+    ----------
+    party:
+        "democrat" or "republican".
+    threshold:
+        Win threshold (default 0.50 = majority of two-party vote).
+
+    Returns
+    -------
+    Sorted list of cycle years where party exceeded *threshold*.
+    """
+    if party not in ("democrat", "republican"):
+        raise ValueError(f"party must be 'democrat' or 'republican', got {party!r}")
+    if party == "democrat":
+        return sorted(c for c, s in _PRES_DEM_2P_SHARE.items() if s > threshold)
+    return sorted(c for c, s in _PRES_DEM_2P_SHARE.items() if s <= threshold)
+
 
 @dataclasses.dataclass(frozen=True)
 class MomentEstimates:
@@ -55,6 +116,26 @@ class MomentEstimates:
     Sigma: np.ndarray  # shape (5, 5), dtype float64
     winning_cycles: list[int]
     race_blocs: list[str]
+
+
+def psd_repair(cov: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    """Return a copy of *cov* that is positive semi-definite.
+
+    If the minimum eigenvalue of *cov* is negative, adds
+    ``(-min_eig + eps) * I`` so that all eigenvalues are >= ``eps``.
+    Returns *cov* unchanged (zero-copy) when it is already PSD.
+
+    Parameters
+    ----------
+    cov:
+        Square, symmetric matrix (e.g. a sample covariance matrix).
+    eps:
+        Minimum eigenvalue guarantee after repair.  Defaults to 1e-6.
+    """
+    min_eig = float(np.linalg.eigvalsh(cov).min())
+    if min_eig < 0.0:
+        return cov + (-min_eig + eps) * np.eye(cov.shape[0])
+    return cov
 
 
 def _national_vote_share(
@@ -86,6 +167,7 @@ def estimate_moments(
     df: pd.DataFrame,
     party: Party,
     *,
+    winning_cycles: list[int] | None = None,
     epsilon: float = _EPS_DEFAULT,
 ) -> MomentEstimates:
     """Estimate bloc-level vote-share moments for the given party.
@@ -100,6 +182,14 @@ def estimate_moments(
     party:
         "democrat" or "republican". For "democrat", vote_share is used
         directly; for "republican", 1 - vote_share is used throughout.
+    winning_cycles:
+        Optional explicit list of cycle years to treat as wins for *party*.
+        When provided, the panel-derived national vote share heuristic is
+        skipped entirely.  Pass ``ground_truth_winning_cycles(party)`` to
+        use certified election results and fix the four known panel-derived
+        misclassifications (1952, 1988, 1992, 2004).
+        When None (default), winning cycles are derived from the panel —
+        acceptable for synthetic/test panels that lack a real-data anchor.
     epsilon:
         PSD safeguard magnitude. If the minimum eigenvalue of Sigma is
         negative, (-min_eig + epsilon) * I is added to Sigma.
@@ -109,7 +199,7 @@ def estimate_moments(
     MomentEstimates
         mu_race/religion/gender: mean share over winning cycles only.
         Sigma: 5×5 race empirical covariance over ALL available cycles.
-        winning_cycles: cycles where national race-weighted share > 0.50.
+        winning_cycles: cycles used for mu estimation.
         race_blocs: CANONICAL_RACES (authoritative row/col order for Sigma).
 
     Raises
@@ -136,20 +226,25 @@ def estimate_moments(
     if party == "republican":
         df["vote_share"] = 1.0 - df["vote_share"]
 
-    # ── 3. Identify winning cycles ─────────────────────────────────────────────
-    # National vote share per cycle = weighted mean across race blocs.
-    # Winning: national > 0.50 (absolute majority of two-party vote).
+    # ── 3. Race pivot — needed for both winning-cycle derivation and Sigma ───────
     race_df = df[df["bloc"].isin(CANONICAL_RACES)]
     race_pivot = race_df.pivot_table(
         index="cycle", columns="bloc", values="vote_share", aggfunc="mean"
     ).reindex(columns=CANONICAL_RACES)
 
-    national = _national_vote_share(race_pivot, _APPROX_RACE_SHARE)
-    winning_cycles: list[int] = sorted(int(c) for c in national.index[national > 0.50])
+    # ── 4. Identify winning cycles ─────────────────────────────────────────────
+    # Prefer an explicit ground-truth list (ground_truth_winning_cycles(party))
+    # over panel-derived estimation, which produces four known errors caused by
+    # survey-weighting artifacts and the 1992 Perot two-party-flip.
+    if winning_cycles is not None:
+        _winning: list[int] = sorted(int(c) for c in winning_cycles)
+    else:
+        national = _national_vote_share(race_pivot, _APPROX_RACE_SHARE)
+        _winning = sorted(int(c) for c in national.index[national > 0.50])
 
-    # ── 4. mu^(P) per stratum — mean over winning cycles only ─────────────────
+    # ── 5. mu^(P) per stratum — mean over winning cycles only ─────────────────
     def _mean_over_winning(blocs: list[str]) -> dict[str, float]:
-        sub = df[df["bloc"].isin(blocs) & df["cycle"].isin(winning_cycles)]
+        sub = df[df["bloc"].isin(blocs) & df["cycle"].isin(_winning)]
         if sub.empty:
             return {b: float("nan") for b in blocs}
         means = sub.groupby("bloc")["vote_share"].mean().reindex(blocs)
@@ -159,7 +254,6 @@ def estimate_moments(
     mu_religion = _mean_over_winning(CANONICAL_RELIGIONS)
     mu_gender = _mean_over_winning(CANONICAL_GENDERS)
 
-    # ── 5. Sigma — 5×5 race empirical covariance over ALL cycles ──────────────
     # ddof=1 (unbiased); blocs present in only one cycle produce NaN variance.
     cov_df = race_pivot.cov(ddof=1).reindex(index=CANONICAL_RACES, columns=CANONICAL_RACES)
     Sigma = cov_df.to_numpy(dtype=float)
@@ -167,16 +261,14 @@ def estimate_moments(
     # This can break PSD; the safeguard below restores it.
     Sigma = np.where(np.isnan(Sigma), 0.0, Sigma)
 
-    # ── 6. PSD safeguard ───────────────────────────────────────────────────────
-    min_eig = float(np.linalg.eigvalsh(Sigma).min())
-    if min_eig < 0.0:
-        Sigma = Sigma + (-min_eig + epsilon) * np.eye(len(CANONICAL_RACES))
+    # ── 7. PSD safeguard ───────────────────────────────────────────────────────
+    Sigma = psd_repair(Sigma, eps=epsilon)
 
     return MomentEstimates(
         mu_race=mu_race,
         mu_religion=mu_religion,
         mu_gender=mu_gender,
         Sigma=Sigma,
-        winning_cycles=winning_cycles,
+        winning_cycles=_winning,
         race_blocs=list(CANONICAL_RACES),
     )

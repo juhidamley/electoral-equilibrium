@@ -4,8 +4,8 @@ Every source file documented, organized by directory. For each file: what it doe
 what it reads/writes, and what stage of the pipeline it belongs to.
 
 **Total source files:** ~130 Python modules + configs + tests + frontend  
-**Test status:** 349 passing, 21 skipped (skipped = Week 2+ kernels not yet implemented)  
-**Implemented:** Week 1 (data pipeline). Weeks 2–7 are stubs that raise `NotImplementedError`.
+**Test status:** 384 passing, 21 skipped (skipped = Week 2+ kernels not yet implemented)  
+**Implemented:** Week 1 (data pipeline) + `ml_baseline.py` (Week 2 moment estimation). Remaining Weeks 2–7 kernels are stubs that raise `NotImplementedError`.
 
 ---
 
@@ -177,6 +177,13 @@ Column remapping uses `configs/column_maps.json` (raw source column names → ca
 
 `normalize_bloc(raw: str) → str` is the public function for scalar normalisation. It handles ~80 survey alias strings (e.g. `"Black/African American"` → `"african_american"`, `"White Evangelical"` → `"evangelical"`).
 
+`impute_missing_cells(panel) → pd.DataFrame` fills structurally absent (cycle, bloc) cells using rules from DECISIONS.md §Coverage Gap Imputation:
+- `other_gender` in [2004, 2008, 2012, 2020, 2024]: constant 0.76 (Pew LGBTQ lean)
+- `muslim` 2004: carry-backward from 2008 value
+- `other_race` 1948: carry-forward from 1952 value
+
+Called inside `build_voter_panel` after `clean_raw_panel`. Also callable directly; does not mutate the input.
+
 `_BLOC_MAP` contains the complete alias table — update this when adding new source aliases.
 
 #### `electoral/data/panel.py`
@@ -234,8 +241,31 @@ Will implement: manuscript-ready performance tables for bio classifier, RoBERTa 
 
 ### `electoral/models/` — ML Models
 
-#### `electoral/models/ml_baseline.py` 🔲 STUB
-Will implement: GP classifier (RBF kernel) for baseline win probability; XGBoost baseline for comparison; leave-one-cycle-out (LOCO) cross-validation.
+#### `electoral/models/ml_baseline.py` ✅ PARTIAL (Week 2 — moment estimation implemented)
+**Purpose:** Estimates bloc-level vote-share moments from the voter panel. These are the primary inputs to the CVXPY optimizer.
+
+**Exports:**
+
+`MomentEstimates` — frozen dataclass returned by `estimate_moments`:
+- `mu_race / mu_religion / mu_gender` — `dict[str, float]`, mean vote share for party P across winning cycles; `float("nan")` for blocs absent from the panel
+- `Sigma` — `np.ndarray` shape `(5, 5)`, empirical race-bloc covariance across **all** cycles (not just winning)
+- `winning_cycles` — `list[int]`, cycles where national race-weighted share > 0.50
+- `race_blocs` — `list[str]` = `CANONICAL_RACES`; authoritative row/col order for Σ
+
+`estimate_moments(df, party, *, epsilon=1e-6) → MomentEstimates`:
+- For `party="democrat"`: uses `vote_share` directly
+- For `party="republican"`: uses `1 − vote_share` throughout (including winning-cycle identification)
+- Winning cycles identified by computing a race-bloc weighted national vote share using approximate electorate shares from CLAUDE.md (AA 12%, Latino 11%, Asian 5%, White 62%, Other 10%), then checking `> 0.50`
+- Σ NaN entries (blocs in fewer than 2 cycles, ddof=1) are zeroed before the PSD safeguard
+- PSD safeguard: `Sigma += (-min_eig + epsilon) * I` if `min_eig < 0`
+
+`psd_repair(cov, eps=1e-6) → np.ndarray`:
+- Public helper: adds `(-min_eig + eps) * I` if the minimum eigenvalue is negative; returns the input unchanged (zero-copy) when already PSD
+- Used by `estimate_moments` and available for direct use by the CVXPY kernel
+
+**Known limitation (see ESPINOSA.md §10.3):** The panel-derived winning-cycle criterion misclassifies 4 of 20 cycles (1952, 1988, 2004 as Democrat-winning; 1992 as Republican-winning). Root causes: survey-weight mismatch for pre-modern electorates, and three-party race contamination in 1992. Fix: pass an external `actual_vote_shares` lookup table.
+
+**Not yet implemented:** GP classifier (RBF kernel), XGBoost baseline, leave-one-cycle-out (LOCO) cross-validation — these are the remaining Week 2 tasks in `kernels/baseline.py`.
 
 #### `electoral/models/bootstrap.py` 🔲 STUB
 Will implement: bootstrap resampling for confidence intervals on GP predictions.
@@ -425,7 +455,7 @@ Reddit API OAuth collector. Subreddits: r/Catholicism, r/Christianity, r/exchris
 
 ## `tests/` — Test Suite
 
-**349 passing, 21 skipped** as of Week 1.
+**384 passing, 21 skipped** as of Week 1–2.
 
 | File | What it tests |
 |------|--------------|
@@ -434,10 +464,11 @@ Reddit API OAuth collector. Subreddits: r/Catholicism, r/Christianity, r/exchris
 | `test_io.py` | JSON/Parquet round-trips, parent dir creation, dtype preservation. |
 | `test_schema.py` | All five `assert_*` helpers with valid and invalid inputs. |
 | `test_rng.py` | `make_rng` seeding, `derive_seed` determinism, verify no `np.random` global calls in codebase. |
-| `test_data_cleaning.py` | `clean_raw_panel` all 6 steps; `normalize_bloc` alias table; edge cases. |
+| `test_data_cleaning.py` | `clean_raw_panel` all 6 steps; `normalize_bloc` alias table; `impute_missing_cells` all 3 rules + 11 edge cases. 40 tests total. |
 | `test_loaders.py` | Generic CSV loader; ANES/CES/GSS/NEP/NPORS wrapper behavior. |
 | `test_panel.py` | `validate_panel` all 5 invariants; error messages include context. |
 | `test_artifact_roundtrip.py` | `to_dict()` → `from_dict()` → `validate()` for all 10 dataclasses. |
+| `test_ml_baseline.py` | `estimate_moments` winning cycles, μ values, Republican vote-share flip, Σ shape/PSD/symmetry/dtype, `race_blocs` order, empty winning cycles; `psd_repair` known near-singular matrix, zero-copy for already-PSD inputs, shift respects eps. 28 tests. |
 | `test_baseline.py` | ⏸ Skipped (Week 2): GP classifier, mu_eff, V_eq derivation, LOCO-CV. |
 | `test_mc_convergence.py` | ⏸ Skipped (Week 5): ILR back-transform, win probability convergence, Helmert matrix orthogonality, seed reproducibility. |
 | `test_bio_classifier.py` | ⏸ Skipped (Week 3): 3-stage inference, SetFit/lexicon/prior fallback logic. |
