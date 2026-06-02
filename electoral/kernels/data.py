@@ -328,13 +328,13 @@ def _from_ces(path: Path) -> pd.DataFrame:
 
     # Normalise to Title Case before mapping so "democratic", "DEMOCRATIC",
     # "Democratic" all match.  Any other value (Other, Third Party, etc.) → NaN.
-    dem_flag = (
-        df["vote_indicator"]
-        .astype(str)
-        .str.strip()
-        .str.title()
-        .map({"Democratic": 1.0, "Republican": 0.0})
-    )
+    vote = df["vote_indicator"]
+    # 1.0 for Democratic vote; 0.0 for any other *reported* vote (Rep/Third Party/etc.).
+    # Keep missing/NA as pd.NA so it is excluded from aggregation.
+    dem_flag = pd.Series(pd.NA, index=df.index, dtype="Float64")
+    mask = vote.notna()
+    norm = vote[mask].astype(str).str.strip().str.title()
+    dem_flag.loc[mask] = norm.eq("Democratic").astype(float)
 
     weight_col = "weight_cumulative" if "weight_cumulative" in df.columns else "weight"
     frames = [
