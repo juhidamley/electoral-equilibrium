@@ -73,8 +73,14 @@ def _coverage_matrix(panel: pd.DataFrame) -> str:
     col_w = 5  # width per cycle column
     lbl_w = 20  # bloc label width
 
-    # Header: cycle years
-    header = f"{'Bloc':<{lbl_w}}  Strat" + "".join(f"{c:>{col_w}}" for c in cycles) + "  Coverage"
+    # Header: cycle years — avoid string-literal-in-format-spec with variable width
+    # (ruff's Linux parser misparses f"{'Bloc':<{lbl_w}}" and loses scope context)
+    header = (
+        "Bloc".ljust(lbl_w)
+        + "  Strat"
+        + "".join(str(c).rjust(col_w) for c in cycles)
+        + "  Coverage"
+    )
     sep = _rule("-")
 
     rows = [header, sep]
@@ -89,12 +95,13 @@ def _coverage_matrix(panel: pd.DataFrame) -> str:
         total_cells += len(cycles)
         filled_cells += n
         pct = f"{n}/{len(cycles)}"
-        rows.append(f"{bloc:<{lbl_w}}  {stratum}    {''.join(cells)}  {pct}")
+        cells_str = "".join(cells)
+        rows.append(bloc.ljust(lbl_w) + f"  {stratum}    {cells_str}  {pct}")
 
     rows.append(sep)
 
     # Footer: blocs-per-cycle totals
-    footer = f"{'N blocs present':<{lbl_w}}  " + " " * 4
+    footer = "N blocs present".ljust(lbl_w) + "    "
     for c in cycles:
         n_c = sum(1 for b in _ALL_BLOCS if (c, b) in present)
         footer += f"{n_c:>{col_w}}"

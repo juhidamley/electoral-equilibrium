@@ -319,6 +319,54 @@ The merged row's `source` field is the sorted "+"-join of contributing sources
 Every conflict is logged at INFO level with vote_share values per source so
 discrepancies are visible and auditable.
 
+**[2026-06] Coverage gap imputation strategy (supervision check-in 2026-06-01)**
+
+Identified during supervision check-in with Prof. Espinosa. Coverage matrix showed
+221/300 cells filled (73.7%) before fixes. Two source bugs were found and fixed;
+remaining structural gaps addressed with a minimal imputation rule set.
+
+**Source bugs fixed (not imputation — data existed but was silently dropped):**
+
+1. `_from_nep()` evangelical filter: NEP evangelical rows appear under category
+   `"white evangelical/born-again?"` with `sub_category="Yes"`. The original filter
+   only matched `category.contains("relig")`, which missed these rows entirely. Fix:
+   add `is_evang_cat = s.contains("evang|born")` and remap `sub_category="Yes"` →
+   `bloc="evangelical"` before `normalize_bloc`. Also handles 2020 OCR garbage
+   (`"...Y e s"`) via the pattern `r"y\s+e\s+s"`. Recovered: 2004, 2020, 2024 from NEP.
+
+2. `_from_ces()` Protestant/evangelical split: CES labeled subset includes column
+   `bloc__religion_evangelical_flag` ("Yes"/"No"). Original code treated all CES
+   `"Protestant"` respondents as the same bloc. Fix: when
+   `bloc__religion="Protestant"` AND `bloc__religion_evangelical_flag="Yes"`, remap
+   to `"Evangelical Protestant"` (which `_CES_RELIGION` already maps to `"evangelical"`).
+   Recovered: 2008, 2012, 2016, 2020, 2024 from CES.
+
+After fixing both bugs: evangelical now has 6/20 cycles (all 2004–2024).
+Evangelical values (Dem vote share): 2004=0.21, 2008=0.29, 2012=0.33,
+2016=0.28, 2020=0.26 (CES+NEP), 2024=0.20 (CES+NEP). These match known
+patterns (White evangelical ~21–32% Dem across modern elections).
+
+**Imputed cells (documented constants or carry-forward):**
+
+| Bloc | Cycles | Method | Value | Rationale |
+|------|--------|--------|-------|-----------|
+| other_gender | 2004, 2008, 2012, 2020, 2024 | Constant | 0.76 | Pew Research LGBTQ Democratic presidential vote lean (2012–2024 range: 70–80%). 2016 ANES observation retained as-is (small-n artefact at 1.0). Source tag: `imputed_pew_lgbtq`. |
+| muslim | 2004 | Carry-backward from 2008 | ~0.93 | First post-9/11 presidential cycle; Muslim-American voters shifted heavily Democratic after 2001. 2008 is closest reliable anchor (CES). Source tag: `imputed_carry_2008`. |
+| other_race | 1948 | Carry-forward from 1952 | 1.0 | Single-cell gap; ANES 1948 small-n produces unreliable estimates. Source tag: `imputed_carry_1952`. |
+
+**Not imputed (structural data absence, excluded from LLM training):**
+
+| Bloc | Missing cycles | Reason |
+|------|---------------|--------|
+| evangelical | 1948–2000 | Moral Majority era break: evangelical voting was substantively different before 1979 (Jerry Falwell's Moral Majority). Carry-backward would misrepresent the pre-alignment era. LLM training restricted to 2004–2024 for this bloc. |
+| secular | 1948–2000 | CES/GSS provide reliable 2004–2024 coverage. Back-extrapolation unreliable (rapid growth of "nones" is a post-1990 phenomenon). |
+| muslim | 1948–2000 | Muslim-American electorate was negligibly small pre-2000 and voted differently (e.g. ~65–70% for Bush in 2000). No reliable source exists. |
+| latino, asian | 1948–1964 | Effectively zero electorate share before Voting Rights Act (1965). Imputation would be meaningless. |
+
+**Post-fix coverage:** 234/300 cells (78.0%). All 15 blocs present for 2004–2024.
+Modern-cycle completeness (2004–2024): **100%**.
+`_impute_missing_cells()` in `electoral/kernels/data.py`; called after `clean_raw_panel`.
+
 **[2026-06] 10-bloc toy panel fixture (tests/fixtures/toy_panel.csv)**
 Chose 5 race + 3 religion + 2 gender = 10 blocs (not all 15 canonical blocs) for the
 20-row test fixture. Dropped: protestant, jewish, muslim, other_rel (religion) and
@@ -341,7 +389,7 @@ Schema: `cycle, bloc, vote_share, turnout, source` (5 cols, no stratum_share or 
 - [ ] Reddit API OAuth credentials obtained
 - [ ] Syncthing confirmed running on M5, Intel Mac, Windows, Pi
 - [ ] ANES/GSS/NEP cross-tab data confirmed accessible at race × religion × gender marginal level (note: "ARDA" in original item was ANES)
-- [ ] NEP sub_category → canonical bloc ID lookup table built (free-text labels vary by year)
+- [x] NEP sub_category → canonical bloc ID lookup table built — implemented in `electoral/data/cleaning.py:_BLOC_MAP` and evangelical special-case in `kernels/data.py:_from_nep`
 - [ ] CES 2024 `CC24_410` presidential vote column verified against `CES_2024_GUIDE_vv.pdf`
 - [ ] VOTER Panel race/religion numeric codes decoded per-wave (codebook not yet in repo)
 - [ ] bin_uncertainty.json sigma values populated by generate_synthetic.py
