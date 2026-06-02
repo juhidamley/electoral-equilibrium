@@ -375,9 +375,7 @@ def _from_ces(path: Path) -> pd.DataFrame:
         None,
     )
     if evang_flag_col and "bloc__religion" in df.columns:
-        born_again_mask = (
-            df["bloc__religion"].astype(str).str.strip() == "Protestant"
-        ) & (
+        born_again_mask = (df["bloc__religion"].astype(str).str.strip() == "Protestant") & (
             df[evang_flag_col].astype(str).str.strip().str.title() == "Yes"
         )
         df.loc[born_again_mask, "bloc__religion"] = "Evangelical Protestant"
