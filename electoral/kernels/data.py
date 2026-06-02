@@ -11,7 +11,7 @@ import pandas as pd
 from electoral.artifacts import VoterPanelData
 from electoral.config import PipelineConfig
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
-from electoral.data.cleaning import clean_raw_panel, normalize_bloc
+from electoral.data.cleaning import clean_raw_panel, impute_missing_cells, normalize_bloc
 from electoral.data.loaders import load_arda, load_ces, load_gss, load_nep
 from electoral.data.panel import validate_panel
 
@@ -180,6 +180,14 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
     """Load all NEP exit-poll CSVs, filter to Race/Religion/Gender strata,
     scale dem_pct from integer percentage to [0, 1], and keep only rows
     whose bloc maps to a canonical ID.
+
+    Evangelical handling: NEP evangelical rows appear under a category like
+    "white evangelical/born-again?" with sub_category="Yes"/"No" (not "evangelical").
+    These rows are excluded by the "relig" filter because their category string
+    never contains that token.  We detect them via an evangelical-specific pattern
+    and remap the "Yes" sub_category to the canonical "evangelical" bloc before the
+    standard normalize_bloc pass.  The "No" (non-evangelical) rows are discarded
+    because they represent a heterogeneous residual group, not a clean bloc.
     """
     records: list[dict] = []
     for path in paths:
@@ -195,7 +203,21 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
         is_gender = s.str.contains(r"gender|sex", regex=True, na=False) & ~s.str.contains(
             r"marital|education|white|race|income", regex=True, na=False
         )
-        df = df[is_race | is_religion | is_gender].copy()
+        # Evangelical: category contains "evang" or "born" (covers "born-again" /
+        # "born again") AND the sub_category row is "Yes" (the actual evangelical
+        # respondents).  OCR noise in 2020 garbles "Yes" into a long string ending
+        # in "Y e s" — match the spaced-character form as well.
+        is_evang_cat = s.str.contains(r"evang|born", regex=True, na=False)
+        bloc_lower = df["bloc"].astype(str).str.lower().str.strip()
+        # Covers: "Yes", "yes", "Y e s" (OCR-spaced), and similar variants.
+        is_evang_yes = is_evang_cat & bloc_lower.str.contains(
+            r"\byes\b|y\s+e\s+s", regex=True, na=False
+        )
+        # Remap the "Yes" bloc to canonical "evangelical" before normalize_bloc runs.
+        df = df.copy()
+        df.loc[is_evang_yes, "bloc"] = "evangelical"
+
+        df = df[is_race | is_religion | is_gender | is_evang_yes].copy()
 
         raw_vs = pd.to_numeric(df["vote_share"], errors="coerce")
         df["vote_share"] = raw_vs / 100.0
@@ -339,6 +361,29 @@ def _from_ces(path: Path) -> pd.DataFrame:
     dem_flag.loc[mask] = norm.eq("Democratic").astype(float)
 
     weight_col = "weight_cumulative" if "weight_cumulative" in df.columns else "weight"
+
+    # Split CES Protestant into evangelical vs. mainline using relig_bornagain flag.
+    # CES asks "Are you a born-again or evangelical Christian?" (Yes/No).
+    # Protestant + born-again=Yes → "Evangelical Protestant" → canonical "evangelical".
+    # Protestant + born-again=No/null → stays "Protestant" → canonical "protestant".
+    # _CES_RELIGION already maps "Evangelical Protestant" → "evangelical".
+    df = df.copy()
+    # The labeled CES parquet exposes the born-again flag as
+    # "bloc__religion_evangelical_flag" (renamed from raw "relig_bornagain").
+    evang_flag_col = next(
+        (c for c in df.columns if "evangelical_flag" in c or c == "relig_bornagain"),
+        None,
+    )
+    if evang_flag_col and "bloc__religion" in df.columns:
+        born_again_mask = (df["bloc__religion"].astype(str).str.strip() == "Protestant") & (
+            df[evang_flag_col].astype(str).str.strip().str.title() == "Yes"
+        )
+        df.loc[born_again_mask, "bloc__religion"] = "Evangelical Protestant"
+        log.info(
+            "CES: split %d Protestant+born-again respondents → 'Evangelical Protestant'",
+            int(born_again_mask.sum()),
+        )
+
     frames = [
         _agg_stratum(df, "bloc__race", _CES_RACE, dem_flag, "cycle", weight_col, "CES"),
         _agg_stratum(df, "bloc__religion", _CES_RELIGION, dem_flag, "cycle", weight_col, "CES"),
@@ -603,6 +648,10 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
     # ── Clean ─────────────────────────────────────────────────────────────────
     panel = clean_raw_panel(panel)
     log.info("After clean_raw_panel: %d rows", len(panel))
+
+    # ── Impute structurally absent cells ─────────────────────────────────────
+    panel = impute_missing_cells(panel)
+    log.info("After imputation: %d rows", len(panel))
 
     # ── Validate ──────────────────────────────────────────────────────────────
     validate_panel(panel, required_cols=_PANEL_REQUIRED, context="VoterPanelData")
