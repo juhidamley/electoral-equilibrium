@@ -75,7 +75,7 @@ class TestFromJsonRealFiles:
         assert cfg.run_key == "base_2026"
         assert cfg.seed == 42
         assert cfg.party == "democrat"
-        assert cfg.target == pytest.approx(0.535)
+        assert cfg.target == pytest.approx(0.5066)  # EC-adjusted Dem V_eq
 
     def test_base_json_full_blocs(self):
         cfg = PipelineConfig.from_json(BASE_JSON)
