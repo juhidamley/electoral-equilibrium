@@ -167,6 +167,8 @@ def normalize_bloc(raw: str) -> str:
     if not isinstance(raw, str):
         raise ValueError(f"normalize_bloc: expected a non-null str, got {type(raw).__name__}")
     key = _to_key(raw)
+    if key in CANONICAL_BLOCS:
+        return key
     canonical = _BLOC_MAP.get(key)
     if canonical is None:
         raise ValueError(
