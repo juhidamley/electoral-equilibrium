@@ -1,8 +1,9 @@
 {
   "_meta": {
     "schema_version": "1.0",
+    "authoritative_path": "configs/column_maps.json",
+    "role": "Reference copy (code reads configs/column_maps.json)",
     "canonical_columns": {
-      "primary": [
         "cycle",
         "bloc__race",
         "bloc__religion",
