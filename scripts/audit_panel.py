@@ -73,9 +73,17 @@ def _coverage_matrix(panel: pd.DataFrame) -> str:
     col_w = 5  # width per cycle column
     lbl_w = 20  # bloc label width
 
-    # Header: cycle years
-    header = f"{'Bloc':<{lbl_w}}  Strat" + "".join(f"{c:>{col_w}}" for c in cycles) + "  Coverage"
-    sep = "-" * len(header)
+    # Header: cycle years — avoid string-literal-in-format-spec with variable width
+    # (ruff's Linux parser misparses f"{'Bloc':<{lbl_w}}" and loses scope context)
+    header = (
+        "Bloc".ljust(lbl_w)
+        + "  Strat"
+        + "".join(str(c).rjust(col_w) for c in cycles)
+        + "  Coverage"
+    )
+    sep = _rule("-")
+
+    rows = [header, sep]
 
     total_cells = 0
     filled_cells = 0
@@ -87,12 +95,13 @@ def _coverage_matrix(panel: pd.DataFrame) -> str:
         total_cells += len(cycles)
         filled_cells += n
         pct = f"{n}/{len(cycles)}"
-        rows.append(f"{bloc:<{lbl_w}}  {stratum}    {''.join(cells)}  {pct}")
+        cells_str = "".join(cells)
+        rows.append(bloc.ljust(lbl_w) + f"  {stratum}    {cells_str}  {pct}")
 
     rows.append(sep)
 
     # Footer: blocs-per-cycle totals
-    footer = f"{'N blocs present':<{lbl_w}}  " + " " * 4
+    footer = "N blocs present".ljust(lbl_w) + "    "
     for c in cycles:
         n_c = sum(1 for b in _ALL_BLOCS if (c, b) in present)
         footer += f"{n_c:>{col_w}}"
@@ -130,7 +139,7 @@ def _summary_statistics(panel: pd.DataFrame) -> str:
         f"{'Bloc':<22}  Strat  {'N':>4}  {'Mean':>6}  {'Std':>6}"
         f"  {'Min':>6}  {'Q25':>6}  {'Q75':>6}  {'Max':>6}"
     )
-    sep = "-" * len(hdr)
+    sep = _rule("-")
     rows = [hdr, sep]
 
     for bloc in _ALL_BLOCS:
@@ -163,7 +172,7 @@ def _outliers(panel: pd.DataFrame) -> str:
         return f"No outliers found — all vote_share values in " f"[{_OUTLIER_LO}, {_OUTLIER_HI}].\n"
 
     hdr = f"{'Cycle':>5}  {'Bloc':<22}  Strat  {'vote_share':>10}" f"  {'Flag':<5}  Source"
-    sep = "-" * len(hdr)
+    sep = _rule("-")
     rows = [
         f"Threshold: vote_share < {_OUTLIER_LO}  OR  vote_share > {_OUTLIER_HI}",
         f"Found {len(out)} outlier row(s).\n",
@@ -220,7 +229,7 @@ def build_report(panel: pd.DataFrame, config_path: str) -> str:
         "VOTER PANEL AUDIT REPORT",
         f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         f"Config    : {config_path}",
-        f"Panel     : {n_rows} rows  ·  {n_cycles} cycles  ·  {n_blocs} blocs present",
+        f"Panel     : {n_rows} rows  ·  {n_cycles} cycles  ·  {n_blocs} blocs",
         f"Sources   : {', '.join(sources)}",
         _rule(),
     ]
