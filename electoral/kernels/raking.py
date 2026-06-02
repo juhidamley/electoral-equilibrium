@@ -162,7 +162,9 @@ def rake_layer_weights(
         n_iters: number of IPF passes until convergence (0 = insufficient data)
     """
     panel = panel.copy()
-    panel["cycle"] = pd.to_numeric(panel["cycle"], errors="coerce").dropna().astype(int)
+    panel["cycle"] = pd.to_numeric(panel["cycle"], errors="coerce")
+    panel = panel.dropna(subset=["cycle"])
+    panel["cycle"] = panel["cycle"].astype(int)
 
     # ── Per-cycle stratum-level vote shares ───────────────────────────────────
     strata_series = [_stratum_series(panel, blocs, es) for blocs, es in _STRATA]
