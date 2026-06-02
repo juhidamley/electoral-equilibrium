@@ -220,7 +220,7 @@ def build_report(panel: pd.DataFrame, config_path: str) -> str:
         "VOTER PANEL AUDIT REPORT",
         f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         f"Config    : {config_path}",
-        f"Panel     : {n_rows} rows  ·  {n_cycles} cycles  ·  {n_blocs} blocs",
+        f"Panel     : {n_rows} rows  ·  {n_cycles} cycles  ·  {n_blocs} blocs present",
         f"Sources   : {', '.join(sources)}",
         _rule(),
     ]
