@@ -1,7 +1,10 @@
-"""Tests for electoral/models/ml_baseline.py — estimate_moments()."""
+"""Tests for electoral/models/ml_baseline.py — estimate_moments() and fit_gp_classifier()."""
 
 from __future__ import annotations
 
+import json
+import math
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -10,10 +13,14 @@ import pytest
 
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.models.ml_baseline import (
+    GPBaselineResult,
+    LocoFoldResult,
     MomentEstimates,
     estimate_moments,
+    fit_gp_classifier,
     ground_truth_winning_cycles,
     psd_repair,
+    save_loco_json,
 )
 
 TOY_PANEL = Path("tests/fixtures/toy_panel.csv")
@@ -348,3 +355,228 @@ def test_raises_on_missing_cycle_column():
     df = pd.DataFrame({"bloc": ["white"], "vote_share": [0.4]})
     with pytest.raises(ValueError, match="missing columns"):
         estimate_moments(df, "democrat")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# fit_gp_classifier — GP win-probability model with LOCO-CV
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── shared fixtures ───────────────────────────────────────────────────────────
+
+
+def _gp_panel(cycles: list[int], seed: int = 7) -> pd.DataFrame:
+    """Return a synthetic panel with varied vote_share for all CANONICAL_RACES."""
+    rng = np.random.default_rng(seed)
+    rows = [
+        {"cycle": c, "bloc": b, "vote_share": float(rng.uniform(0.3, 0.85))}
+        for c in cycles
+        for b in CANONICAL_RACES
+    ]
+    return pd.DataFrame(rows)
+
+
+_CYCLES_6 = [2004, 2008, 2012, 2016, 2020, 2024]
+_WIN_6 = [2008, 2012, 2020]  # 3 wins, 3 losses
+
+
+@pytest.fixture(scope="module")
+def gp_result_6() -> GPBaselineResult:
+    df = _gp_panel(_CYCLES_6)
+    return fit_gp_classifier(
+        df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(0)
+    )
+
+
+# ── fold count and structure ──────────────────────────────────────────────────
+
+
+def test_gp_loco_fold_count(gp_result_6):
+    assert len(gp_result_6.folds) == len(_CYCLES_6)
+
+
+def test_gp_fold_cycle_is_python_int(gp_result_6):
+    for f in gp_result_6.folds:
+        assert type(f.cycle) is int, f"expected int, got {type(f.cycle).__name__}"
+
+
+def test_gp_fold_y_true_is_binary(gp_result_6):
+    for f in gp_result_6.folds:
+        assert f.y_true in (0, 1)
+
+
+def test_gp_fold_cycles_match_panel(gp_result_6):
+    assert [f.cycle for f in gp_result_6.folds] == sorted(_CYCLES_6)
+
+
+def test_gp_result_is_frozen():
+    r = GPBaselineResult(party="x", folds=(), accuracy=0.5, brier_score=0.1)
+    with pytest.raises(Exception):  # frozen dataclass raises FrozenInstanceError
+        r.party = "y"  # type: ignore[misc]
+
+
+# ── prob_win range ────────────────────────────────────────────────────────────
+
+
+def test_gp_prob_win_in_unit_interval(gp_result_6):
+    for f in gp_result_6.folds:
+        if not math.isnan(f.prob_win):
+            assert 0.0 <= f.prob_win <= 1.0, f"cycle {f.cycle}: prob_win={f.prob_win}"
+
+
+def test_gp_prob_std_nonneg(gp_result_6):
+    for f in gp_result_6.folds:
+        if not math.isnan(f.prob_std):
+            assert f.prob_std >= 0.0, f"cycle {f.cycle}: prob_std={f.prob_std}"
+
+
+def test_gp_prob_std_is_not_bernoulli_std(gp_result_6):
+    # GPR posterior std can exceed 0.5; Bernoulli std is always <= 0.5.
+    # Verify at least one valid fold has prob_std > 0.5, which proves we are
+    # using GPR posterior uncertainty rather than sqrt(p*(1-p)).
+    large_stds = [f.prob_std for f in gp_result_6.folds if not math.isnan(f.prob_std) and f.prob_std > 0.5]
+    assert large_stds, (
+        "No fold had prob_std > 0.5; this suggests sqrt(p*(1-p)) is being used "
+        "instead of the GPR posterior std."
+    )
+
+
+# ── single-class training fold → NaN ─────────────────────────────────────────
+
+
+def test_gp_single_class_fold_is_nan():
+    # 3 cycles, first two are winning → holding out cycle 2016 leaves
+    # train=[2008(win), 2012(win)], constant labels → NaN fold.
+    df = _gp_panel([2008, 2012, 2016])
+    result = fit_gp_classifier(df, "democrat", winning_cycles=[2008, 2012])
+    held_out = next(f for f in result.folds if f.cycle == 2016)
+    assert math.isnan(held_out.prob_win)
+    assert math.isnan(held_out.prob_std)
+
+
+def test_gp_single_class_fold_y_true_correct():
+    df = _gp_panel([2008, 2012, 2016])
+    result = fit_gp_classifier(df, "democrat", winning_cycles=[2008, 2012])
+    held_out = next(f for f in result.folds if f.cycle == 2016)
+    assert held_out.y_true == 0  # 2016 is not in winning_cycles
+
+
+# ── aggregate metrics ─────────────────────────────────────────────────────────
+
+
+def test_gp_accuracy_is_in_unit_interval(gp_result_6):
+    assert 0.0 <= gp_result_6.accuracy <= 1.0
+
+
+def test_gp_brier_score_is_nonneg(gp_result_6):
+    assert gp_result_6.brier_score >= 0.0
+
+
+def test_gp_accuracy_matches_manual_count(gp_result_6):
+    valid = [f for f in gp_result_6.folds if not math.isnan(f.prob_win)]
+    expected = sum(1 for f in valid if (f.prob_win >= 0.5) == bool(f.y_true)) / len(valid)
+    assert gp_result_6.accuracy == pytest.approx(expected, abs=1e-12)
+
+
+def test_gp_brier_score_matches_manual(gp_result_6):
+    valid = [f for f in gp_result_6.folds if not math.isnan(f.prob_win)]
+    expected = sum((f.prob_win - f.y_true) ** 2 for f in valid) / len(valid)
+    assert gp_result_6.brier_score == pytest.approx(expected, abs=1e-12)
+
+
+# ── reproducibility ───────────────────────────────────────────────────────────
+
+
+def test_gp_reproducible_with_same_seed():
+    df = _gp_panel(_CYCLES_6)
+    r1 = fit_gp_classifier(df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(99))
+    r2 = fit_gp_classifier(df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(99))
+    for f1, f2 in zip(r1.folds, r2.folds):
+        if not math.isnan(f1.prob_win):
+            assert f1.prob_win == pytest.approx(f2.prob_win, abs=1e-12)
+            assert f1.prob_std == pytest.approx(f2.prob_std, abs=1e-12)
+
+
+# ── party flip ────────────────────────────────────────────────────────────────
+
+
+def test_gp_republican_result_differs_from_democrat():
+    df = _gp_panel(_CYCLES_6)
+    dem = fit_gp_classifier(df, "democrat", winning_cycles=_WIN_6, rng=np.random.default_rng(0))
+    rep = fit_gp_classifier(df, "republican", winning_cycles=_WIN_6, rng=np.random.default_rng(0))
+    dem_probs = [f.prob_win for f in dem.folds if not math.isnan(f.prob_win)]
+    rep_probs = [f.prob_win for f in rep.folds if not math.isnan(f.prob_win)]
+    # With the same winning_cycles list but flipped vote_share, predictions differ.
+    assert dem_probs != rep_probs
+
+
+# ── error handling ────────────────────────────────────────────────────────────
+
+
+def test_gp_invalid_party_raises():
+    with pytest.raises(ValueError, match="party must be"):
+        fit_gp_classifier(_gp_panel(_CYCLES_6), "libertarian")  # type: ignore[arg-type]
+
+
+def test_gp_missing_column_raises():
+    df = pd.DataFrame({"cycle": [2020], "bloc": ["white"]})  # no vote_share
+    with pytest.raises(ValueError, match="missing columns"):
+        fit_gp_classifier(df, "democrat")
+
+
+def test_gp_too_few_cycles_raises():
+    df = _gp_panel([2016, 2020])  # only 2 cycles
+    with pytest.raises(ValueError, match="3 cycles"):
+        fit_gp_classifier(df, "democrat", winning_cycles=[2020])
+
+
+# ── save_loco_json ────────────────────────────────────────────────────────────
+
+
+def test_save_loco_json_schema(gp_result_6):
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        p = Path(f.name)
+    try:
+        save_loco_json(gp_result_6, p)
+        data = json.loads(p.read_text())
+        assert set(data.keys()) == {"party", "accuracy", "brier_score", "folds"}
+        assert data["party"] == "democrat"
+        fold_keys = set(data["folds"][0].keys())
+        assert fold_keys == {"cycle", "y_true", "prob_win", "prob_std"}
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def test_save_loco_json_cycle_types(gp_result_6):
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        p = Path(f.name)
+    try:
+        save_loco_json(gp_result_6, p)
+        data = json.loads(p.read_text())
+        for fold in data["folds"]:
+            assert isinstance(fold["cycle"], int)
+            assert isinstance(fold["y_true"], int)
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def test_save_loco_json_nan_serialised_as_null():
+    df = _gp_panel([2008, 2012, 2016])
+    result = fit_gp_classifier(df, "democrat", winning_cycles=[2008, 2012])
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        p = Path(f.name)
+    try:
+        save_loco_json(result, p)
+        data = json.loads(p.read_text())
+        nan_folds = [fd for fd in data["folds"] if fd["prob_win"] is None]
+        assert nan_folds, "Expected at least one null prob_win in JSON"
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def test_save_loco_json_creates_parent_dirs(gp_result_6):
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "sub" / "nested" / "out.json"
+        save_loco_json(gp_result_6, p)
+        assert p.exists()
+        data = json.loads(p.read_text())
+        assert data["party"] == "democrat"

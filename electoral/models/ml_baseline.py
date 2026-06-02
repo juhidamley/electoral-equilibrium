@@ -10,9 +10,13 @@ These are the primary inputs to the CVXPY DQCP optimizer (portfolios/cvx.py).
 from __future__ import annotations
 
 import dataclasses
+import json
+import pathlib
 
 import numpy as np
 import pandas as pd
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, RBF
 
 from electoral.core.types import (
     CANONICAL_GENDERS,
@@ -272,3 +276,272 @@ def estimate_moments(
         winning_cycles=_winning,
         race_blocs=list(CANONICAL_RACES),
     )
+
+
+# ── GP win-probability classifier ────────────────────────────────────────────
+
+
+@dataclasses.dataclass(frozen=True)
+class LocoFoldResult:
+    """Outcome of a single Leave-One-Cycle-Out fold.
+
+    Attributes
+    ----------
+    cycle:      held-out election year
+    y_true:     1 = party won, 0 = party lost
+    prob_win:   GPR latent prediction clipped to [0, 1]; used as P(win) estimate.
+                NaN when the training set contained only one class.
+    prob_std:   GP posterior standard deviation of the latent function at the
+                held-out point — true epistemic uncertainty from the GPR posterior,
+                NOT sqrt(p*(1-p)).  Feeds the paper's uncertainty quantification.
+                NaN when prob_win is NaN.
+    """
+
+    cycle: int
+    y_true: int
+    prob_win: float
+    prob_std: float
+
+
+@dataclasses.dataclass(frozen=True)
+class GPBaselineResult:
+    """Aggregated output of LOCO GP classifier evaluation."""
+
+    party: str
+    folds: tuple[LocoFoldResult, ...]
+    accuracy: float     # fraction of valid folds correctly classified (p>=0.5 → win)
+    brier_score: float  # mean (prob_win − y_true)² over valid folds
+
+
+def _build_feature_matrix(
+    df: pd.DataFrame,
+    blocs: list[str],
+    cycles: list[int],
+) -> np.ndarray:
+    """Return a (len(cycles), n_features) design matrix.
+
+    Columns: vote_share per bloc (K cols), turnout per bloc (K cols, only when
+    the 'turnout' column is present in *df*), normalized cycle year (1 col).
+    NaN entries from missing bloc×cycle combinations are mean-imputed per column.
+    Cycle year is scaled to [0, 1] over the range of *cycles* so it sits on
+    the same scale as the other features.
+    """
+    vs_pivot = (
+        df[df["bloc"].isin(blocs)]
+        .pivot_table(index="cycle", columns="bloc", values="vote_share", aggfunc="mean")
+        .reindex(index=cycles, columns=blocs)
+    )
+    parts: list[np.ndarray] = [vs_pivot.to_numpy(dtype=float)]
+
+    if "turnout" in df.columns:
+        t_pivot = (
+            df[df["bloc"].isin(blocs)]
+            .pivot_table(index="cycle", columns="bloc", values="turnout", aggfunc="mean")
+            .reindex(index=cycles, columns=blocs)
+        )
+        parts.append(t_pivot.to_numpy(dtype=float))
+
+    # Normalize cycle year to [0, 1] over the supplied range.
+    c_arr = np.array(cycles, dtype=float)
+    span = float(c_arr.max() - c_arr.min())
+    cycle_col = ((c_arr - c_arr.min()) / max(span, 1.0)).reshape(-1, 1)
+    parts.append(cycle_col)
+
+    X = np.hstack(parts)
+
+    # Mean-impute column-wise NaN (blocs absent in some cycles).
+    col_means = np.nanmean(X, axis=0)
+    nan_mask = np.isnan(X)
+    if nan_mask.any():
+        X[nan_mask] = np.take(col_means, np.where(nan_mask)[1])
+
+    return X
+
+
+def fit_gp_classifier(
+    df: pd.DataFrame,
+    party: Party,
+    *,
+    winning_cycles: list[int] | None = None,
+    rng: np.random.Generator | None = None,
+) -> GPBaselineResult:
+    """Fit a GP win-probability model with Leave-One-Cycle-Out CV.
+
+    Uses ``GaussianProcessRegressor`` with a composite
+    ``RBF(1.0) + Matérn(1.0, ν=1.5)`` kernel.  Fitting GPR on binary {0, 1}
+    labels rather than ``GaussianProcessClassifier`` is deliberate: GPR's
+    ``predict(return_std=True)`` returns the true GP posterior standard deviation
+    of the latent function at each held-out point, which is the epistemic
+    uncertainty estimate required for the paper's uncertainty-quantification
+    framing.  ``GaussianProcessClassifier`` does not expose this quantity.
+
+    The cycle-year feature (normalised to [0, 1]) encodes temporal ordering so
+    the kernel assigns higher covariance to temporally adjacent cycles.
+
+    Parameters
+    ----------
+    df:
+        Cleaned panel with columns cycle (int), bloc (str), vote_share (float).
+        An optional 'turnout' column is used when present.
+    party:
+        "democrat" or "republican".
+    winning_cycles:
+        Explicit win list; pass ground_truth_winning_cycles(party) to use
+        certified results and bypass the panel-derived heuristic.
+    rng:
+        Seeded numpy Generator (derive_seed / make_rng).  Seed is extracted via
+        ``rng.integers(2**31)`` and forwarded to sklearn's ``random_state``.
+        When None the seed defaults to 42 (deterministic but not caller-controlled).
+
+    Returns
+    -------
+    GPBaselineResult with per-fold posterior probabilities and aggregate metrics.
+
+    Raises
+    ------
+    ValueError
+        If df is missing required columns, party is invalid, or fewer than
+        3 cycles are present (LOCO requires at least 2 training cycles).
+    """
+    if party not in ("democrat", "republican"):
+        raise ValueError(f"party must be 'democrat' or 'republican', got {party!r}")
+
+    missing = {"cycle", "bloc", "vote_share"} - set(df.columns)
+    if missing:
+        raise ValueError(f"fit_gp_classifier: missing columns {sorted(missing)}")
+
+    df = df.copy()
+    df["cycle"] = pd.to_numeric(df["cycle"], errors="coerce")
+    df["vote_share"] = pd.to_numeric(df["vote_share"], errors="coerce")
+    df = df.dropna(subset=["cycle", "vote_share"])
+    df["cycle"] = df["cycle"].astype(int)
+
+    if party == "republican":
+        df["vote_share"] = 1.0 - df["vote_share"]
+
+    all_cycles = sorted(df["cycle"].unique())
+    if len(all_cycles) < 3:
+        raise ValueError(
+            f"fit_gp_classifier: LOCO-CV requires >= 3 cycles, found {len(all_cycles)}."
+        )
+
+    # Resolve winning cycles.
+    if winning_cycles is not None:
+        _winning: set[int] = {int(c) for c in winning_cycles}
+    else:
+        race_df = df[df["bloc"].isin(CANONICAL_RACES)]
+        race_pivot = race_df.pivot_table(
+            index="cycle", columns="bloc", values="vote_share", aggfunc="mean"
+        ).reindex(columns=CANONICAL_RACES)
+        national = _national_vote_share(race_pivot, _APPROX_RACE_SHARE)
+        _winning = {int(c) for c in national.index[national > 0.50]}
+
+    X_all = _build_feature_matrix(df, list(CANONICAL_RACES), all_cycles)
+    y_all = np.array([1 if c in _winning else 0 for c in all_cycles], dtype=int)
+
+    kernel = RBF(length_scale=1.0) + Matern(length_scale=1.0, nu=1.5)
+    rs: int = int(rng.integers(0, 2**31 - 1)) if rng is not None else 42
+
+    folds: list[LocoFoldResult] = []
+    for hold_idx, held_cycle in enumerate(all_cycles):
+        train_mask = np.ones(len(all_cycles), dtype=bool)
+        train_mask[hold_idx] = False
+
+        X_train = X_all[train_mask]
+        y_train = y_all[train_mask].astype(float)
+
+        # GPR cannot recover signal when training labels are constant.
+        if float(y_train.std()) == 0.0:
+            folds.append(
+                LocoFoldResult(
+                    cycle=int(held_cycle),
+                    y_true=int(y_all[hold_idx]),
+                    prob_win=float("nan"),
+                    prob_std=float("nan"),
+                )
+            )
+            continue
+
+        # GaussianProcessRegressor gives both the latent prediction AND its
+        # posterior standard deviation via return_std=True.  normalize_y=True
+        # centres binary labels around their training mean, which stabilises
+        # kernel hyperparameter optimisation.
+        gpr = GaussianProcessRegressor(
+            kernel=kernel,
+            n_restarts_optimizer=3,
+            normalize_y=True,
+            random_state=rs,
+        )
+        gpr.fit(X_train, y_train)
+
+        y_pred, y_std = gpr.predict(X_all[[hold_idx]], return_std=True)
+        # Clip latent prediction to [0, 1] as a probability estimate.
+        p_win = float(np.clip(y_pred[0], 0.0, 1.0))
+        # y_std is the true GP posterior std of the latent function — epistemic
+        # uncertainty, not Bernoulli variance.
+        p_std = float(y_std[0])
+
+        folds.append(
+            LocoFoldResult(
+                cycle=int(held_cycle),
+                y_true=int(y_all[hold_idx]),
+                prob_win=p_win,
+                prob_std=p_std,
+            )
+        )
+
+    valid = [f for f in folds if not np.isnan(f.prob_win)]
+    if valid:
+        accuracy = float(sum(1 for f in valid if (f.prob_win >= 0.5) == bool(f.y_true)) / len(valid))
+        brier = float(sum((f.prob_win - f.y_true) ** 2 for f in valid) / len(valid))
+    else:
+        accuracy = float("nan")
+        brier = float("nan")
+
+    return GPBaselineResult(
+        party=party,
+        folds=tuple(folds),
+        accuracy=accuracy,
+        brier_score=brier,
+    )
+
+
+def save_loco_json(
+    result: GPBaselineResult,
+    path: str | pathlib.Path = "artifacts/baseline_loco.json",
+) -> None:
+    """Serialise *result* to *path* as JSON, creating parent directories.
+
+    Output schema::
+
+        {
+          "party": "democrat",
+          "accuracy": 0.75,
+          "brier_score": 0.18,
+          "folds": [
+            {"cycle": 2020, "y_true": 1, "prob_win": 0.84, "prob_std": 0.37},
+            ...
+          ]
+        }
+    """
+    path = pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _float(v: float) -> float | None:
+        return None if (isinstance(v, float) and np.isnan(v)) else float(v)
+
+    payload: dict = {
+        "party": result.party,
+        "accuracy": _float(result.accuracy),
+        "brier_score": _float(result.brier_score),
+        "folds": [
+            {
+                "cycle": int(f.cycle),
+                "y_true": int(f.y_true),
+                "prob_win": _float(f.prob_win),
+                "prob_std": _float(f.prob_std),
+            }
+            for f in result.folds
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2))
