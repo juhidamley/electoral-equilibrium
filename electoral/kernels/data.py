@@ -157,15 +157,20 @@ def _agg_stratum(
     sub = sub.dropna(subset=["bloc", "dem"])
     sub = sub[sub["dem"].isin([0.0, 1.0])]
     if sub.empty:
-        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "se", "source"])
 
-    result = (
-        sub.groupby(["cycle", "bloc"])
-        .apply(lambda g: (g["dem"] * g["w"]).sum() / g["w"].sum(), include_groups=False)
-        .reset_index(name="vote_share")
-    )
+    def _stats(g: pd.DataFrame) -> pd.Series:
+        w = g["w"]
+        w_sum = w.sum()
+        vs = (g["dem"] * w).sum() / w_sum
+        # Kish (1965) effective sample size for weighted surveys
+        n_eff = w_sum**2 / (w**2).sum()
+        se = (vs * (1.0 - vs) / max(n_eff, 1.0)) ** 0.5
+        return pd.Series({"vote_share": vs, "se": se})
+
+    result = sub.groupby(["cycle", "bloc"]).apply(_stats, include_groups=False).reset_index()
     result["source"] = source
-    return result[["cycle", "bloc", "vote_share", "source"]]
+    return result[["cycle", "bloc", "vote_share", "se", "source"]]
 
 
 # ── Source-specific extractors ────────────────────────────────────────────────
@@ -206,23 +211,35 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
             vs = row["vote_share"]
             if pd.isna(vs):
                 continue
+            # n_bloc for binomial SE: n_total_respondents × stratum_share%
+            n_resp = pd.to_numeric(row.get("n_respondents"), errors="coerce")
+            strat = pd.to_numeric(row.get("stratum_share"), errors="coerce")
+            n_bloc = (
+                float(n_resp * strat / 100.0)
+                if pd.notna(n_resp) and pd.notna(strat)
+                else float("nan")
+            )
             records.append(
                 {
                     "cycle": int(row["cycle"]),
                     "bloc": canonical,
                     "vote_share": float(vs),
+                    "n_bloc": n_bloc,
                     "source": "NEP",
                 }
             )
 
     if not records:
-        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "source"])
+        return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "se", "source"])
 
     result = pd.DataFrame(records)
     # NEP PDFs can produce duplicate rows for the same bloc (e.g. "White" and
     # "White voters" in the same table both normalize to "white").  Average them.
     n_raw = len(result)
-    result = result.groupby(["cycle", "bloc", "source"], as_index=False)["vote_share"].mean()
+    result = result.groupby(["cycle", "bloc", "source"], as_index=False).agg(
+        vote_share=("vote_share", "mean"),
+        n_bloc=("n_bloc", "mean"),
+    )
     n_averaged = n_raw - len(result)
     if n_averaged:
         log.info(
@@ -230,7 +247,11 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
             "multiple raw labels normalised to the same canonical bloc",
             n_averaged,
         )
-    return result
+    # Compute binomial SE from pooled vote_share and n_bloc
+    vs = result["vote_share"]
+    n = result["n_bloc"].clip(lower=1.0)
+    result["se"] = (vs * (1.0 - vs) / n) ** 0.5
+    return result.drop(columns=["n_bloc"])[["cycle", "bloc", "vote_share", "se", "source"]]
 
 
 def _from_anes(path: Path) -> pd.DataFrame:
@@ -338,6 +359,81 @@ def _load_layer_weights() -> dict[str, float]:
     return {k: float(raw[k]) for k in ("lambda_1", "lambda_2", "lambda_3")}
 
 
+# ── Cross-source conflict resolution ─────────────────────────────────────────
+
+
+def resolve_conflicts(panel: pd.DataFrame) -> pd.DataFrame:
+    """Resolve cross-source vote_share conflicts via inverse-SE weighting.
+
+    For (cycle, bloc) pairs present in exactly one source the row is returned
+    unchanged.  For pairs in multiple sources, compute the inverse-SE weighted
+    average:
+
+        vote_share_merged = Σ(w_i · vs_i) / Σ(w_i)
+        where w_i = 1 / se_i  if se_i > 0
+              w_i = 1          otherwise  (equal-weight fallback)
+
+    This is the rule documented in DECISIONS.md §Data Ingest.
+
+    The merged row's ``source`` field is the sorted, "+"-joined names of the
+    contributing sources (e.g. ``"ANES+CES+GSS+NEP"``).
+    The ``se`` column is consumed internally and dropped from the output.
+    """
+    if panel.empty:
+        return panel.drop(columns=["se"], errors="ignore")
+
+    # Ensure se column exists; rows without SE fall back to equal weights
+    if "se" not in panel.columns:
+        panel = panel.copy()
+        panel["se"] = float("nan")
+
+    key_counts = panel.groupby(["cycle", "bloc"])["vote_share"].transform("count")
+    single = panel[key_counts == 1]
+    multi = panel[key_counts > 1].copy()
+
+    if multi.empty:
+        return panel.drop(columns=["se"], errors="ignore")
+
+    # Log each conflict so operators know which blocs were resolved
+    for (cycle, bloc), grp in multi.groupby(["cycle", "bloc"]):
+        sources = sorted(grp["source"].dropna().unique())
+        vs_by_src = {
+            src: round(float(grp.loc[grp["source"] == src, "vote_share"].iloc[0]), 4)
+            for src in sources
+        }
+        log.info(
+            "resolve_conflicts: (cycle=%d, bloc=%r) — %d sources %s vote_shares=%s; "
+            "applying inverse-SE weights",
+            cycle,
+            bloc,
+            len(sources),
+            sources,
+            vs_by_src,
+        )
+
+    multi["w"] = multi["se"].apply(lambda se: 1.0 / se if pd.notna(se) and se > 0 else 1.0)
+
+    def _merge_group(g: pd.DataFrame) -> pd.Series:
+        w_sum = g["w"].sum()
+        return pd.Series(
+            {
+                "vote_share": (g["vote_share"] * g["w"]).sum() / w_sum,
+                "source": "+".join(sorted(g["source"].dropna().unique())),
+            }
+        )
+
+    merged = (
+        multi.groupby(["cycle", "bloc"]).apply(_merge_group, include_groups=False).reset_index()
+    )
+
+    cols = ["cycle", "bloc", "vote_share", "source"]
+    result = pd.concat(
+        [single[cols].copy(), merged[cols]],
+        ignore_index=True,
+    )
+    return result.sort_values(["cycle", "bloc"]).reset_index(drop=True)
+
+
 # ── Main kernel function ──────────────────────────────────────────────────────
 
 
@@ -429,7 +525,15 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
 
     # ── Concatenate ───────────────────────────────────────────────────────────
     panel = pd.concat(frames, ignore_index=True)
-    log.info("Concatenated panel: %d rows before cleaning", len(panel))
+    log.info("Concatenated panel: %d rows before conflict resolution", len(panel))
+
+    # Record all original source names before resolution merges them into
+    # composite labels like "ANES+CES+GSS+NEP".
+    source_names = sorted(panel["source"].dropna().unique())
+
+    # ── Resolve cross-source conflicts ────────────────────────────────────────
+    panel = resolve_conflicts(panel)
+    log.info("After resolve_conflicts: %d rows", len(panel))
 
     # ── Clean ─────────────────────────────────────────────────────────────────
     panel = clean_raw_panel(panel)
@@ -443,9 +547,9 @@ def build_voter_panel(config: PipelineConfig) -> tuple[VoterPanelData, pd.DataFr
     n_race = int(panel["bloc"].isin(CANONICAL_RACES).sum())
     n_religion = int(panel["bloc"].isin(CANONICAL_RELIGIONS).sum())
     n_gender = int(panel["bloc"].isin(CANONICAL_GENDERS).sum())
-    sources_used = (
-        "+".join(sorted(panel["source"].dropna().unique())) if "source" in panel.columns else None
-    )
+    # Use pre-resolution source names so composite labels ("ANES+CES") don't
+    # inflate the list with merged entries.
+    sources_used = "+".join(source_names) if source_names else None
 
     layer_weights = _load_layer_weights()
 

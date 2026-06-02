@@ -292,6 +292,33 @@ respondent is classified as Hispanic. White/Black/Asian shares are corresponding
 All pipeline code must use `race_h`, never `race`. Difference: ~20K respondents
 misclassified as White or Black if `race` is used instead of `race_h`.
 
+**[2026-06] Multi-source conflict resolution: inverse-SE weighted average**
+When the same (cycle, bloc) pair appears in more than one survey source (e.g.
+ANES and CES both report a white-bloc vote share for 2020), `resolve_conflicts()`
+in `electoral/kernels/data.py` merges them into a single row using inverse
+standard-error weighting:
+
+    vote_share_merged = Σ(w_i · vs_i) / Σ(w_i)
+    where w_i = 1 / SE_i   if SE_i > 0
+          w_i = 1            otherwise  (equal-weight fallback)
+
+SE computation per source:
+- **NEP exit polls**: binomial SE from n_bloc = n_respondents × stratum_share%
+- **ANES / GSS / CES**: SE from Kish (1965) effective sample size
+  n_eff = (Σw_i)² / Σ(w_i²), then SE = sqrt(p(1-p) / n_eff)
+
+Rationale for inverse-SE over simple average: larger-sample sources receive
+proportionally more weight, which is the minimum-variance unbiased estimator
+under the assumption that each source's estimate is an unbiased draw from the
+true bloc vote share.
+
+The merged row's `source` field is the sorted "+"-join of contributing sources
+(e.g. `"ANES+CES+GSS+NEP"`).  The pre-resolution source list is stored in
+`VoterPanelData.source` so it is not inflated by merged labels.
+
+Every conflict is logged at INFO level with vote_share values per source so
+discrepancies are visible and auditable.
+
 **[2026-06] 10-bloc toy panel fixture (tests/fixtures/toy_panel.csv)**
 Chose 5 race + 3 religion + 2 gender = 10 blocs (not all 15 canonical blocs) for the
 20-row test fixture. Dropped: protestant, jewish, muslim, other_rel (religion) and
