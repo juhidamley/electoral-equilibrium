@@ -184,7 +184,9 @@ def _from_nep(paths: list[Path]) -> pd.DataFrame:
     records: list[dict] = []
     for path in paths:
         df = load_nep(path)
-        stratum_col = df["stratum"].astype("string") if "stratum" in df.columns else pd.Series(dtype="string")
+        stratum_col = (
+            df["stratum"].astype("string") if "stratum" in df.columns else pd.Series(dtype="string")
+        )
         s = stratum_col.str.lower()
 
         is_race = s.str.contains(r"\brace\b", na=False)
