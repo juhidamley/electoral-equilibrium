@@ -13,7 +13,265 @@
     "archive_ids": [],
     "target_blocs": ["muslim", "secular", "evangelical", "jewish"],
     "shock_window_days": 14,
-    "active": true
+    "active": true,
+    "pilot": true
+  },
+  {
+    "id": "sept_11_2001",
+    "date": "2001-09-11",
+    "category": "Geopolitical",
+    "description": "Al-Qaeda hijackers crash four airliners in coordinated attacks on US soil, killing nearly 3,000 people",
+    "keywords": [
+      "9/11", "September 11", "World Trade Center", "Twin Towers",
+      "Pentagon", "Al-Qaeda", "bin Laden", "terrorism", "terror attack",
+      "#NeverForget", "Ground Zero", "United 93", "Patriot Act"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "iraq_war_invasion_2003",
+    "date": "2003-03-20",
+    "category": "Geopolitical",
+    "description": "US-led coalition invades Iraq citing WMD threat; coalition forces reach Baghdad within three weeks",
+    "keywords": [
+      "Iraq war", "Iraq invasion", "Operation Iraqi Freedom", "Saddam Hussein",
+      "WMD", "weapons of mass destruction", "Baghdad", "coalition forces",
+      "shock and awe", "anti-war protest", "Bush Iraq"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "financial_crisis_2008",
+    "date": "2008-09-15",
+    "category": "Economic",
+    "description": "Lehman Brothers collapse triggers global financial crisis; unemployment peaks at 10% and millions lose homes",
+    "keywords": [
+      "financial crisis", "Lehman Brothers", "Wall Street", "bank bailout",
+      "TARP", "recession", "housing crisis", "foreclosure", "subprime mortgage",
+      "too big to fail", "economic collapse", "stimulus"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "obamacare_passage_2010",
+    "date": "2010-03-23",
+    "category": "Economic",
+    "description": "Affordable Care Act signed into law, expanding Medicaid and creating individual health insurance mandate",
+    "keywords": [
+      "Obamacare", "ACA", "Affordable Care Act", "healthcare reform",
+      "health insurance", "pre-existing conditions", "individual mandate",
+      "Tea Party", "death panels", "#ACA", "healthcare law"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "latino", "evangelical", "catholic", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "bin_laden_killing_2011",
+    "date": "2011-05-02",
+    "category": "Geopolitical",
+    "description": "US Navy SEALs kill Osama bin Laden in Abbottabad, Pakistan, in covert raid authorized by President Obama",
+    "keywords": [
+      "bin Laden", "Osama bin Laden", "SEAL Team 6", "Abbottabad",
+      "Pakistan raid", "Obama bin Laden", "Al-Qaeda leader",
+      "#binLaden", "war on terror", "justice done"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "trayvon_martin_2012",
+    "date": "2012-02-26",
+    "category": "Criminal Justice",
+    "description": "Trayvon Martin shot and killed by George Zimmerman in Sanford, Florida; acquittal sparks national debate on race and self-defense",
+    "keywords": [
+      "Trayvon Martin", "George Zimmerman", "Stand Your Ground",
+      "Florida shooting", "#TrayvonMartin", "hoodies", "racial profiling",
+      "Black Lives Matter", "not guilty", "justice for Trayvon"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "ferguson_michael_brown_2014",
+    "date": "2014-08-09",
+    "category": "Criminal Justice",
+    "description": "Police officer Darren Wilson shoots and kills Michael Brown in Ferguson, Missouri, igniting weeks of protests and DOJ civil rights investigation",
+    "keywords": [
+      "Michael Brown", "Ferguson", "Darren Wilson", "police shooting",
+      "#Ferguson", "hands up don't shoot", "Black Lives Matter",
+      "DOJ Ferguson", "racial justice", "riots Ferguson", "#BlackLivesMatter"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "obergefell_2015",
+    "date": "2015-06-26",
+    "category": "Electoral/Voting Rights",
+    "description": "Supreme Court rules in Obergefell v. Hodges that same-sex couples have a constitutional right to marry nationwide",
+    "keywords": [
+      "Obergefell", "same-sex marriage", "gay marriage", "SCOTUS marriage",
+      "#LoveWins", "Supreme Court gay marriage", "marriage equality",
+      "religious liberty", "homosexuality SCOTUS", "#MarriageEquality"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["evangelical", "catholic", "secular", "women"],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "paris_climate_withdrawal_2017",
+    "date": "2017-06-01",
+    "category": "Environmental",
+    "description": "Trump announces US withdrawal from Paris Climate Agreement, calling it unfair to American workers",
+    "keywords": [
+      "Paris Agreement", "Paris Climate", "climate withdrawal",
+      "Trump climate", "#ParisAgreement", "climate change", "global warming",
+      "clean energy", "carbon emissions", "climate accord"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["secular", "evangelical", "other_race", "white"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "access_hollywood_2016",
+    "date": "2016-10-07",
+    "category": "Moral/Scandal",
+    "description": "Washington Post publishes 2005 Access Hollywood tape of Trump boasting about sexually assaulting women",
+    "keywords": [
+      "Access Hollywood", "grab them", "Trump tape", "locker room talk",
+      "#AccessHollywood", "Trump sexual assault", "Billy Bush",
+      "Trump women", "October surprise 2016"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["women", "evangelical", "catholic", "secular"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "fbi_letter_2016",
+    "date": "2016-10-28",
+    "category": "Electoral/Voting Rights",
+    "description": "Comey letter to Congress announcing FBI reopening Clinton email investigation 11 days before election",
+    "keywords": [
+      "Comey", "FBI", "Clinton emails", "email investigation",
+      "James Comey", "Clinton FBI", "#ComeyLetter", "FISA",
+      "email server", "October Surprise"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["white", "evangelical", "secular", "women"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "trump_election_upset_2016",
+    "date": "2016-11-08",
+    "category": "Electoral/Voting Rights",
+    "description": "Donald Trump defeats Hillary Clinton in Electoral College upset despite losing popular vote by nearly 3 million",
+    "keywords": [
+      "Trump wins", "Trump elected", "Trump victory", "election night 2016",
+      "Hillary Clinton loss", "electoral college", "#ElectionNight",
+      "Trump president", "2016 election result", "swing states"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "white", "women", "secular"],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "travel_ban_2017",
+    "date": "2017-01-27",
+    "category": "Immigration",
+    "description": "Trump signs executive order banning travel from seven Muslim-majority countries and suspending refugee admissions",
+    "keywords": [
+      "Muslim ban", "travel ban", "executive order", "immigration ban",
+      "#MuslimBan", "refugee ban", "airport protests", "Trump ban",
+      "immigration order", "#NoBan", "ACLU", "Muslim countries"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["muslim", "secular", "evangelical", "asian"],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "charlottesville_2017",
+    "date": "2017-08-12",
+    "category": "Moral/Scandal",
+    "description": "White supremacist Unite the Right rally in Charlottesville kills one counter-protester; Trump says there were 'very fine people on both sides'",
+    "keywords": [
+      "Charlottesville", "Unite the Right", "white supremacy",
+      "neo-Nazi rally", "Heather Heyer", "#Charlottesville",
+      "very fine people", "alt-right", "Confederate statues",
+      "antifa", "white nationalism"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["african_american", "white", "evangelical", "secular"],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "daca_rescission_2017",
+    "date": "2017-09-05",
+    "category": "Immigration",
+    "description": "Trump administration announces end of DACA program, placing approximately 700,000 Dreamers at risk of deportation",
+    "keywords": [
+      "DACA", "Dreamers", "deferred action", "DACA rescission",
+      "#DefendDACA", "immigration reform", "deportation", "undocumented",
+      "DREAMers", "DACA end", "immigration Trump"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["latino", "asian", "muslim", "secular"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "metoo_2017_2023",
+    "date": "2017-10-15",
+    "category": "Moral/Scandal",
+    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; 25.2M pre-hydrated tweets from Harvard Dataverse (DOI: 10.7910/DVN/2SRSKJ)",
+    "keywords": [
+      "#MeToo", "MeToo", "Harvey Weinstein", "sexual harassment",
+      "sexual assault", "Time's Up", "#TimesUp", "metoo movement",
+      "Hollywood", "assault allegations"
+    ],
+    "archive_ids": ["metoo", "MeToo", "#MeToo"],
+    "target_blocs": ["women", "secular", "evangelical", "protestant"],
+    "shock_window_days": 180,
+    "active": false
+  },
+  {
+    "id": "family_separation_2018",
+    "date": "2018-06-19",
+    "category": "Immigration",
+    "description": "Trump zero-tolerance policy separates migrant children from parents at US-Mexico border; over 2,500 children taken",
+    "keywords": [
+      "family separation", "zero tolerance", "border children",
+      "migrant families", "#FamiliesBelongTogether", "cages",
+      "border policy", "asylum seekers", "immigration enforcement",
+      "children cages", "separated families"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["latino", "catholic", "evangelical", "secular"],
+    "shock_window_days": 30,
+    "active": false
   },
   {
     "id": "kavanaugh_2018",
@@ -32,25 +290,25 @@
     "active": false
   },
   {
-    "id": "metoo_2017",
-    "date": "2017-10-15",
-    "category": "Moral/Scandal",
-    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations",
+    "id": "pittsburgh_synagogue_shooting_2018",
+    "date": "2018-10-27",
+    "category": "Criminal Justice",
+    "description": "Gunman kills 11 worshippers at Tree of Life synagogue in Pittsburgh, largest antisemitic attack in US history",
     "keywords": [
-      "#MeToo", "MeToo", "Harvey Weinstein", "sexual harassment",
-      "sexual assault", "Time's Up", "#TimesUp", "metoo movement",
-      "Hollywood", "assault allegations"
+      "Pittsburgh shooting", "Tree of Life", "synagogue shooting",
+      "antisemitism", "#PittsburghStrong", "Jewish community",
+      "hate crime", "Robert Bowers", "gun violence", "white nationalism"
     ],
-    "archive_ids": ["metoo"],
-    "target_blocs": ["women", "secular", "evangelical", "protestant"],
-    "shock_window_days": 60,
+    "archive_ids": [],
+    "target_blocs": ["jewish", "evangelical", "secular", "white"],
+    "shock_window_days": 14,
     "active": false
   },
   {
     "id": "beto_cruz_debate_2018",
     "date": "2018-09-21",
-    "category": "Electoral Surprise",
-    "description": "Beto O'Rourke vs Ted Cruz Senate debate in Texas; competitive race in solidly-red state",
+    "category": "Electoral/Voting Rights",
+    "description": "Beto O'Rourke vs Ted Cruz Senate debate in Texas; competitive race in solidly-red state energizes Latino and young voters",
     "keywords": [
       "Beto", "O'Rourke", "Cruz", "Ted Cruz", "Texas Senate",
       "Texas debate", "#BetoForSenate", "Beto Cruz",
@@ -62,40 +320,107 @@
     "active": false
   },
   {
-    "id": "fbi_letter_2016",
-    "date": "2016-10-28",
-    "category": "Electoral Surprise",
-    "description": "Comey letter to Congress announcing FBI reopening Clinton email investigation 11 days before election",
+    "id": "covid_2020",
+    "date": "2020-03-11",
+    "category": "Health/Pandemic",
+    "description": "WHO declares COVID-19 a global pandemic; Oct 2019-Dec 2020 collection window covering outbreak through election",
     "keywords": [
-      "Comey", "FBI", "Clinton emails", "email investigation",
-      "James Comey", "Clinton FBI", "#ComeyLetter", "FISA",
-      "email server", "October Surprise"
+      "COVID", "coronavirus", "pandemic", "COVID-19",
+      "WHO pandemic", "public health emergency", "lockdown",
+      "social distancing", "masks", "virus", "outbreak",
+      "quarantine", "flatten the curve", "essential workers"
     ],
-    "archive_ids": [],
-    "target_blocs": ["white", "evangelical", "secular", "women"],
-    "shock_window_days": 14,
+    "archive_ids": ["echen_covid"],
+    "archive_ids_note": "echen_covid format check required — echen102 repos are historically IDs-only; confirm full tweet objects exist before treating as Tier 1. If IDs-only, remove echen_covid and rely on election_2020_ieee/kaggle overlap.",
+    "format_check_required": true,
+    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
+    "shock_window_days": 270,
     "active": false
   },
   {
-    "id": "trump_indictment_2023",
-    "date": "2023-06-09",
-    "category": "Electoral Surprise",
-    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago",
+    "id": "covid_lockdowns_2020",
+    "date": "2020-03-13",
+    "category": "Health/Pandemic",
+    "description": "Trump declares COVID-19 national emergency; widespread shutdowns begin across the United States",
     "keywords": [
-      "Trump indictment", "Trump indicted", "classified documents",
-      "Mar-a-Lago", "federal charges", "Jack Smith", "#TrumpIndicted",
-      "federal indictment", "DOJ Trump", "espionage act"
+      "COVID", "coronavirus", "lockdown", "pandemic", "quarantine",
+      "national emergency", "shutdown", "COVID-19", "social distancing",
+      "stimulus check", "CARES Act", "flatten the curve"
+    ],
+    "archive_ids": ["election_2020_ieee", "election_2020_kaggle"],
+    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "blm_george_floyd_2020",
+    "date": "2020-05-25",
+    "category": "Criminal Justice",
+    "description": "Minneapolis police officer Derek Chauvin kills George Floyd; largest protest movement in US history erupts across hundreds of cities",
+    "keywords": [
+      "George Floyd", "Derek Chauvin", "Minneapolis", "police brutality",
+      "#BlackLivesMatter", "#GeorgeFloyd", "I can't breathe",
+      "defund police", "racial justice", "BLM protest",
+      "police reform", "systemic racism"
     ],
     "archive_ids": [],
-    "target_blocs": ["evangelical", "white", "secular", "african_american"],
-    "shock_window_days": 14,
+    "pending_archive_note": "andradaolteanu Kaggle dataset (~2.5M posts, May-June 2020) pending schema confirmation — if confirmed, add 'blm_kaggle_2020' to archive_ids.",
+    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "jan_6_insurrection_2021",
+    "date": "2021-01-06",
+    "category": "Electoral/Voting Rights",
+    "description": "Trump supporters storm US Capitol to halt certification of Biden's 2020 Electoral College victory; five die, over 140 officers injured",
+    "keywords": [
+      "January 6", "Capitol riot", "insurrection", "Capitol stormed",
+      "#StopTheSteal", "Capitol breach", "electoral certification",
+      "Trump rally", "Pence Capitol", "Capitol attack", "#January6"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["white", "evangelical", "secular", "african_american"],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "afghanistan_withdrawal_2021",
+    "date": "2021-08-15",
+    "category": "Geopolitical",
+    "description": "Taliban captures Kabul as US completes withdrawal from Afghanistan; chaotic evacuation scenes at Hamid Karzai International Airport",
+    "keywords": [
+      "Afghanistan withdrawal", "Taliban Kabul", "Kabul airport",
+      "Afghanistan collapse", "#Afghanistan", "Biden Afghanistan",
+      "Afghan refugees", "evacuation Afghanistan", "Taliban takeover",
+      "Saigon moment"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["evangelical", "secular", "white", "muslim"],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "russia_ukraine_invasion_2022",
+    "date": "2022-02-24",
+    "category": "Geopolitical",
+    "description": "Russia launches full-scale invasion of Ukraine; largest land war in Europe since World War II",
+    "keywords": [
+      "Ukraine invasion", "Russia Ukraine", "Putin Ukraine",
+      "#Ukraine", "#StandWithUkraine", "Zelensky", "NATO",
+      "sanctions Russia", "war Ukraine", "Kyiv", "Kharkiv",
+      "Ukrainian resistance"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["evangelical", "secular", "jewish", "white"],
+    "shock_window_days": 30,
     "active": false
   },
   {
     "id": "dobbs_2022",
     "date": "2022-06-24",
-    "category": "Electoral Surprise",
-    "description": "Supreme Court overturns Roe v. Wade in Dobbs v. Jackson Women's Health Organization",
+    "category": "Electoral/Voting Rights",
+    "description": "Supreme Court overturns Roe v. Wade in Dobbs v. Jackson Women's Health Organization, returning abortion regulation to states",
     "keywords": [
       "Dobbs", "Roe v Wade", "abortion", "Roe overturned",
       "Supreme Court abortion", "#RoeVWade", "#AbortionRights",
@@ -108,17 +433,33 @@
     "active": false
   },
   {
-    "id": "covid_lockdowns_2020",
-    "date": "2020-03-13",
-    "category": "Security",
-    "description": "Trump declares national emergency for COVID-19; widespread shutdowns begin across United States",
+    "id": "trump_indictment_2023",
+    "date": "2023-06-09",
+    "category": "Electoral/Voting Rights",
+    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago — first federal criminal indictment of a former US president",
     "keywords": [
-      "COVID", "coronavirus", "lockdown", "pandemic", "quarantine",
-      "national emergency", "shutdown", "COVID-19", "social distancing",
-      "stimulus check", "CARES Act", "flatten the curve"
+      "Trump indictment", "Trump indicted", "classified documents",
+      "Mar-a-Lago", "federal charges", "Jack Smith", "#TrumpIndicted",
+      "federal indictment", "DOJ Trump", "espionage act"
     ],
-    "archive_ids": ["election_2020_ieee", "election_2020_kaggle"],
-    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
+    "archive_ids": [],
+    "target_blocs": ["evangelical", "white", "secular", "african_american"],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "israel_hamas_war_2023",
+    "date": "2023-10-07",
+    "category": "Geopolitical",
+    "description": "Hamas launches surprise attack on southern Israel killing 1,200 people; Israel declares war and begins siege of Gaza",
+    "keywords": [
+      "Hamas attack", "Israel Gaza", "Gaza war", "October 7",
+      "#IsraelUnderAttack", "#Gaza", "#Ceasefire", "Palestinian",
+      "IDF", "hostages Israel", "Gaza bombing", "pro-Palestine protest",
+      "#FreePalestine", "antisemitism campus"
+    ],
+    "archive_ids": [],
+    "target_blocs": ["jewish", "muslim", "evangelical", "secular"],
     "shock_window_days": 60,
     "active": false
   }

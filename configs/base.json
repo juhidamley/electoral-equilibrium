@@ -27,6 +27,6 @@
     "men",
     "other_gender"
   ],
-  "pi_bio_server": "http://100.x.x.x:9000",
+  "pi_bio_server": "http://pi.local:9000",
   "pi_npu_enabled": false
 }
