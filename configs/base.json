@@ -28,5 +28,7 @@
     "other_gender"
   ],
   "pi_bio_server": "http://pi.local:9000",
-  "pi_npu_enabled": false
+  "pi_npu_enabled": false,
+  "data_root": "/Volumes/JUHIDRIVE/electoralData/archives/",
+  "pi_data_root": "/mnt/juhidrive/electoralData/archives/"
 }

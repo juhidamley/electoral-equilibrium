@@ -5,13 +5,32 @@
     "category": "Geopolitical",
     "description": "US kills Iranian IRGC Quds Force commander Qasem Soleimani in drone strike near Baghdad airport",
     "keywords": [
-      "Soleimani", "Qasem", "IRGC", "Quds", "Iran", "Iranian",
-      "Baghdad", "drone strike", "assassination", "airstrike",
-      "World War 3", "wwiii", "#Iran", "#Soleimani", "#WWIII",
-      "retaliation", "escalation", "Middle East war"
+      "Soleimani",
+      "Qasem",
+      "IRGC",
+      "Quds",
+      "Iran",
+      "Iranian",
+      "Baghdad",
+      "drone strike",
+      "assassination",
+      "airstrike",
+      "World War 3",
+      "wwiii",
+      "#Iran",
+      "#Soleimani",
+      "#WWIII",
+      "retaliation",
+      "escalation",
+      "Middle East war"
     ],
     "archive_ids": [],
-    "target_blocs": ["muslim", "secular", "evangelical", "jewish"],
+    "target_blocs": [
+      "muslim",
+      "secular",
+      "evangelical",
+      "jewish"
+    ],
     "shock_window_days": 14,
     "active": true,
     "pilot": true
@@ -19,15 +38,30 @@
   {
     "id": "sept_11_2001",
     "date": "2001-09-11",
-    "category": "Geopolitical",
+    "category": "Security",
     "description": "Al-Qaeda hijackers crash four airliners in coordinated attacks on US soil, killing nearly 3,000 people",
     "keywords": [
-      "9/11", "September 11", "World Trade Center", "Twin Towers",
-      "Pentagon", "Al-Qaeda", "bin Laden", "terrorism", "terror attack",
-      "#NeverForget", "Ground Zero", "United 93", "Patriot Act"
+      "9/11",
+      "September 11",
+      "World Trade Center",
+      "Twin Towers",
+      "Pentagon",
+      "Al-Qaeda",
+      "bin Laden",
+      "terrorism",
+      "terror attack",
+      "#NeverForget",
+      "Ground Zero",
+      "United 93",
+      "Patriot Act"
     ],
     "archive_ids": [],
-    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "target_blocs": [
+      "muslim",
+      "evangelical",
+      "secular",
+      "white"
+    ],
     "shock_window_days": 60,
     "active": false
   },
@@ -37,13 +71,55 @@
     "category": "Geopolitical",
     "description": "US-led coalition invades Iraq citing WMD threat; coalition forces reach Baghdad within three weeks",
     "keywords": [
-      "Iraq war", "Iraq invasion", "Operation Iraqi Freedom", "Saddam Hussein",
-      "WMD", "weapons of mass destruction", "Baghdad", "coalition forces",
-      "shock and awe", "anti-war protest", "Bush Iraq"
+      "Iraq war",
+      "Iraq invasion",
+      "Operation Iraqi Freedom",
+      "Saddam Hussein",
+      "WMD",
+      "weapons of mass destruction",
+      "Baghdad",
+      "coalition forces",
+      "shock and awe",
+      "anti-war protest",
+      "Bush Iraq"
     ],
     "archive_ids": [],
-    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "target_blocs": [
+      "muslim",
+      "evangelical",
+      "secular",
+      "white"
+    ],
     "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "hurricane_katrina_2005",
+    "date": "2005-08-29",
+    "category": "Domestic Policy",
+    "description": "Hurricane Katrina devastates Gulf Coast; catastrophic federal response to flooding of majority-Black New Orleans neighborhoods exposes racial inequality in disaster relief",
+    "keywords": [
+      "Katrina",
+      "Hurricane Katrina",
+      "New Orleans",
+      "levee breach",
+      "FEMA",
+      "disaster response",
+      "flood New Orleans",
+      "ninth ward",
+      "Bush Katrina",
+      "Brownie",
+      "racial disaster",
+      "Gulf Coast"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "white",
+      "secular",
+      "evangelical"
+    ],
+    "shock_window_days": 60,
     "active": false
   },
   {
@@ -52,27 +128,55 @@
     "category": "Economic",
     "description": "Lehman Brothers collapse triggers global financial crisis; unemployment peaks at 10% and millions lose homes",
     "keywords": [
-      "financial crisis", "Lehman Brothers", "Wall Street", "bank bailout",
-      "TARP", "recession", "housing crisis", "foreclosure", "subprime mortgage",
-      "too big to fail", "economic collapse", "stimulus"
+      "financial crisis",
+      "Lehman Brothers",
+      "Wall Street",
+      "bank bailout",
+      "TARP",
+      "recession",
+      "housing crisis",
+      "foreclosure",
+      "subprime mortgage",
+      "too big to fail",
+      "economic collapse",
+      "stimulus"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular"
+    ],
     "shock_window_days": 60,
     "active": false
   },
   {
     "id": "obamacare_passage_2010",
     "date": "2010-03-23",
-    "category": "Economic",
+    "category": "Domestic Policy",
     "description": "Affordable Care Act signed into law, expanding Medicaid and creating individual health insurance mandate",
     "keywords": [
-      "Obamacare", "ACA", "Affordable Care Act", "healthcare reform",
-      "health insurance", "pre-existing conditions", "individual mandate",
-      "Tea Party", "death panels", "#ACA", "healthcare law"
+      "Obamacare",
+      "ACA",
+      "Affordable Care Act",
+      "healthcare reform",
+      "health insurance",
+      "pre-existing conditions",
+      "individual mandate",
+      "Tea Party",
+      "death panels",
+      "#ACA",
+      "healthcare law"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "latino", "evangelical", "catholic", "secular"],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "evangelical",
+      "catholic",
+      "secular"
+    ],
     "shock_window_days": 30,
     "active": false
   },
@@ -82,12 +186,24 @@
     "category": "Geopolitical",
     "description": "US Navy SEALs kill Osama bin Laden in Abbottabad, Pakistan, in covert raid authorized by President Obama",
     "keywords": [
-      "bin Laden", "Osama bin Laden", "SEAL Team 6", "Abbottabad",
-      "Pakistan raid", "Obama bin Laden", "Al-Qaeda leader",
-      "#binLaden", "war on terror", "justice done"
+      "bin Laden",
+      "Osama bin Laden",
+      "SEAL Team 6",
+      "Abbottabad",
+      "Pakistan raid",
+      "Obama bin Laden",
+      "Al-Qaeda leader",
+      "#binLaden",
+      "war on terror",
+      "justice done"
     ],
     "archive_ids": [],
-    "target_blocs": ["muslim", "evangelical", "secular", "white"],
+    "target_blocs": [
+      "muslim",
+      "evangelical",
+      "secular",
+      "white"
+    ],
     "shock_window_days": 14,
     "active": false
   },
@@ -97,13 +213,136 @@
     "category": "Criminal Justice",
     "description": "Trayvon Martin shot and killed by George Zimmerman in Sanford, Florida; acquittal sparks national debate on race and self-defense",
     "keywords": [
-      "Trayvon Martin", "George Zimmerman", "Stand Your Ground",
-      "Florida shooting", "#TrayvonMartin", "hoodies", "racial profiling",
-      "Black Lives Matter", "not guilty", "justice for Trayvon"
+      "Trayvon Martin",
+      "George Zimmerman",
+      "Stand Your Ground",
+      "Florida shooting",
+      "#TrayvonMartin",
+      "hoodies",
+      "racial profiling",
+      "Black Lives Matter",
+      "not guilty",
+      "justice for Trayvon"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular"
+    ],
     "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "obamacare_scotus_2012",
+    "date": "2012-06-28",
+    "category": "Domestic Policy",
+    "description": "Supreme Court upholds Affordable Care Act in NFIB v. Sebelius, ruling individual mandate constitutional as a tax",
+    "keywords": [
+      "ACA upheld",
+      "Obamacare SCOTUS",
+      "NFIB Sebelius",
+      "individual mandate",
+      "healthcare constitutional",
+      "Supreme Court ACA",
+      "Roberts decision",
+      "Obamacare survive",
+      "healthcare ruling",
+      "#SCOTUS"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "evangelical",
+      "catholic",
+      "secular"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "sandy_hook_2012",
+    "date": "2012-12-14",
+    "category": "Criminal Justice",
+    "description": "Gunman kills 20 children and 6 staff at Sandy Hook Elementary School in Newtown, Connecticut; deadliest school shooting in US history",
+    "keywords": [
+      "Sandy Hook",
+      "Newtown",
+      "school shooting",
+      "gun control",
+      "#SandyHook",
+      "Newton Connecticut",
+      "elementary school shooting",
+      "assault weapons",
+      "gun reform",
+      "NRA",
+      "background checks"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "women",
+      "secular",
+      "evangelical",
+      "white"
+    ],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "boston_marathon_2013",
+    "date": "2013-04-15",
+    "category": "Security",
+    "description": "Tsarnaev brothers detonate pressure-cooker bombs near Boston Marathon finish line, killing 3 and injuring 264; manhunt ends days later",
+    "keywords": [
+      "Boston Marathon",
+      "Boston bombing",
+      "Tsarnaev",
+      "marathon bombing",
+      "#BostonStrong",
+      "pressure cooker bomb",
+      "Boston manhunt",
+      "Watertown",
+      "domestic terrorism",
+      "Chechen"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "muslim",
+      "secular",
+      "white",
+      "evangelical"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "eric_garner_2014",
+    "date": "2014-07-17",
+    "category": "Criminal Justice",
+    "description": "NYPD officer Daniel Pantaleo kills Eric Garner with chokehold during arrest; 'I can't breathe' becomes a national rallying cry",
+    "keywords": [
+      "Eric Garner",
+      "I can't breathe",
+      "NYPD chokehold",
+      "Daniel Pantaleo",
+      "#ICantBreathe",
+      "#EricGarner",
+      "police brutality",
+      "Staten Island",
+      "grand jury Garner",
+      "Black Lives Matter",
+      "no indictment"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "secular",
+      "white",
+      "latino"
+    ],
+    "shock_window_days": 21,
     "active": false
   },
   {
@@ -112,12 +351,25 @@
     "category": "Criminal Justice",
     "description": "Police officer Darren Wilson shoots and kills Michael Brown in Ferguson, Missouri, igniting weeks of protests and DOJ civil rights investigation",
     "keywords": [
-      "Michael Brown", "Ferguson", "Darren Wilson", "police shooting",
-      "#Ferguson", "hands up don't shoot", "Black Lives Matter",
-      "DOJ Ferguson", "racial justice", "riots Ferguson", "#BlackLivesMatter"
+      "Michael Brown",
+      "Ferguson",
+      "Darren Wilson",
+      "police shooting",
+      "#Ferguson",
+      "hands up don't shoot",
+      "Black Lives Matter",
+      "DOJ Ferguson",
+      "racial justice",
+      "riots Ferguson",
+      "#BlackLivesMatter"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "latino", "white", "secular"],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular"
+    ],
     "shock_window_days": 30,
     "active": false
   },
@@ -127,27 +379,133 @@
     "category": "Electoral/Voting Rights",
     "description": "Supreme Court rules in Obergefell v. Hodges that same-sex couples have a constitutional right to marry nationwide",
     "keywords": [
-      "Obergefell", "same-sex marriage", "gay marriage", "SCOTUS marriage",
-      "#LoveWins", "Supreme Court gay marriage", "marriage equality",
-      "religious liberty", "homosexuality SCOTUS", "#MarriageEquality"
+      "Obergefell",
+      "same-sex marriage",
+      "gay marriage",
+      "SCOTUS marriage",
+      "#LoveWins",
+      "Supreme Court gay marriage",
+      "marriage equality",
+      "religious liberty",
+      "homosexuality SCOTUS",
+      "#MarriageEquality"
     ],
     "archive_ids": [],
-    "target_blocs": ["evangelical", "catholic", "secular", "women"],
+    "target_blocs": [
+      "evangelical",
+      "catholic",
+      "secular",
+      "women"
+    ],
     "shock_window_days": 21,
     "active": false
   },
   {
-    "id": "paris_climate_withdrawal_2017",
-    "date": "2017-06-01",
-    "category": "Environmental",
-    "description": "Trump announces US withdrawal from Paris Climate Agreement, calling it unfair to American workers",
+    "id": "iran_nuclear_deal_2015",
+    "date": "2015-06-26",
+    "category": "Geopolitical",
+    "description": "P5+1 and Iran reach Joint Comprehensive Plan of Action limiting Iran's nuclear program in exchange for sanctions relief",
     "keywords": [
-      "Paris Agreement", "Paris Climate", "climate withdrawal",
-      "Trump climate", "#ParisAgreement", "climate change", "global warming",
-      "clean energy", "carbon emissions", "climate accord"
+      "Iran deal",
+      "JCPOA",
+      "nuclear deal",
+      "Iran nuclear",
+      "Obama Iran",
+      "sanctions Iran",
+      "Netanyahu Congress",
+      "#IranDeal",
+      "nuclear agreement",
+      "P5+1"
     ],
     "archive_ids": [],
-    "target_blocs": ["secular", "evangelical", "other_race", "white"],
+    "target_blocs": [
+      "jewish",
+      "evangelical",
+      "muslim",
+      "secular"
+    ],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "paris_attacks_2015",
+    "date": "2015-11-13",
+    "category": "Security",
+    "description": "ISIS coordinated attacks across Paris kill 130 people at concert hall, restaurants, and national stadium; deadliest attack on France since WWII",
+    "keywords": [
+      "Paris attacks",
+      "Bataclan",
+      "ISIS Paris",
+      "Paris shooting",
+      "#PrayForParis",
+      "France attack",
+      "terrorist attack Paris",
+      "Islamic State",
+      "Charlie Hebdo",
+      "Hollande France"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "muslim",
+      "secular",
+      "evangelical",
+      "white"
+    ],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "pulse_nightclub_2016",
+    "date": "2016-06-12",
+    "category": "Criminal Justice",
+    "description": "Omar Mateen kills 49 people at Pulse LGBTQ nightclub in Orlando; deadliest mass shooting in US history at the time, targeting Latino LGBTQ community on Latin Night",
+    "keywords": [
+      "Pulse nightclub",
+      "Orlando shooting",
+      "Pulse Orlando",
+      "#PulseOrlando",
+      "#OrlandoStrong",
+      "mass shooting LGBTQ",
+      "Omar Mateen",
+      "Latin Night",
+      "gay bar shooting",
+      "gun control Orlando"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "latino",
+      "secular",
+      "muslim",
+      "african_american"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "philando_castile_2016",
+    "date": "2016-07-05",
+    "category": "Criminal Justice",
+    "description": "Minnesota officer Jeronimo Yanez fatally shoots Philando Castile during traffic stop while girlfriend livestreams on Facebook; acquittal inflames BLM movement",
+    "keywords": [
+      "Philando Castile",
+      "Jeronimo Yanez",
+      "Minnesota shooting",
+      "#PhilandoCastile",
+      "#BlackLivesMatter",
+      "police shooting Minnesota",
+      "Facebook Live shooting",
+      "Diamond Reynolds",
+      "Falcon Heights",
+      "police acquittal",
+      "traffic stop shooting"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "secular",
+      "white",
+      "latino"
+    ],
     "shock_window_days": 14,
     "active": false
   },
@@ -157,12 +515,23 @@
     "category": "Moral/Scandal",
     "description": "Washington Post publishes 2005 Access Hollywood tape of Trump boasting about sexually assaulting women",
     "keywords": [
-      "Access Hollywood", "grab them", "Trump tape", "locker room talk",
-      "#AccessHollywood", "Trump sexual assault", "Billy Bush",
-      "Trump women", "October surprise 2016"
+      "Access Hollywood",
+      "grab them",
+      "Trump tape",
+      "locker room talk",
+      "#AccessHollywood",
+      "Trump sexual assault",
+      "Billy Bush",
+      "Trump women",
+      "October surprise 2016"
     ],
     "archive_ids": [],
-    "target_blocs": ["women", "evangelical", "catholic", "secular"],
+    "target_blocs": [
+      "women",
+      "evangelical",
+      "catholic",
+      "secular"
+    ],
     "shock_window_days": 14,
     "active": false
   },
@@ -172,12 +541,24 @@
     "category": "Electoral/Voting Rights",
     "description": "Comey letter to Congress announcing FBI reopening Clinton email investigation 11 days before election",
     "keywords": [
-      "Comey", "FBI", "Clinton emails", "email investigation",
-      "James Comey", "Clinton FBI", "#ComeyLetter", "FISA",
-      "email server", "October Surprise"
+      "Comey",
+      "FBI",
+      "Clinton emails",
+      "email investigation",
+      "James Comey",
+      "Clinton FBI",
+      "#ComeyLetter",
+      "FISA",
+      "email server",
+      "October Surprise"
     ],
     "archive_ids": [],
-    "target_blocs": ["white", "evangelical", "secular", "women"],
+    "target_blocs": [
+      "white",
+      "evangelical",
+      "secular",
+      "women"
+    ],
     "shock_window_days": 14,
     "active": false
   },
@@ -187,12 +568,24 @@
     "category": "Electoral/Voting Rights",
     "description": "Donald Trump defeats Hillary Clinton in Electoral College upset despite losing popular vote by nearly 3 million",
     "keywords": [
-      "Trump wins", "Trump elected", "Trump victory", "election night 2016",
-      "Hillary Clinton loss", "electoral college", "#ElectionNight",
-      "Trump president", "2016 election result", "swing states"
+      "Trump wins",
+      "Trump elected",
+      "Trump victory",
+      "election night 2016",
+      "Hillary Clinton loss",
+      "electoral college",
+      "#ElectionNight",
+      "Trump president",
+      "2016 election result",
+      "swing states"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "white", "women", "secular"],
+    "target_blocs": [
+      "african_american",
+      "white",
+      "women",
+      "secular"
+    ],
     "shock_window_days": 21,
     "active": false
   },
@@ -202,13 +595,54 @@
     "category": "Immigration",
     "description": "Trump signs executive order banning travel from seven Muslim-majority countries and suspending refugee admissions",
     "keywords": [
-      "Muslim ban", "travel ban", "executive order", "immigration ban",
-      "#MuslimBan", "refugee ban", "airport protests", "Trump ban",
-      "immigration order", "#NoBan", "ACLU", "Muslim countries"
+      "Muslim ban",
+      "travel ban",
+      "executive order",
+      "immigration ban",
+      "#MuslimBan",
+      "refugee ban",
+      "airport protests",
+      "Trump ban",
+      "immigration order",
+      "#NoBan",
+      "ACLU",
+      "Muslim countries"
     ],
     "archive_ids": [],
-    "target_blocs": ["muslim", "secular", "evangelical", "asian"],
+    "target_blocs": [
+      "muslim",
+      "secular",
+      "evangelical",
+      "asian"
+    ],
     "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "paris_climate_withdrawal_2017",
+    "date": "2017-06-01",
+    "category": "Environmental",
+    "description": "Trump announces US withdrawal from Paris Climate Agreement, calling it unfair to American workers",
+    "keywords": [
+      "Paris Agreement",
+      "Paris Climate",
+      "climate withdrawal",
+      "Trump climate",
+      "#ParisAgreement",
+      "climate change",
+      "global warming",
+      "clean energy",
+      "carbon emissions",
+      "climate accord"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "secular",
+      "evangelical",
+      "other_race",
+      "white"
+    ],
+    "shock_window_days": 14,
     "active": false
   },
   {
@@ -217,13 +651,25 @@
     "category": "Moral/Scandal",
     "description": "White supremacist Unite the Right rally in Charlottesville kills one counter-protester; Trump says there were 'very fine people on both sides'",
     "keywords": [
-      "Charlottesville", "Unite the Right", "white supremacy",
-      "neo-Nazi rally", "Heather Heyer", "#Charlottesville",
-      "very fine people", "alt-right", "Confederate statues",
-      "antifa", "white nationalism"
+      "Charlottesville",
+      "Unite the Right",
+      "white supremacy",
+      "neo-Nazi rally",
+      "Heather Heyer",
+      "#Charlottesville",
+      "very fine people",
+      "alt-right",
+      "Confederate statues",
+      "antifa",
+      "white nationalism"
     ],
     "archive_ids": [],
-    "target_blocs": ["african_american", "white", "evangelical", "secular"],
+    "target_blocs": [
+      "african_american",
+      "white",
+      "evangelical",
+      "secular"
+    ],
     "shock_window_days": 21,
     "active": false
   },
@@ -233,13 +679,53 @@
     "category": "Immigration",
     "description": "Trump administration announces end of DACA program, placing approximately 700,000 Dreamers at risk of deportation",
     "keywords": [
-      "DACA", "Dreamers", "deferred action", "DACA rescission",
-      "#DefendDACA", "immigration reform", "deportation", "undocumented",
-      "DREAMers", "DACA end", "immigration Trump"
+      "DACA",
+      "Dreamers",
+      "deferred action",
+      "DACA rescission",
+      "#DefendDACA",
+      "immigration reform",
+      "deportation",
+      "undocumented",
+      "DREAMers",
+      "DACA end",
+      "immigration Trump"
     ],
     "archive_ids": [],
-    "target_blocs": ["latino", "asian", "muslim", "secular"],
+    "target_blocs": [
+      "latino",
+      "asian",
+      "muslim",
+      "secular"
+    ],
     "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "las_vegas_shooting_2017",
+    "date": "2017-10-01",
+    "category": "Criminal Justice",
+    "description": "Stephen Paddock kills 60 concertgoers and wounds 413 from his Mandalay Bay hotel room at the Route 91 Harvest festival \u2014 deadliest mass shooting in modern US history",
+    "keywords": [
+      "Las Vegas shooting",
+      "Route 91",
+      "Mandalay Bay",
+      "Stephen Paddock",
+      "#VegasStrong",
+      "mass shooting Vegas",
+      "gun control Las Vegas",
+      "bump stock",
+      "concert shooting",
+      "#PrayForVegas"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "evangelical",
+      "secular",
+      "white",
+      "women"
+    ],
+    "shock_window_days": 14,
     "active": false
   },
   {
@@ -248,13 +734,57 @@
     "category": "Moral/Scandal",
     "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; 25.2M pre-hydrated tweets from Harvard Dataverse (DOI: 10.7910/DVN/2SRSKJ)",
     "keywords": [
-      "#MeToo", "MeToo", "Harvey Weinstein", "sexual harassment",
-      "sexual assault", "Time's Up", "#TimesUp", "metoo movement",
-      "Hollywood", "assault allegations"
+      "#MeToo",
+      "MeToo",
+      "Harvey Weinstein",
+      "sexual harassment",
+      "sexual assault",
+      "Time's Up",
+      "#TimesUp",
+      "metoo movement",
+      "Hollywood",
+      "assault allegations"
     ],
-    "archive_ids": ["metoo", "MeToo", "#MeToo"],
-    "target_blocs": ["women", "secular", "evangelical", "protestant"],
+    "archive_ids": [
+      "metoo",
+      "MeToo",
+      "#MeToo"
+    ],
+    "target_blocs": [
+      "women",
+      "secular",
+      "evangelical",
+      "protestant"
+    ],
     "shock_window_days": 180,
+    "active": false
+  },
+  {
+    "id": "parkland_shooting_2018",
+    "date": "2018-02-14",
+    "category": "Criminal Justice",
+    "description": "Nikolas Cruz kills 17 students and staff at Marjory Stoneman Douglas High School in Parkland, Florida; student-led March for Our Lives movement demands gun control",
+    "keywords": [
+      "Parkland",
+      "Stoneman Douglas",
+      "school shooting",
+      "gun control",
+      "#ParklandShooting",
+      "#NeverAgain",
+      "March for Our Lives",
+      "Emma Gonzalez",
+      "David Hogg",
+      "AR-15",
+      "assault weapons ban"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "women",
+      "secular",
+      "evangelical",
+      "white"
+    ],
+    "shock_window_days": 30,
     "active": false
   },
   {
@@ -263,29 +793,25 @@
     "category": "Immigration",
     "description": "Trump zero-tolerance policy separates migrant children from parents at US-Mexico border; over 2,500 children taken",
     "keywords": [
-      "family separation", "zero tolerance", "border children",
-      "migrant families", "#FamiliesBelongTogether", "cages",
-      "border policy", "asylum seekers", "immigration enforcement",
-      "children cages", "separated families"
+      "family separation",
+      "zero tolerance",
+      "border children",
+      "migrant families",
+      "#FamiliesBelongTogether",
+      "cages",
+      "border policy",
+      "asylum seekers",
+      "immigration enforcement",
+      "children cages",
+      "separated families"
     ],
     "archive_ids": [],
-    "target_blocs": ["latino", "catholic", "evangelical", "secular"],
-    "shock_window_days": 30,
-    "active": false
-  },
-  {
-    "id": "kavanaugh_2018",
-    "date": "2018-09-04",
-    "category": "Moral/Scandal",
-    "description": "Brett Kavanaugh Supreme Court confirmation hearings; sexual assault allegations from Christine Blasey Ford",
-    "keywords": [
-      "Kavanaugh", "Blasey Ford", "Christine Ford", "#MeToo",
-      "SCOTUS", "Supreme Court", "confirmation", "sexual assault",
-      "#StopKavanaugh", "#BelieveSurvivors", "senate hearing",
-      "sexual misconduct", "Brett Kavanaugh"
+    "target_blocs": [
+      "latino",
+      "catholic",
+      "evangelical",
+      "secular"
     ],
-    "archive_ids": ["kavanaugh"],
-    "target_blocs": ["women", "evangelical", "catholic", "secular"],
     "shock_window_days": 30,
     "active": false
   },
@@ -295,61 +821,152 @@
     "category": "Criminal Justice",
     "description": "Gunman kills 11 worshippers at Tree of Life synagogue in Pittsburgh, largest antisemitic attack in US history",
     "keywords": [
-      "Pittsburgh shooting", "Tree of Life", "synagogue shooting",
-      "antisemitism", "#PittsburghStrong", "Jewish community",
-      "hate crime", "Robert Bowers", "gun violence", "white nationalism"
+      "Pittsburgh shooting",
+      "Tree of Life",
+      "synagogue shooting",
+      "antisemitism",
+      "#PittsburghStrong",
+      "Jewish community",
+      "hate crime",
+      "Robert Bowers",
+      "gun violence",
+      "white nationalism"
     ],
     "archive_ids": [],
-    "target_blocs": ["jewish", "evangelical", "secular", "white"],
+    "target_blocs": [
+      "jewish",
+      "evangelical",
+      "secular",
+      "white"
+    ],
     "shock_window_days": 14,
     "active": false
   },
   {
-    "id": "beto_cruz_debate_2018",
-    "date": "2018-09-21",
-    "category": "Electoral/Voting Rights",
-    "description": "Beto O'Rourke vs Ted Cruz Senate debate in Texas; competitive race in solidly-red state energizes Latino and young voters",
+    "id": "el_paso_shooting_2019",
+    "date": "2019-08-03",
+    "category": "Criminal Justice",
+    "description": "White nationalist Patrick Crusius kills 23 people at El Paso Walmart in attack targeting Latinos; manifesto echoes Trump immigration rhetoric",
     "keywords": [
-      "Beto", "O'Rourke", "Cruz", "Ted Cruz", "Texas Senate",
-      "Texas debate", "#BetoForSenate", "Beto Cruz",
-      "Texas race", "Senate debate Texas"
+      "El Paso shooting",
+      "Walmart El Paso",
+      "Patrick Crusius",
+      "Latino shooting",
+      "#ElPasoStrong",
+      "anti-Latino",
+      "white nationalist",
+      "domestic terrorism",
+      "El Paso Dayton",
+      "mass shooting",
+      "Hispanic attack"
     ],
-    "archive_ids": ["texas_debate_2018"],
-    "target_blocs": ["latino", "evangelical", "protestant", "secular"],
-    "shock_window_days": 7,
+    "archive_ids": [],
+    "target_blocs": [
+      "latino",
+      "white",
+      "evangelical",
+      "secular"
+    ],
+    "shock_window_days": 14,
     "active": false
   },
   {
-    "id": "covid_2020",
+    "id": "ukraine_impeachment_2019",
+    "date": "2019-09-24",
+    "category": "Moral/Scandal",
+    "description": "House Speaker Pelosi announces formal impeachment inquiry into Trump's Ukraine phone call pressuring Zelensky to investigate Biden",
+    "keywords": [
+      "impeachment",
+      "Ukraine call",
+      "Zelensky",
+      "Trump Ukraine",
+      "#ImpeachTrump",
+      "quid pro quo",
+      "whistleblower",
+      "Biden Ukraine",
+      "House impeachment",
+      "Pelosi impeachment",
+      "Senate trial"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "evangelical",
+      "white",
+      "secular",
+      "african_american"
+    ],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "covid_pandemic_2020",
     "date": "2020-03-11",
     "category": "Health/Pandemic",
-    "description": "WHO declares COVID-19 a global pandemic; Oct 2019-Dec 2020 collection window covering outbreak through election",
+    "description": "WHO declares COVID-19 a global pandemic; ~179k tweets from gpreda Kaggle dataset covering March\u2013April 2020",
     "keywords": [
-      "COVID", "coronavirus", "pandemic", "COVID-19",
-      "WHO pandemic", "public health emergency", "lockdown",
-      "social distancing", "masks", "virus", "outbreak",
-      "quarantine", "flatten the curve", "essential workers"
+      "COVID",
+      "coronavirus",
+      "pandemic",
+      "COVID-19",
+      "WHO pandemic",
+      "public health emergency",
+      "lockdown",
+      "social distancing",
+      "masks",
+      "virus",
+      "outbreak",
+      "quarantine",
+      "flatten the curve",
+      "essential workers"
     ],
-    "archive_ids": ["echen_covid"],
-    "archive_ids_note": "echen_covid format check required — echen102 repos are historically IDs-only; confirm full tweet objects exist before treating as Tier 1. If IDs-only, remove echen_covid and rely on election_2020_ieee/kaggle overlap.",
-    "format_check_required": true,
-    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
-    "shock_window_days": 270,
+    "archive_ids": [
+      "covid_pandemic_2020"
+    ],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "secular",
+      "evangelical"
+    ],
+    "shock_window_days": 60,
     "active": false
   },
   {
-    "id": "covid_lockdowns_2020",
-    "date": "2020-03-13",
+    "id": "covid_vaccine_2020",
+    "date": "2020-12-11",
     "category": "Health/Pandemic",
-    "description": "Trump declares COVID-19 national emergency; widespread shutdowns begin across the United States",
+    "description": "FDA grants Emergency Use Authorization for Pfizer-BioNTech COVID-19 vaccine, beginning US vaccination rollout; ~200k tweets from kaushiksuresh147 Kaggle dataset with user_description confirmed",
     "keywords": [
-      "COVID", "coronavirus", "lockdown", "pandemic", "quarantine",
-      "national emergency", "shutdown", "COVID-19", "social distancing",
-      "stimulus check", "CARES Act", "flatten the curve"
+      "COVID vaccine",
+      "vaccine approved",
+      "vaccine rollout",
+      "#CovidVaccine",
+      "Pfizer vaccine",
+      "FDA EUA",
+      "vaccine hesitancy",
+      "vaccine mandate",
+      "coronavirus vaccine",
+      "vaccine distribution",
+      "BioNTech",
+      "mRNA vaccine",
+      "Operation Warp Speed",
+      "vaccine side effects"
     ],
-    "archive_ids": ["election_2020_ieee", "election_2020_kaggle"],
-    "target_blocs": ["african_american", "latino", "secular", "evangelical"],
-    "shock_window_days": 60,
+    "archive_ids": [
+      "covid_vaccine_2020"
+    ],
+    "archive_schema_notes": {
+      "user_description": "user_description (confirmed present \u2014 use for bio classification)",
+      "created_at": "date",
+      "coverage": "Jan 2020\u2013March 2021"
+    },
+    "target_blocs": [
+      "african_american",
+      "evangelical",
+      "white",
+      "secular"
+    ],
+    "shock_window_days": 90,
     "active": false
   },
   {
@@ -358,15 +975,120 @@
     "category": "Criminal Justice",
     "description": "Minneapolis police officer Derek Chauvin kills George Floyd; largest protest movement in US history erupts across hundreds of cities",
     "keywords": [
-      "George Floyd", "Derek Chauvin", "Minneapolis", "police brutality",
-      "#BlackLivesMatter", "#GeorgeFloyd", "I can't breathe",
-      "defund police", "racial justice", "BLM protest",
-      "police reform", "systemic racism"
+      "George Floyd",
+      "Derek Chauvin",
+      "Minneapolis",
+      "police brutality",
+      "#BlackLivesMatter",
+      "#GeorgeFloyd",
+      "I can't breathe",
+      "defund police",
+      "racial justice",
+      "BLM protest",
+      "police reform",
+      "systemic racism"
+    ],
+    "archive_ids": [
+      "blm_2020"
+    ],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular"
+    ],
+    "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "daca_scotus_2020",
+    "date": "2020-06-18",
+    "category": "Immigration",
+    "description": "Supreme Court blocks Trump's DACA rescission 5-4, ruling the termination arbitrary and capricious under the APA",
+    "keywords": [
+      "DACA SCOTUS",
+      "DACA ruling",
+      "DREAMers SCOTUS",
+      "DACA Supreme Court",
+      "DHS v Regents",
+      "#DACA",
+      "DREAMers",
+      "Deferred Action",
+      "DACA protected",
+      "immigration ruling",
+      "APA DACA",
+      "DACA win"
+    ],
+    "archive_ids": [
+      "daca_scotus_2020"
+    ],
+    "archive_schema_notes": {
+      "text": "status",
+      "created_at": "timestamp",
+      "lang": "en (hardcoded \u2014 field absent in source)",
+      "inference_method": "platform_proxy (Latino/diverse \u2014 no user.description)"
+    },
+    "target_blocs": [
+      "latino",
+      "asian",
+      "secular"
+    ],
+    "shock_window_days": 21,
+    "active": false
+  },
+  {
+    "id": "ruth_bader_ginsburg_2020",
+    "date": "2020-09-18",
+    "category": "Electoral/Voting Rights",
+    "description": "Supreme Court Justice Ruth Bader Ginsburg dies at 87; Republicans move to fill the seat weeks before the presidential election, sparking court-packing debate",
+    "keywords": [
+      "Ruth Bader Ginsburg",
+      "RBG",
+      "SCOTUS vacancy",
+      "Supreme Court seat",
+      "#RIP_RBG",
+      "#RBG",
+      "Notorious RBG",
+      "court packing",
+      "Amy Coney Barrett",
+      "McConnell SCOTUS",
+      "Supreme Court election"
     ],
     "archive_ids": [],
-    "pending_archive_note": "andradaolteanu Kaggle dataset (~2.5M posts, May-June 2020) pending schema confirmation — if confirmed, add 'blm_kaggle_2020' to archive_ids.",
-    "target_blocs": ["african_american", "latino", "white", "secular"],
-    "shock_window_days": 60,
+    "target_blocs": [
+      "women",
+      "jewish",
+      "secular",
+      "evangelical"
+    ],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "trump_covid_diagnosis_2020",
+    "date": "2020-10-02",
+    "category": "Health/Pandemic",
+    "description": "Trump tests positive for COVID-19 and is hospitalized at Walter Reed; reveals White House superspreader event from Amy Coney Barrett announcement",
+    "keywords": [
+      "Trump COVID",
+      "Trump coronavirus",
+      "Walter Reed",
+      "Trump positive",
+      "#TrumpHasCovid",
+      "White House COVID",
+      "Trump hospital",
+      "superspreader event",
+      "Trump sick",
+      "COVID White House"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "evangelical",
+      "white",
+      "secular",
+      "women"
+    ],
+    "shock_window_days": 14,
     "active": false
   },
   {
@@ -375,13 +1097,81 @@
     "category": "Electoral/Voting Rights",
     "description": "Trump supporters storm US Capitol to halt certification of Biden's 2020 Electoral College victory; five die, over 140 officers injured",
     "keywords": [
-      "January 6", "Capitol riot", "insurrection", "Capitol stormed",
-      "#StopTheSteal", "Capitol breach", "electoral certification",
-      "Trump rally", "Pence Capitol", "Capitol attack", "#January6"
+      "January 6",
+      "Capitol riot",
+      "insurrection",
+      "Capitol stormed",
+      "#StopTheSteal",
+      "Capitol breach",
+      "electoral certification",
+      "Trump rally",
+      "Pence Capitol",
+      "Capitol attack",
+      "#January6"
     ],
     "archive_ids": [],
-    "target_blocs": ["white", "evangelical", "secular", "african_american"],
+    "target_blocs": [
+      "white",
+      "evangelical",
+      "secular",
+      "african_american"
+    ],
     "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "chauvin_conviction_2021",
+    "date": "2021-04-20",
+    "category": "Criminal Justice",
+    "description": "Derek Chauvin convicted on all three counts in murder of George Floyd \u2014 first Minnesota police officer convicted of murder in the line of duty",
+    "keywords": [
+      "Chauvin verdict",
+      "Chauvin conviction",
+      "guilty verdict Floyd",
+      "#ChauvinVerdict",
+      "Derek Chauvin guilty",
+      "George Floyd justice",
+      "police accountability",
+      "murder conviction police",
+      "Hennepin County verdict",
+      "Floyd family"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "white",
+      "secular",
+      "latino"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "critical_race_theory_2021",
+    "date": "2021-06-01",
+    "category": "Moral/Scandal",
+    "description": "Republican-led legislative and school board battles against Critical Race Theory teaching spread to 42 states; becomes proxy for White backlash to racial reckoning",
+    "keywords": [
+      "Critical Race Theory",
+      "CRT",
+      "school board",
+      "#CRT",
+      "ban CRT",
+      "anti-CRT law",
+      "1619 project",
+      "race in schools",
+      "school curriculum",
+      "white privilege schools",
+      "parental rights education"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "white",
+      "evangelical",
+      "secular"
+    ],
+    "shock_window_days": 90,
     "active": false
   },
   {
@@ -390,13 +1180,24 @@
     "category": "Geopolitical",
     "description": "Taliban captures Kabul as US completes withdrawal from Afghanistan; chaotic evacuation scenes at Hamid Karzai International Airport",
     "keywords": [
-      "Afghanistan withdrawal", "Taliban Kabul", "Kabul airport",
-      "Afghanistan collapse", "#Afghanistan", "Biden Afghanistan",
-      "Afghan refugees", "evacuation Afghanistan", "Taliban takeover",
+      "Afghanistan withdrawal",
+      "Taliban Kabul",
+      "Kabul airport",
+      "Afghanistan collapse",
+      "#Afghanistan",
+      "Biden Afghanistan",
+      "Afghan refugees",
+      "evacuation Afghanistan",
+      "Taliban takeover",
       "Saigon moment"
     ],
     "archive_ids": [],
-    "target_blocs": ["evangelical", "secular", "white", "muslim"],
+    "target_blocs": [
+      "evangelical",
+      "secular",
+      "white",
+      "muslim"
+    ],
     "shock_window_days": 21,
     "active": false
   },
@@ -406,13 +1207,55 @@
     "category": "Geopolitical",
     "description": "Russia launches full-scale invasion of Ukraine; largest land war in Europe since World War II",
     "keywords": [
-      "Ukraine invasion", "Russia Ukraine", "Putin Ukraine",
-      "#Ukraine", "#StandWithUkraine", "Zelensky", "NATO",
-      "sanctions Russia", "war Ukraine", "Kyiv", "Kharkiv",
+      "Ukraine invasion",
+      "Russia Ukraine",
+      "Putin Ukraine",
+      "#Ukraine",
+      "#StandWithUkraine",
+      "Zelensky",
+      "NATO",
+      "sanctions Russia",
+      "war Ukraine",
+      "Kyiv",
+      "Kharkiv",
       "Ukrainian resistance"
     ],
     "archive_ids": [],
-    "target_blocs": ["evangelical", "secular", "jewish", "white"],
+    "target_blocs": [
+      "evangelical",
+      "secular",
+      "jewish",
+      "white"
+    ],
+    "shock_window_days": 30,
+    "active": false
+  },
+  {
+    "id": "inflation_cpi_peak_2022",
+    "date": "2022-06-10",
+    "category": "Economic",
+    "description": "US CPI reaches 9.1% year-over-year in June 2022 \u2014 highest inflation in 40 years \u2014 driven by energy, food, and shelter costs; Fed begins aggressive rate hikes",
+    "keywords": [
+      "inflation",
+      "CPI",
+      "cost of living",
+      "gas prices",
+      "grocery prices",
+      "inflation record",
+      "Federal Reserve rate hike",
+      "Biden inflation",
+      "#Bidenflation",
+      "interest rates",
+      "40 year high inflation",
+      "price surge"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "evangelical"
+    ],
     "shock_window_days": 30,
     "active": false
   },
@@ -422,29 +1265,81 @@
     "category": "Electoral/Voting Rights",
     "description": "Supreme Court overturns Roe v. Wade in Dobbs v. Jackson Women's Health Organization, returning abortion regulation to states",
     "keywords": [
-      "Dobbs", "Roe v Wade", "abortion", "Roe overturned",
-      "Supreme Court abortion", "#RoeVWade", "#AbortionRights",
-      "pro-choice", "pro-life", "reproductive rights",
-      "SCOTUS abortion", "abortion ban"
+      "Dobbs",
+      "Roe v Wade",
+      "abortion",
+      "Roe overturned",
+      "Supreme Court abortion",
+      "#RoeVWade",
+      "#AbortionRights",
+      "pro-choice",
+      "pro-life",
+      "reproductive rights",
+      "SCOTUS abortion",
+      "abortion ban"
     ],
     "archive_ids": [],
-    "target_blocs": ["women", "catholic", "evangelical", "secular"],
+    "target_blocs": [
+      "women",
+      "catholic",
+      "evangelical",
+      "secular"
+    ],
     "shock_window_days": 30,
     "active": false
   },
   {
     "id": "trump_indictment_2023",
     "date": "2023-06-09",
-    "category": "Electoral/Voting Rights",
-    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago — first federal criminal indictment of a former US president",
+    "category": "Moral/Scandal",
+    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago \u2014 first federal criminal indictment of a former US president",
     "keywords": [
-      "Trump indictment", "Trump indicted", "classified documents",
-      "Mar-a-Lago", "federal charges", "Jack Smith", "#TrumpIndicted",
-      "federal indictment", "DOJ Trump", "espionage act"
+      "Trump indictment",
+      "Trump indicted",
+      "classified documents",
+      "Mar-a-Lago",
+      "federal charges",
+      "Jack Smith",
+      "#TrumpIndicted",
+      "federal indictment",
+      "DOJ Trump",
+      "espionage act"
     ],
     "archive_ids": [],
-    "target_blocs": ["evangelical", "white", "secular", "african_american"],
+    "target_blocs": [
+      "evangelical",
+      "white",
+      "secular",
+      "african_american"
+    ],
     "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "affirmative_action_scotus_2023",
+    "date": "2023-06-29",
+    "category": "Electoral/Voting Rights",
+    "description": "Supreme Court strikes down race-conscious admissions programs at Harvard and UNC, effectively ending affirmative action in higher education",
+    "keywords": [
+      "affirmative action",
+      "SCOTUS affirmative action",
+      "Harvard admissions",
+      "UNC admissions",
+      "#AffirmativeAction",
+      "race-conscious admissions",
+      "SFFA ruling",
+      "college admissions race",
+      "diversity admissions",
+      "anti-affirmative action"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "asian",
+      "white",
+      "secular"
+    ],
+    "shock_window_days": 21,
     "active": false
   },
   {
@@ -453,14 +1348,113 @@
     "category": "Geopolitical",
     "description": "Hamas launches surprise attack on southern Israel killing 1,200 people; Israel declares war and begins siege of Gaza",
     "keywords": [
-      "Hamas attack", "Israel Gaza", "Gaza war", "October 7",
-      "#IsraelUnderAttack", "#Gaza", "#Ceasefire", "Palestinian",
-      "IDF", "hostages Israel", "Gaza bombing", "pro-Palestine protest",
-      "#FreePalestine", "antisemitism campus"
+      "Hamas attack",
+      "Israel Gaza",
+      "Gaza war",
+      "October 7",
+      "#IsraelUnderAttack",
+      "#Gaza",
+      "#Ceasefire",
+      "Palestinian",
+      "IDF",
+      "hostages Israel",
+      "Gaza bombing",
+      "pro-Palestine protest",
+      "#FreePalestine",
+      "antisemitism campus"
     ],
     "archive_ids": [],
-    "target_blocs": ["jewish", "muslim", "evangelical", "secular"],
+    "target_blocs": [
+      "jewish",
+      "muslim",
+      "evangelical",
+      "secular"
+    ],
     "shock_window_days": 60,
+    "active": false
+  },
+  {
+    "id": "trump_conviction_2024",
+    "date": "2024-05-30",
+    "category": "Moral/Scandal",
+    "description": "New York jury finds Trump guilty on all 34 felony counts of falsifying business records; first US president convicted of a felony crime",
+    "keywords": [
+      "Trump convicted",
+      "Trump guilty",
+      "Trump felony",
+      "New York trial",
+      "#TrumpConvicted",
+      "Trump verdict",
+      "34 counts",
+      "Stormy Daniels trial",
+      "Michael Cohen testimony",
+      "Trump criminal",
+      "hush money trial"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "evangelical",
+      "white",
+      "secular",
+      "african_american"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "trump_assassination_attempt_2024",
+    "date": "2024-07-13",
+    "category": "Security",
+    "description": "Gunman shoots Trump at Butler, Pennsylvania rally; bullet grazes his ear as Secret Service kills shooter; Thomas Matthew Crooks identified as attacker",
+    "keywords": [
+      "Trump shooting",
+      "Trump assassination attempt",
+      "Butler Pennsylvania",
+      "#TrumpShooting",
+      "Trump rally shooting",
+      "Thomas Crooks",
+      "Secret Service failure",
+      "Trump fist pump",
+      "assassination attempt",
+      "political violence"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "evangelical",
+      "white",
+      "secular",
+      "african_american"
+    ],
+    "shock_window_days": 14,
+    "active": false
+  },
+  {
+    "id": "biden_withdrawal_2024",
+    "date": "2024-07-21",
+    "category": "Electoral/Voting Rights",
+    "description": "Biden announces he will not seek reelection and endorses VP Kamala Harris \u2014 first incumbent president to withdraw from a re-election campaign since LBJ in 1968",
+    "keywords": [
+      "Biden drops out",
+      "Biden withdrawal",
+      "Biden endorses Harris",
+      "#BidenDropsOut",
+      "Kamala Harris 2024",
+      "Biden 2024",
+      "Biden announcement",
+      "Biden letter",
+      "Democratic nominee",
+      "Biden debate",
+      "Biden age",
+      "#KamalaHarris"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "african_american",
+      "women",
+      "secular",
+      "latino"
+    ],
+    "shock_window_days": 21,
     "active": false
   }
 ]
