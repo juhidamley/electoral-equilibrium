@@ -14,7 +14,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discord dataset download"
 source /hopper/home/jdamley28/miniconda3/etc/profile.d/conda.sh
 conda activate base
 
-export HF_HUB_ENABLE_HF_TRANSFER=1
+export HF_XET_HIGH_PERFORMANCE=1
 
 python - <<'EOF'
 from huggingface_hub import hf_hub_download
