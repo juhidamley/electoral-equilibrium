@@ -10,6 +10,8 @@ dependencies = [
 data = [
     "pandas>=2.0",
     "pyarrow>=12.0",
+    "vaderSentiment>=3.3.2",
+    "zstandard>=0.22",
 ]
 ml = [
     "scikit-learn>=1.3",

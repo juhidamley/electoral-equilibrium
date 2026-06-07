@@ -1,0 +1,6 @@
+# HPC/script-level runtime dependencies (pip install -r requirements.txt)
+# These are not always available in the conda base environment on Hopper.
+vaderSentiment>=3.3.2
+zstandard>=0.22
+pyreadstat>=1.2
+beautifulsoup4>=4.12

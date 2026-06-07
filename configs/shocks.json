@@ -1,28 +1,28 @@
 [
   {
     "id": "ayatollah_assassination",
-    "date": "2020-01-03",
+    "date": "2026-02-28",
     "category": "Geopolitical",
-    "description": "US kills Iranian IRGC Quds Force commander Qasem Soleimani in drone strike near Baghdad airport",
+    "description": "US airstrike kills Ali Khamenei, Supreme Leader of Iran",
     "keywords": [
-      "Soleimani",
-      "Qasem",
-      "IRGC",
-      "Quds",
+      "Khamenei",
+      "Ali Khamenei",
+      "Supreme Leader",
       "Iran",
       "Iranian",
-      "Baghdad",
-      "drone strike",
-      "assassination",
       "airstrike",
+      "assassination",
+      "drone strike",
+      "IRGC",
       "World War 3",
       "wwiii",
       "#Iran",
-      "#Soleimani",
+      "#Khamenei",
       "#WWIII",
       "retaliation",
       "escalation",
-      "Middle East war"
+      "Middle East war",
+      "nuclear"
     ],
     "archive_ids": [],
     "target_blocs": [
@@ -33,7 +33,12 @@
     ],
     "shock_window_days": 14,
     "active": true,
-    "pilot": true
+    "pilot": true,
+    "date_window": {
+      "start": "2026-02-25",
+      "shock_date": "2026-02-28",
+      "end": "2026-03-14"
+    }
   },
   {
     "id": "sept_11_2001",
@@ -63,7 +68,12 @@
       "white"
     ],
     "shock_window_days": 60,
-    "active": false
+    "active": false,
+    "date_window": {
+      "start": "2001-09-08",
+      "shock_date": "2001-09-11",
+      "end": "2001-09-25"
+    }
   },
   {
     "id": "iraq_war_invasion_2003",
@@ -91,7 +101,12 @@
       "white"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": false,
+    "date_window": {
+      "start": "2003-03-17",
+      "shock_date": "2003-03-20",
+      "end": "2003-04-03"
+    }
   },
   {
     "id": "hurricane_katrina_2005",
@@ -120,7 +135,12 @@
       "evangelical"
     ],
     "shock_window_days": 60,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2005-08-26",
+      "shock_date": "2005-08-29",
+      "end": "2005-09-12"
+    }
   },
   {
     "id": "financial_crisis_2008",
@@ -141,7 +161,10 @@
       "economic collapse",
       "stimulus"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -149,7 +172,12 @@
       "secular"
     ],
     "shock_window_days": 60,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2008-09-12",
+      "shock_date": "2008-09-15",
+      "end": "2008-09-29"
+    }
   },
   {
     "id": "obamacare_passage_2010",
@@ -169,7 +197,10 @@
       "#ACA",
       "healthcare law"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -178,7 +209,12 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2010-03-20",
+      "shock_date": "2010-03-23",
+      "end": "2010-04-06"
+    }
   },
   {
     "id": "bin_laden_killing_2011",
@@ -197,7 +233,10 @@
       "war on terror",
       "justice done"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "muslim",
       "evangelical",
@@ -205,7 +244,12 @@
       "white"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2011-04-29",
+      "shock_date": "2011-05-02",
+      "end": "2011-05-16"
+    }
   },
   {
     "id": "trayvon_martin_2012",
@@ -224,7 +268,10 @@
       "not guilty",
       "justice for Trayvon"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -232,7 +279,12 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2012-02-23",
+      "shock_date": "2012-02-26",
+      "end": "2012-03-11"
+    }
   },
   {
     "id": "obamacare_scotus_2012",
@@ -251,7 +303,10 @@
       "healthcare ruling",
       "#SCOTUS"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -260,7 +315,51 @@
       "secular"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2012-06-25",
+      "shock_date": "2012-06-28",
+      "end": "2012-07-12"
+    }
+  },
+  {
+    "id": "election_2012",
+    "date": "2012-09-13",
+    "category": "Electoral/Voting Rights",
+    "description": "Pre-election Twitter activity, September 2012 (jgoodman8 Kaggle dataset, Sept 13-14 2012, ~1M tweets). Not Election Day (Nov 6 2012) — archive covers the campaign period only. Baseline pre-Trump election for sentiment calibration.",
+    "keywords": [
+      "Obama wins",
+      "Obama re-elected",
+      "Romney concedes",
+      "election night 2012",
+      "Obama 2012",
+      "presidential election 2012",
+      "#Election2012",
+      "electoral college 2012",
+      "swing states 2012"
+    ],
+    "archive_ids": [
+      "election_2012",
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
+    "archive_schema_notes": {
+      "format": "JSON",
+      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+    },
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular"
+    ],
+    "shock_window_days": 17,
+    "active": true,
+    "date_window": {
+      "start": "2012-09-10",
+      "shock_date": "2012-09-13",
+      "end": "2012-09-27"
+    }
   },
   {
     "id": "sandy_hook_2012",
@@ -280,7 +379,10 @@
       "NRA",
       "background checks"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "women",
       "secular",
@@ -288,7 +390,12 @@
       "white"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2012-12-11",
+      "shock_date": "2012-12-14",
+      "end": "2012-12-28"
+    }
   },
   {
     "id": "boston_marathon_2013",
@@ -307,7 +414,10 @@
       "domestic terrorism",
       "Chechen"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "muslim",
       "secular",
@@ -315,7 +425,12 @@
       "evangelical"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2013-04-12",
+      "shock_date": "2013-04-15",
+      "end": "2013-04-29"
+    }
   },
   {
     "id": "eric_garner_2014",
@@ -335,7 +450,10 @@
       "Black Lives Matter",
       "no indictment"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "secular",
@@ -343,7 +461,12 @@
       "latino"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2014-07-14",
+      "shock_date": "2014-07-17",
+      "end": "2014-07-31"
+    }
   },
   {
     "id": "ferguson_michael_brown_2014",
@@ -363,7 +486,10 @@
       "riots Ferguson",
       "#BlackLivesMatter"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "reddit_monthly"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -371,7 +497,12 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2014-08-06",
+      "shock_date": "2014-08-09",
+      "end": "2014-08-23"
+    }
   },
   {
     "id": "obergefell_2015",
@@ -390,7 +521,10 @@
       "homosexuality SCOTUS",
       "#MarriageEquality"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "catholic",
@@ -398,7 +532,12 @@
       "women"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2015-06-23",
+      "shock_date": "2015-06-26",
+      "end": "2015-07-10"
+    }
   },
   {
     "id": "iran_nuclear_deal_2015",
@@ -417,7 +556,10 @@
       "nuclear agreement",
       "P5+1"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "jewish",
       "evangelical",
@@ -425,7 +567,12 @@
       "secular"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2015-06-23",
+      "shock_date": "2015-06-26",
+      "end": "2015-07-10"
+    }
   },
   {
     "id": "paris_attacks_2015",
@@ -444,7 +591,10 @@
       "Charlie Hebdo",
       "Hollande France"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "muslim",
       "secular",
@@ -452,7 +602,12 @@
       "white"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2015-11-10",
+      "shock_date": "2015-11-13",
+      "end": "2015-11-27"
+    }
   },
   {
     "id": "pulse_nightclub_2016",
@@ -471,7 +626,10 @@
       "gay bar shooting",
       "gun control Orlando"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "latino",
       "secular",
@@ -479,7 +637,12 @@
       "african_american"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2016-06-09",
+      "shock_date": "2016-06-12",
+      "end": "2016-06-26"
+    }
   },
   {
     "id": "philando_castile_2016",
@@ -499,7 +662,10 @@
       "police acquittal",
       "traffic stop shooting"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "secular",
@@ -507,7 +673,12 @@
       "latino"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2016-07-02",
+      "shock_date": "2016-07-05",
+      "end": "2016-07-19"
+    }
   },
   {
     "id": "access_hollywood_2016",
@@ -525,7 +696,10 @@
       "Trump women",
       "October surprise 2016"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "women",
       "evangelical",
@@ -533,7 +707,12 @@
       "secular"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2016-10-04",
+      "shock_date": "2016-10-07",
+      "end": "2016-10-21"
+    }
   },
   {
     "id": "fbi_letter_2016",
@@ -552,7 +731,10 @@
       "email server",
       "October Surprise"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "white",
       "evangelical",
@@ -560,13 +742,18 @@
       "women"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2016-10-25",
+      "shock_date": "2016-10-28",
+      "end": "2016-11-11"
+    }
   },
   {
     "id": "trump_election_upset_2016",
     "date": "2016-11-08",
     "category": "Electoral/Voting Rights",
-    "description": "Donald Trump defeats Hillary Clinton in Electoral College upset despite losing popular vote by nearly 3 million",
+    "description": "Donald Trump defeats Hillary Clinton in Electoral College upset despite losing popular vote by nearly 3 million; kinguistics Kaggle dataset covers Election Day tweets",
     "keywords": [
       "Trump wins",
       "Trump elected",
@@ -579,15 +766,26 @@
       "2016 election result",
       "swing states"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "election_2016",
+      "reddit_pushshift"
+    ],
+    "archive_schema_notes": {
+      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+    },
     "target_blocs": [
       "african_american",
       "white",
       "women",
       "secular"
     ],
-    "shock_window_days": 21,
-    "active": false
+    "shock_window_days": 14,
+    "active": true,
+    "date_window": {
+      "start": "2016-11-05",
+      "shock_date": "2016-11-08",
+      "end": "2016-11-22"
+    }
   },
   {
     "id": "travel_ban_2017",
@@ -608,7 +806,10 @@
       "ACLU",
       "Muslim countries"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "muslim",
       "secular",
@@ -616,7 +817,12 @@
       "asian"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2017-01-24",
+      "shock_date": "2017-01-27",
+      "end": "2017-02-10"
+    }
   },
   {
     "id": "paris_climate_withdrawal_2017",
@@ -635,7 +841,10 @@
       "carbon emissions",
       "climate accord"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "secular",
       "evangelical",
@@ -643,7 +852,12 @@
       "white"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2017-05-29",
+      "shock_date": "2017-06-01",
+      "end": "2017-06-15"
+    }
   },
   {
     "id": "charlottesville_2017",
@@ -663,7 +877,10 @@
       "antifa",
       "white nationalism"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "white",
@@ -671,7 +888,12 @@
       "secular"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2017-08-09",
+      "shock_date": "2017-08-12",
+      "end": "2017-08-26"
+    }
   },
   {
     "id": "daca_rescission_2017",
@@ -691,7 +913,10 @@
       "DACA end",
       "immigration Trump"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "latino",
       "asian",
@@ -699,13 +924,18 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2017-09-02",
+      "shock_date": "2017-09-05",
+      "end": "2017-09-19"
+    }
   },
   {
     "id": "las_vegas_shooting_2017",
     "date": "2017-10-01",
     "category": "Criminal Justice",
-    "description": "Stephen Paddock kills 60 concertgoers and wounds 413 from his Mandalay Bay hotel room at the Route 91 Harvest festival \u2014 deadliest mass shooting in modern US history",
+    "description": "Stephen Paddock kills 60 concertgoers and wounds 413 from his Mandalay Bay hotel room at the Route 91 Harvest festival — deadliest mass shooting in modern US history",
     "keywords": [
       "Las Vegas shooting",
       "Route 91",
@@ -718,7 +948,10 @@
       "concert shooting",
       "#PrayForVegas"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "secular",
@@ -726,13 +959,18 @@
       "women"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2017-09-28",
+      "shock_date": "2017-10-01",
+      "end": "2017-10-15"
+    }
   },
   {
-    "id": "metoo_2017_2023",
+    "id": "metoo_2017",
     "date": "2017-10-15",
     "category": "Moral/Scandal",
-    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; 25.2M pre-hydrated tweets from Harvard Dataverse (DOI: 10.7910/DVN/2SRSKJ)",
+    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; covered by Foster & Rathlin 2022 LIWC dataset (3,683 tweets, DOI: 10.5683/SP3/1YWCW1) and Reddit Pushshift (TwoXChromosomes, Feminism, AskFeminists, AskWomen) filtered to Oct 15–Dec 31 2017",
     "keywords": [
       "#MeToo",
       "MeToo",
@@ -746,9 +984,8 @@
       "assault allegations"
     ],
     "archive_ids": [
-      "metoo",
-      "MeToo",
-      "#MeToo"
+      "metoo_liwc",
+      "reddit_pushshift"
     ],
     "target_blocs": [
       "women",
@@ -756,8 +993,49 @@
       "evangelical",
       "protestant"
     ],
-    "shock_window_days": 180,
-    "active": false
+    "shock_window_days": 14,
+    "active": true,
+    "date_window": {
+      "start": "2017-10-12",
+      "shock_date": "2017-10-15",
+      "end": "2017-10-29"
+    }
+  },
+  {
+    "id": "kavanaugh_2018",
+    "date": "2018-09-27",
+    "category": "Moral/Scandal",
+    "description": "Christine Blasey Ford testifies before Senate Judiciary Committee accusing Supreme Court nominee Brett Kavanaugh of sexual assault; Kavanaugh confirmed October 6; Foster & Rathlin 2022 dataset covers kavanaugh_ford and kavanaugh_confirmed phases",
+    "keywords": [
+      "Kavanaugh",
+      "Brett Kavanaugh",
+      "Christine Blasey Ford",
+      "SCOTUS hearing",
+      "#BelieveSurvivors",
+      "#StopKavanaugh",
+      "Kavanaugh confirmation",
+      "Senate Judiciary",
+      "sexual assault hearing",
+      "Kavanaugh Ford",
+      "MeToo SCOTUS"
+    ],
+    "archive_ids": [
+      "metoo_liwc",
+      "reddit_pushshift"
+    ],
+    "target_blocs": [
+      "women",
+      "secular",
+      "evangelical",
+      "catholic"
+    ],
+    "shock_window_days": 14,
+    "active": true,
+    "date_window": {
+      "start": "2018-09-24",
+      "shock_date": "2018-09-27",
+      "end": "2018-10-11"
+    }
   },
   {
     "id": "parkland_shooting_2018",
@@ -777,7 +1055,10 @@
       "AR-15",
       "assault weapons ban"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "women",
       "secular",
@@ -785,7 +1066,12 @@
       "white"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2018-02-11",
+      "shock_date": "2018-02-14",
+      "end": "2018-02-28"
+    }
   },
   {
     "id": "family_separation_2018",
@@ -805,7 +1091,10 @@
       "children cages",
       "separated families"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "latino",
       "catholic",
@@ -813,7 +1102,12 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2018-06-16",
+      "shock_date": "2018-06-19",
+      "end": "2018-07-03"
+    }
   },
   {
     "id": "pittsburgh_synagogue_shooting_2018",
@@ -832,7 +1126,10 @@
       "gun violence",
       "white nationalism"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "jewish",
       "evangelical",
@@ -840,7 +1137,12 @@
       "white"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2018-10-24",
+      "shock_date": "2018-10-27",
+      "end": "2018-11-10"
+    }
   },
   {
     "id": "el_paso_shooting_2019",
@@ -860,7 +1162,10 @@
       "mass shooting",
       "Hispanic attack"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "latino",
       "white",
@@ -868,7 +1173,12 @@
       "secular"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2019-07-31",
+      "shock_date": "2019-08-03",
+      "end": "2019-08-17"
+    }
   },
   {
     "id": "ukraine_impeachment_2019",
@@ -888,7 +1198,10 @@
       "Pelosi impeachment",
       "Senate trial"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "white",
@@ -896,13 +1209,18 @@
       "african_american"
     ],
     "shock_window_days": 60,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2019-09-21",
+      "shock_date": "2019-09-24",
+      "end": "2019-10-08"
+    }
   },
   {
     "id": "covid_pandemic_2020",
-    "date": "2020-03-11",
+    "date": "2020-07-24",
     "category": "Health/Pandemic",
-    "description": "WHO declares COVID-19 a global pandemic; ~179k tweets from gpreda Kaggle dataset covering March\u2013April 2020",
+    "description": "COVID-19 summer surge discourse, July–August 2020; gpreda Kaggle archive covers this window. Conceptually renamed covid_summer_2020 — id kept as covid_pandemic_2020 to preserve archive_ids references.",
     "keywords": [
       "COVID",
       "coronavirus",
@@ -920,7 +1238,8 @@
       "essential workers"
     ],
     "archive_ids": [
-      "covid_pandemic_2020"
+      "covid_pandemic_2020",
+      "reddit_pushshift"
     ],
     "target_blocs": [
       "african_american",
@@ -928,12 +1247,17 @@
       "secular",
       "evangelical"
     ],
-    "shock_window_days": 60,
-    "active": false
+    "shock_window_days": 37,
+    "active": true,
+    "date_window": {
+      "start": "2020-07-24",
+      "shock_date": "2020-07-24",
+      "end": "2020-08-30"
+    }
   },
   {
     "id": "covid_vaccine_2020",
-    "date": "2020-12-11",
+    "date": "2020-12-14",
     "category": "Health/Pandemic",
     "description": "FDA grants Emergency Use Authorization for Pfizer-BioNTech COVID-19 vaccine, beginning US vaccination rollout; ~200k tweets from kaushiksuresh147 Kaggle dataset with user_description confirmed",
     "keywords": [
@@ -953,12 +1277,13 @@
       "vaccine side effects"
     ],
     "archive_ids": [
-      "covid_vaccine_2020"
+      "covid_vaccine_2020",
+      "reddit_pushshift"
     ],
     "archive_schema_notes": {
-      "user_description": "user_description (confirmed present \u2014 use for bio classification)",
+      "user_description": "user_description (confirmed present — use for bio classification)",
       "created_at": "date",
-      "coverage": "Jan 2020\u2013March 2021"
+      "coverage": "Jan 2020–March 2021"
     },
     "target_blocs": [
       "african_american",
@@ -966,8 +1291,13 @@
       "white",
       "secular"
     ],
-    "shock_window_days": 90,
-    "active": false
+    "shock_window_days": 45,
+    "active": true,
+    "date_window": {
+      "start": "2020-12-01",
+      "shock_date": "2020-12-14",
+      "end": "2021-01-28"
+    }
   },
   {
     "id": "blm_george_floyd_2020",
@@ -989,7 +1319,8 @@
       "systemic racism"
     ],
     "archive_ids": [
-      "blm_2020"
+      "reddit_pushshift",
+      "3dlnews"
     ],
     "target_blocs": [
       "african_american",
@@ -997,8 +1328,14 @@
       "white",
       "secular"
     ],
-    "shock_window_days": 60,
-    "active": false
+    "shock_window_days": 98,
+    "active": true,
+    "archive_schema_notes": "Twitter BLM 2020 coverage dropped 2026-06-03 — all candidates are IDs-only, wrong language, or wrong time period. Sole source: Reddit Pushshift r/BlackLivesMatter + r/BlackPeopleTwitter, filtered to 2020-05-25 through 2020-08-31, inference_method=subreddit_proxy, exclude from Sigma_Delta.",
+    "date_window": {
+      "start": "2020-05-25",
+      "shock_date": "2020-05-25",
+      "end": "2020-08-31"
+    }
   },
   {
     "id": "daca_scotus_2020",
@@ -1020,21 +1357,27 @@
       "DACA win"
     ],
     "archive_ids": [
-      "daca_scotus_2020"
+      "daca_scotus_2020",
+      "reddit_pushshift"
     ],
     "archive_schema_notes": {
       "text": "status",
       "created_at": "timestamp",
-      "lang": "en (hardcoded \u2014 field absent in source)",
-      "inference_method": "platform_proxy (Latino/diverse \u2014 no user.description)"
+      "lang": "en (hardcoded — field absent in source)",
+      "inference_method": "platform_proxy (Latino/diverse — no user.description)"
     },
     "target_blocs": [
       "latino",
       "asian",
       "secular"
     ],
-    "shock_window_days": 21,
-    "active": false
+    "shock_window_days": 14,
+    "active": true,
+    "date_window": {
+      "start": "2020-06-15",
+      "shock_date": "2020-06-18",
+      "end": "2020-07-02"
+    }
   },
   {
     "id": "ruth_bader_ginsburg_2020",
@@ -1054,7 +1397,10 @@
       "McConnell SCOTUS",
       "Supreme Court election"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "women",
       "jewish",
@@ -1062,7 +1408,12 @@
       "evangelical"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2020-09-15",
+      "shock_date": "2020-09-18",
+      "end": "2020-10-02"
+    }
   },
   {
     "id": "trump_covid_diagnosis_2020",
@@ -1081,7 +1432,10 @@
       "Trump sick",
       "COVID White House"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "white",
@@ -1089,7 +1443,54 @@
       "women"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2020-09-29",
+      "shock_date": "2020-10-02",
+      "end": "2020-10-16"
+    }
+  },
+  {
+    "id": "election_2020",
+    "date": "2020-11-03",
+    "category": "Electoral/Voting Rights",
+    "description": "Joe Biden defeats Donald Trump in presidential election, winning Electoral College 306-232 and popular vote by 7 million; sinking8 Kaggle dataset covers election-week tweets",
+    "keywords": [
+      "Biden wins",
+      "Biden elected",
+      "Biden victory",
+      "election night 2020",
+      "Trump loses",
+      "electoral college 2020",
+      "#ElectionNight",
+      "Biden president",
+      "2020 election result",
+      "Pennsylvania called",
+      "swing states 2020",
+      "mail-in ballots",
+      "#BidenHarris2020"
+    ],
+    "archive_ids": [
+      "election_2020",
+      "reddit_pushshift"
+    ],
+    "archive_schema_notes": {
+      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+    },
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "white",
+      "secular",
+      "evangelical"
+    ],
+    "shock_window_days": 14,
+    "active": true,
+    "date_window": {
+      "start": "2020-10-31",
+      "shock_date": "2020-11-03",
+      "end": "2020-11-17"
+    }
   },
   {
     "id": "jan_6_insurrection_2021",
@@ -1109,7 +1510,10 @@
       "Capitol attack",
       "#January6"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "white",
       "evangelical",
@@ -1117,13 +1521,18 @@
       "african_american"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2021-01-03",
+      "shock_date": "2021-01-06",
+      "end": "2021-01-20"
+    }
   },
   {
     "id": "chauvin_conviction_2021",
     "date": "2021-04-20",
     "category": "Criminal Justice",
-    "description": "Derek Chauvin convicted on all three counts in murder of George Floyd \u2014 first Minnesota police officer convicted of murder in the line of duty",
+    "description": "Derek Chauvin convicted on all three counts in murder of George Floyd — first Minnesota police officer convicted of murder in the line of duty",
     "keywords": [
       "Chauvin verdict",
       "Chauvin conviction",
@@ -1136,7 +1545,10 @@
       "Hennepin County verdict",
       "Floyd family"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "white",
@@ -1144,7 +1556,12 @@
       "latino"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2021-04-17",
+      "shock_date": "2021-04-20",
+      "end": "2021-05-04"
+    }
   },
   {
     "id": "critical_race_theory_2021",
@@ -1164,7 +1581,10 @@
       "white privilege schools",
       "parental rights education"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "white",
@@ -1172,7 +1592,12 @@
       "secular"
     ],
     "shock_window_days": 90,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2021-05-29",
+      "shock_date": "2021-06-01",
+      "end": "2021-06-15"
+    }
   },
   {
     "id": "afghanistan_withdrawal_2021",
@@ -1191,7 +1616,10 @@
       "Taliban takeover",
       "Saigon moment"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "secular",
@@ -1199,7 +1627,12 @@
       "muslim"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2021-08-12",
+      "shock_date": "2021-08-15",
+      "end": "2021-08-29"
+    }
   },
   {
     "id": "russia_ukraine_invasion_2022",
@@ -1220,7 +1653,10 @@
       "Kharkiv",
       "Ukrainian resistance"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "secular",
@@ -1228,13 +1664,18 @@
       "white"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2022-02-21",
+      "shock_date": "2022-02-24",
+      "end": "2022-03-10"
+    }
   },
   {
     "id": "inflation_cpi_peak_2022",
     "date": "2022-06-10",
     "category": "Economic",
-    "description": "US CPI reaches 9.1% year-over-year in June 2022 \u2014 highest inflation in 40 years \u2014 driven by energy, food, and shelter costs; Fed begins aggressive rate hikes",
+    "description": "US CPI reaches 9.1% year-over-year in June 2022 — highest inflation in 40 years — driven by energy, food, and shelter costs; Fed begins aggressive rate hikes",
     "keywords": [
       "inflation",
       "CPI",
@@ -1249,7 +1690,10 @@
       "40 year high inflation",
       "price surge"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "latino",
@@ -1257,7 +1701,12 @@
       "evangelical"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2022-06-07",
+      "shock_date": "2022-06-10",
+      "end": "2022-06-24"
+    }
   },
   {
     "id": "dobbs_2022",
@@ -1278,7 +1727,10 @@
       "SCOTUS abortion",
       "abortion ban"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "women",
       "catholic",
@@ -1286,13 +1738,18 @@
       "secular"
     ],
     "shock_window_days": 30,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2022-06-21",
+      "shock_date": "2022-06-24",
+      "end": "2022-07-08"
+    }
   },
   {
     "id": "trump_indictment_2023",
     "date": "2023-06-09",
     "category": "Moral/Scandal",
-    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago \u2014 first federal criminal indictment of a former US president",
+    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago — first federal criminal indictment of a former US president",
     "keywords": [
       "Trump indictment",
       "Trump indicted",
@@ -1305,7 +1762,10 @@
       "DOJ Trump",
       "espionage act"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "evangelical",
       "white",
@@ -1313,7 +1773,12 @@
       "african_american"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2023-06-06",
+      "shock_date": "2023-06-09",
+      "end": "2023-06-23"
+    }
   },
   {
     "id": "affirmative_action_scotus_2023",
@@ -1332,7 +1797,10 @@
       "diversity admissions",
       "anti-affirmative action"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "african_american",
       "asian",
@@ -1340,7 +1808,12 @@
       "secular"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2023-06-26",
+      "shock_date": "2023-06-29",
+      "end": "2023-07-13"
+    }
   },
   {
     "id": "israel_hamas_war_2023",
@@ -1363,7 +1836,10 @@
       "#FreePalestine",
       "antisemitism campus"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "reddit_pushshift",
+      "3dlnews"
+    ],
     "target_blocs": [
       "jewish",
       "muslim",
@@ -1371,7 +1847,12 @@
       "secular"
     ],
     "shock_window_days": 60,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2023-10-04",
+      "shock_date": "2023-10-07",
+      "end": "2023-10-21"
+    }
   },
   {
     "id": "trump_conviction_2024",
@@ -1391,7 +1872,10 @@
       "Trump criminal",
       "hush money trial"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "truth_social_2024",
+      "reddit_pushshift"
+    ],
     "target_blocs": [
       "evangelical",
       "white",
@@ -1399,13 +1883,18 @@
       "african_american"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2024-05-27",
+      "shock_date": "2024-05-30",
+      "end": "2024-06-13"
+    }
   },
   {
     "id": "trump_assassination_attempt_2024",
     "date": "2024-07-13",
     "category": "Security",
-    "description": "Gunman shoots Trump at Butler, Pennsylvania rally; bullet grazes his ear as Secret Service kills shooter; Thomas Matthew Crooks identified as attacker",
+    "description": "Gunman shoots Trump at Butler, Pennsylvania rally; bullet grazes his ear as Secret Service kills shooter; Thomas Matthew Crooks identified as attacker; covered by kashish-s USC Humans Lab Truth Social dataset",
     "keywords": [
       "Trump shooting",
       "Trump assassination attempt",
@@ -1418,7 +1907,10 @@
       "assassination attempt",
       "political violence"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "truth_social_2024",
+      "reddit_pushshift"
+    ],
     "target_blocs": [
       "evangelical",
       "white",
@@ -1426,13 +1918,18 @@
       "african_american"
     ],
     "shock_window_days": 14,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2024-07-10",
+      "shock_date": "2024-07-13",
+      "end": "2024-07-27"
+    }
   },
   {
     "id": "biden_withdrawal_2024",
     "date": "2024-07-21",
     "category": "Electoral/Voting Rights",
-    "description": "Biden announces he will not seek reelection and endorses VP Kamala Harris \u2014 first incumbent president to withdraw from a re-election campaign since LBJ in 1968",
+    "description": "Biden announces he will not seek reelection and endorses VP Kamala Harris — first incumbent president to withdraw from a re-election campaign since LBJ in 1968; covered by kashish-s USC Humans Lab Truth Social dataset",
     "keywords": [
       "Biden drops out",
       "Biden withdrawal",
@@ -1447,7 +1944,10 @@
       "Biden age",
       "#KamalaHarris"
     ],
-    "archive_ids": [],
+    "archive_ids": [
+      "truth_social_2024",
+      "reddit_pushshift"
+    ],
     "target_blocs": [
       "african_american",
       "women",
@@ -1455,6 +1955,48 @@
       "latino"
     ],
     "shock_window_days": 21,
-    "active": false
+    "active": true,
+    "date_window": {
+      "start": "2024-07-18",
+      "shock_date": "2024-07-21",
+      "end": "2024-08-04"
+    }
+  },
+  {
+    "id": "election_2024",
+    "date": "2024-11-05",
+    "category": "Electoral/Voting Rights",
+    "description": "Donald Trump defeats Kamala Harris in presidential election, winning Electoral College and popular vote. truth_social_2024 (kashish-s USC Humans Lab) coverage ends 2024-10-29, seven days before election day — shock_date is set to that last-coverage date for Truth Social sampling. Reddit (reddit_pushshift) and Telegram (telegram_2024) extend through the post-election window to 2024-11-19.",
+    "keywords": [
+      "Trump wins 2024",
+      "Trump elected president",
+      "election night 2024",
+      "Kamala Harris concedes",
+      "#Election2024",
+      "Trump victory 2024",
+      "electoral college 2024",
+      "swing states 2024",
+      "Pennsylvania 2024",
+      "Trump Harris debate"
+    ],
+    "archive_ids": [
+      "truth_social_2024",
+      "reddit_pushshift",
+      "telegram_2024"
+    ],
+    "target_blocs": [
+      "african_american",
+      "latino",
+      "women",
+      "evangelical",
+      "secular"
+    ],
+    "shock_window_days": 21,
+    "active": true,
+    "date_window": {
+      "start": "2024-10-15",
+      "shock_date": "2024-10-29",
+      "end": "2024-11-19"
+    }
   }
 ]
