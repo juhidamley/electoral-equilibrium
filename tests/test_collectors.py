@@ -503,7 +503,7 @@ class TestLoadShocks:
         assert len(ayatollah["keywords"]) > 0
         # Pilot test case must include the key identifying terms
         kw_lower = [k.lower() for k in ayatollah["keywords"]]
-        assert any("soleimani" in k for k in kw_lower)
+        assert any("khamenei" in k for k in kw_lower)
         assert any("iran" in k for k in kw_lower)
 
 
