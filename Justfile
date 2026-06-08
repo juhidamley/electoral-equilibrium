@@ -8,7 +8,8 @@
 #   score       Submit RoBERTa SLURM array job on CMC HPC
 #   train       Submit QLoRA fine-tuning SLURM job on CMC HPC
 #   deploy      Deploy to Modal (GPU inference) + Vercel (frontend)
-#   sample      Submit stratified archive sampling SLURM array on CMC HPC
+#   sample      Submit stratified archive sampling SLURM array on CMC Hopper HPC
+#   sample-laguna Submit same array on USC Laguna HPC
 #   clean       Run LLM cleaning on sampled social/news data (M5, local open-weight model)
 #   continuous  Run nightly incremental pipeline (post-SRP mode, launchd @ 2am)
 
@@ -41,17 +42,33 @@ train:
     sbatch scripts/hpc_submit.sh
     @echo "Monitor with: squeue -u $USER && tail -f slurm-*.out"
 
-# Submit stratified archive sampling (draws ~200k posts per dataset)
+# Submit stratified archive sampling SLURM array (draws ~5k posts per shock/archive pair)
+# Archives must already be present on HPC scratch — they are downloaded directly there.
 sample:
-    rsync -avz data/archives/ hpc:$SCRATCH/electoral/archives/
-    sbatch --array=0-24 scripts/sample_archives.py
-    @echo "Monitor with: squeue -u $USER"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    N=$(python scripts/sample_archives.py --list-tasks | tail -1)
+    echo "Submitting sampling array: $N tasks (0-$((N-1)))"
+    sbatch --array=0-$((N-1)) scripts/hpc/sample_archives.slurm
+    echo "Monitor with: squeue -u $USER"
+
+# Submit same sampling array on USC Laguna HPC (partition=compute, scratch at /scratch/JDamley28@cmc.edu/)
+sample-laguna:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    N=$(python scripts/sample_archives.py --list-tasks | tail -1)
+    echo "Submitting Laguna sampling array: $N tasks (0-$((N-1)))"
+    sbatch --array=0-$((N-1)) scripts/hpc/sample_archives_laguna.slurm
+    echo "Monitor with: squeue -u $USER"
 
 # ── Data preparation (runs locally on M5 or Windows) ─────────────────────────
 
-# LLM cleaning: off-topic filter, dedup, normalisation (local model on M5; NEVER Gemini API)
+# LLM cleaning: steps 1-4 (Gemini 2.0 Flash for off-topic filter; steps 2-4 deterministic)
+# Requires GEMINI_API_KEY or GEMINI env var. Use --dry-run to skip Gemini (steps 2-4 only).
 clean:
-    python scripts/clean_with_llm.py
+    python scripts/clean_with_llm.py \
+        --input-dir /Volumes/JUHIDRIVE/electoralData/sampled/ \
+        --output-dir /Volumes/JUHIDRIVE/electoralData/cleaned/
 
 # ── Deployment ────────────────────────────────────────────────────────────────
 

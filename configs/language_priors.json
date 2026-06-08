@@ -1,21 +1,84 @@
 {
-  "note": "Pew Research-based priors for language fallback. Used ONLY when bio classifier returns inference_method=language_prior. Exclude language_prior posts from mean/covariance estimation; use as held-out validation only.",
+  "note": "Pew Research-based priors for language fallback. Applied in Stage 2 of BioClassifier when post language is non-English and bio keyword matching yields no signal. CRITICAL: posts tagged inference_method=language_prior are excluded from both mean mu and covariance Sigma_Delta estimation — used as held-out validation only.",
+  "sources": {
+    "hispanic": "Pew Research Center 2023, Hispanic Americans Today",
+    "asian_american": "Pew Research Center 2023, Asian Americans and Religion",
+    "arabic": "Pew Research Center 2017, U.S. Muslims"
+  },
   "priors": {
     "spanish": {
-      "race": {"latino": 0.80, "other_race": 0.20},
-      "note": "Spanish-language posts assumed predominantly Latino"
+      "race": {
+        "latino": 0.80,
+        "other_race": 0.20
+      },
+      "religion": {
+        "catholic": 0.47,
+        "evangelical": 0.24,
+        "protestant": 0.08,
+        "secular": 0.15,
+        "other_rel": 0.06
+      },
+      "gender": {
+        "women": 0.52,
+        "men": 0.47,
+        "other_gender": 0.01
+      },
+      "note": "Spanish-language posts assumed predominantly Latino; religion from Pew 2023 Hispanic Americans survey"
     },
     "korean": {
-      "race": {"asian": 0.90, "other_race": 0.10},
-      "note": "Korean-language posts assumed predominantly Korean-American (Asian)"
+      "race": {
+        "asian": 0.90,
+        "other_race": 0.10
+      },
+      "religion": {
+        "protestant": 0.70,
+        "catholic": 0.10,
+        "secular": 0.15,
+        "other_rel": 0.05
+      },
+      "gender": {
+        "women": 0.52,
+        "men": 0.47,
+        "other_gender": 0.01
+      },
+      "note": "Korean-language posts assumed predominantly Korean-American; high Protestant share from Pew 2023 Asian Americans survey"
     },
     "chinese": {
-      "race": {"asian": 0.90, "other_race": 0.10},
-      "note": "Chinese-language posts assumed predominantly Chinese-American (Asian)"
+      "race": {
+        "asian": 0.90,
+        "other_race": 0.10
+      },
+      "religion": {
+        "protestant": 0.30,
+        "catholic": 0.08,
+        "secular": 0.52,
+        "other_rel": 0.10
+      },
+      "gender": {
+        "women": 0.52,
+        "men": 0.47,
+        "other_gender": 0.01
+      },
+      "note": "Chinese-language posts assumed predominantly Chinese-American; high secular share from Pew 2023 Asian Americans survey"
     },
     "arabic": {
-      "race": {"other_race": 0.50, "white": 0.30, "african_american": 0.20},
-      "note": "Arabic speakers are diverse — conservative prior"
+      "race": {
+        "other_race": 0.50,
+        "white": 0.30,
+        "african_american": 0.20
+      },
+      "religion": {
+        "muslim": 0.60,
+        "catholic": 0.12,
+        "protestant": 0.10,
+        "other_rel": 0.18
+      },
+      "gender": {
+        "women": 0.52,
+        "men": 0.47,
+        "other_gender": 0.01
+      },
+      "note": "Arabic speakers are racially and religiously diverse; conservative prior. Muslim majority from Pew 2017 U.S. Muslims report"
     }
   }
 }

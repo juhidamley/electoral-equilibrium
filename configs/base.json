@@ -28,5 +28,7 @@
     "other_gender"
   ],
   "pi_bio_server": "http://100.x.x.x:9000",
-  "pi_npu_enabled": false
+  "pi_npu_enabled": false,
+  "data_root": "data/archives/",
+  "pi_data_root": "data/archives/"
 }

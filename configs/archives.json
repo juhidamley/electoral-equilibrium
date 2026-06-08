@@ -1,0 +1,516 @@
+{
+  "meta": {
+    "mac_base": "/Volumes/JUHIDRIVE/electoralData/archives/",
+    "pi_base": "/mnt/juhidrive/electoralData/archives/",
+    "last_audited": "2026-06-03",
+    "note": "Paths confirmed against JUHIDRIVE inventory 2026-06-03. See data/archives/README.md for schema verification checklists. window_start = shock_date - 3 days (pre-shock baseline); window_end = shock_date + shock_window_days from shocks.json."
+  },
+  "archives": [
+    {
+      "slug": "metoo_liwc",
+      "platform": "twitter",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/validation/metoo_liwc/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/validation/metoo_liwc/",
+      "files": [
+        "fulldataCHBR.sav",
+        "Subset300CHBR.sav",
+        "MANIFEST.TXT",
+        "readme.txt"
+      ],
+      "format": "SPSS SAV",
+      "approximate_size_mb": 3.9,
+      "field_map": {
+        "text": "Tweet",
+        "shock_phase": "Event"
+      },
+      "shock_coverage": [
+        {
+          "shock_slug": "metoo_2017",
+          "shock_date": "2017-10-15",
+          "window_start": "2017-10-12",
+          "window_end": "2018-04-13"
+        },
+        {
+          "shock_slug": "kavanaugh_2018",
+          "shock_date": "2018-09-27",
+          "window_start": "2018-09-24",
+          "window_end": "2018-10-11"
+        },
+        {
+          "shock_slug": "kavanaugh_confirmed",
+          "shock_date": "2018-10-06",
+          "window_start": "2018-10-03",
+          "window_end": "2018-10-20",
+          "note": "Foster & Rathlin phase — not a separate entry in shocks.json"
+        },
+        {
+          "shock_slug": "weinstein_convicted_2020",
+          "shock_date": "2020-02-24",
+          "window_start": "2020-02-21",
+          "window_end": "2020-03-09",
+          "note": "Foster & Rathlin phase — not a separate entry in shocks.json"
+        }
+      ],
+      "notes": "Foster & Rathlin 2022. DOI: 10.5683/SP3/1YWCW1. License: CC BY-NC-SA 4.0 — flag for commercial review. 3,683 LIWC-scored tweets across 4 shock phases. No user_description — platform proxy (secular/diverse) for all posts. Use as training signal only; do not include in Sigma_Delta estimation. fulldataCHBR.sav is primary (3,683 tweets); Subset300CHBR.sav is 300-tweet subsample."
+    },
+    {
+      "slug": "covid_pandemic_2020",
+      "platform": "twitter",
+      "tier": "pending_schema_check",
+      "inference_method": "pending",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/covid_pandemic_2020/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/covid_pandemic_2020/",
+      "files": [
+        "covid19_tweets.csv"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 68.7,
+      "shock_coverage": [
+        {
+          "shock_slug": "covid_pandemic_2020",
+          "shock_date": "2020-03-11",
+          "window_start": "2020-03-08",
+          "window_end": "2020-05-10"
+        }
+      ],
+      "notes": "gpreda Kaggle dataset. ~179k tweets covering March-April 2020. Schema check pending: if user_description present, promote to Tier 1 (bio_classifier); if absent, Tier 2 (platform_proxy, secular/diverse US general public)."
+    },
+    {
+      "slug": "covid_vaccine_2020",
+      "platform": "twitter",
+      "tier": 1,
+      "inference_method": "bio_classifier",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/covid_vaccine_2020/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/covid_vaccine_2020/",
+      "files": [
+        "covidvaccine.csv"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 176.9,
+      "field_map": {
+        "text": "text",
+        "created_at": "date",
+        "user_description": "user_description"
+      },
+      "shock_coverage": [
+        {
+          "shock_slug": "covid_vaccine_2020",
+          "shock_date": "2020-12-11",
+          "window_start": "2020-12-08",
+          "window_end": "2021-03-11"
+        }
+      ],
+      "notes": "kaushiksuresh147 Kaggle dataset. Coverage: Jan 2020 – March 2021. user_description confirmed present — Tier 1. ~200k tweets. created_at is in 'date' column. Can also cover covid_pandemic_2020 early-window posts (Jan-Mar 2020 slice) if needed."
+    },
+    {
+      "slug": "daca_scotus_2020",
+      "platform": "twitter",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/daca_tweets/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/daca_tweets/",
+      "files": [
+        "*.jsonl (6 files by month: Jan-Jun 2020)"
+      ],
+      "format": "JSONL",
+      "approximate_size_mb": null,
+      "field_map": {
+        "text": "status",
+        "created_at": "timestamp",
+        "lang": "en (hardcoded — field absent in source)"
+      },
+      "shock_coverage": [
+        {
+          "shock_slug": "daca_scotus_2020",
+          "shock_date": "2020-06-18",
+          "window_start": "2020-06-15",
+          "window_end": "2020-07-09"
+        }
+      ],
+      "notes": "Path mismatch: expected twitter/daca_scotus_2020/, actual twitter/daca_tweets/. No user.description — platform proxy: Latino/diverse. Lang hardcoded to 'en' (field absent). text field is 'status', timestamp is 'timestamp'. Exclude from Sigma_Delta."
+    },
+    {
+      "slug": "election_2012",
+      "platform": "twitter",
+      "tier": "pending_schema_check",
+      "inference_method": "pending",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/election_2012/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/election_2012/",
+      "files": [
+        "tweets.json"
+      ],
+      "format": "JSON",
+      "approximate_size_mb": 3224.7,
+      "shock_coverage": [
+        {
+          "shock_slug": "election_2012",
+          "shock_date": "2012-11-06",
+          "window_start": "2012-11-03",
+          "window_end": "2012-11-20"
+        }
+      ],
+      "notes": "jgoodman8 Kaggle dataset. ~1M tweets. Schema check pending: verify text or full_text, created_at, lang, user_description. Tier 1 if user_description present; Tier 2 (platform_proxy, general US electorate) if absent. Baseline pre-Trump election for sentiment calibration."
+    },
+    {
+      "slug": "election_2016",
+      "platform": "twitter",
+      "tier": "pending_schema_check",
+      "inference_method": "pending",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/election_2016/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/election_2016/",
+      "files": [
+        "election_day_tweets.csv"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 216.1,
+      "shock_coverage": [
+        {
+          "shock_slug": "trump_election_upset_2016",
+          "shock_date": "2016-11-08",
+          "window_start": "2016-11-05",
+          "window_end": "2016-11-29"
+        }
+      ],
+      "notes": "kinguistics Kaggle dataset. Schema check pending: verify user_description to determine Tier 1 vs Tier 2. Path confirmed at twitter/election_2016/ (was expected at twitter/trump_election_upset_2016/)."
+    },
+    {
+      "slug": "election_2020",
+      "platform": "twitter",
+      "tier": "pending_schema_check",
+      "inference_method": "pending",
+      "status": "downloaded",
+      "mac_path": [
+        "/Volumes/JUHIDRIVE/electoralData/archives/twitter/2020electiontweets/",
+        "/Volumes/JUHIDRIVE/electoralData/archives/twitter/USA Nov.2020 Election/"
+      ],
+      "pi_path": [
+        "/mnt/juhidrive/electoralData/archives/twitter/2020electiontweets/",
+        "/mnt/juhidrive/electoralData/archives/twitter/USA Nov.2020 Election/"
+      ],
+      "files": [
+        "twitter/2020electiontweets/*.csv (manchunhui hashtag CSVs, ~864 MB)",
+        "twitter/USA Nov.2020 Election/*.csv (20M tweets CSV, ~3740 MB)"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 4604,
+      "shock_coverage": [
+        {
+          "shock_slug": "election_2020",
+          "shock_date": "2020-11-03",
+          "window_start": "2020-10-31",
+          "window_end": "2020-11-24",
+          "note": "election_2020 not in shocks.json — add shock entry if pilot extends to 2020 cycle"
+        }
+      ],
+      "notes": "Two separate datasets at path mismatch from expected twitter/election_2020/. (1) manchunhui hashtag CSVs (864 MB combined); (2) 20M tweet CSV (3,740 MB). Schema check required for both: verify user_description, text, created_at, lang. The 'USA Nov.2020 Election/' directory name may have more characters — verify exact name on drive. Tier assignment pending."
+    },
+    {
+      "slug": "election_2024",
+      "platform": "twitter",
+      "tier": "pending_schema_check",
+      "inference_method": "pending",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/x-24-us-election-main/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/x-24-us-election-main/",
+      "files": [
+        "part_*/may_july_chunk_*.csv.gz (47 gzipped parts)"
+      ],
+      "format": "CSV.GZ",
+      "approximate_size_mb": null,
+      "shock_coverage": [
+        {
+          "shock_slug": "election_2024",
+          "shock_date": "2024-11-05",
+          "window_start": "2024-11-02",
+          "window_end": "2024-11-26"
+        }
+      ],
+      "notes": "sinking8 dataset. 47 gzipped CSV parts. CRITICAL: schema check required before any processing — may be tweet IDs only. If IDs only: add to ID-only rehydration backlog (not usable at current API tier), log alongside echen102 and SMAPP NYU in DECISIONS.md. If full objects: verify user_description for tier assignment. Path mismatch from expected twitter/x_2024/. Covers May-Jul 2024 window per filename pattern — verify whether Nov 2024 election window is included."
+    },
+    {
+      "slug": "truth_social_2022",
+      "platform": "truth_social",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/truthsocial/zenodo_notredame/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/truthsocial/zenodo_notredame/",
+      "files": [
+        "truths.tsv",
+        "users.tsv",
+        "follows.tsv",
+        "replies.tsv",
+        "media.tsv",
+        "external_urls.tsv",
+        "truth_media_edges.tsv",
+        "truth_external_url_edges.tsv",
+        "truth_hashtag_edges.tsv",
+        "truth_user_tag_edges.tsv",
+        "quotes.tsv",
+        "hashtags.tsv"
+      ],
+      "format": "TSV",
+      "approximate_size_mb": 551,
+      "field_map": {
+        "text": "truths.tsv:text",
+        "created_at": "truths.tsv:timestamp",
+        "author_id": "truths.tsv:author (join to users.tsv:id for username)"
+      },
+      "shock_coverage": [
+        {
+          "shock_slug": "russia_ukraine_invasion_2022",
+          "shock_date": "2022-02-24",
+          "window_start": "2022-02-21",
+          "window_end": "2022-03-26"
+        },
+        {
+          "shock_slug": "inflation_cpi_peak_2022",
+          "shock_date": "2022-06-10",
+          "window_start": "2022-06-07",
+          "window_end": "2022-07-10"
+        },
+        {
+          "shock_slug": "dobbs_2022",
+          "shock_date": "2022-06-24",
+          "window_start": "2022-06-21",
+          "window_end": "2022-07-24"
+        }
+      ],
+      "notes": "Notre Dame scrape (Zenodo). ~824k well-formed truth posts; 454k users. Date range: Feb 2022 onward — verify upper bound before assigning to specific shocks. NO user bio field: users.tsv profile_url is a link, not bio text. Platform proxy: Evangelical/conservative Protestant for all posts. Filter is_retruth=f for scoring. ~30,500 rows have embedded newlines in text — use csv.reader(quoting=csv.QUOTE_NONE) or on_bad_lines='skip'. Full schema in data/archives/README.md."
+    },
+    {
+      "slug": "truth_social_2024",
+      "platform": "truth_social",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "not_downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/truthsocial/kashish_s_2024/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/truthsocial/kashish_s_2024/",
+      "files": [],
+      "format": "pending",
+      "approximate_size_mb": null,
+      "shock_coverage": [
+        {
+          "shock_slug": "trump_assassination_attempt_2024",
+          "shock_date": "2024-07-13",
+          "window_start": "2024-07-10",
+          "window_end": "2024-07-27"
+        },
+        {
+          "shock_slug": "biden_withdrawal_2024",
+          "shock_date": "2024-07-21",
+          "window_start": "2024-07-18",
+          "window_end": "2024-08-11"
+        },
+        {
+          "shock_slug": "election_2024",
+          "shock_date": "2024-11-05",
+          "window_start": "2024-11-02",
+          "window_end": "2024-11-26"
+        }
+      ],
+      "notes": "kashish-s USC Humans Lab Truth Social dataset covering full 2024 election window. STATUS: NOT DOWNLOADED. truthSocial/TruthSocial_2024ElectionInitiative-main/ on JUHIDRIVE contains only scraper scripts, no collected data. Must run the scraper or locate a pre-collected mirror before these shocks have a live social source. Target path after download: truthsocial/kashish_s_2024/. Platform proxy: Evangelical/conservative (consistent with zenodo_notredame). Exclude from Sigma_Delta."
+    },
+    {
+      "slug": "truth_social_2025",
+      "platform": "truth_social",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "planned",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/truthsocial/ts_2025/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/truthsocial/ts_2025/",
+      "files": [],
+      "format": "pending",
+      "approximate_size_mb": null,
+      "shock_coverage": [],
+      "notes": "Placeholder for 2025 Truth Social data. No dataset identified or downloaded yet. Assign shock_slugs once source is confirmed. Platform proxy: Evangelical/conservative (consistent with zenodo_notredame and kashish_s_2024). Exclude from Sigma_Delta."
+    },
+    {
+      "slug": "telegram_2024",
+      "platform": "telegram",
+      "tier": 2,
+      "inference_method": "platform_proxy",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/telegram/telegram_2024/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/telegram/telegram_2024/",
+      "files": [
+        "telegram_2024.csv"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 14.1,
+      "shock_coverage": [
+        {
+          "shock_slug": "election_2024",
+          "shock_date": "2024-11-05",
+          "window_start": "2024-11-02",
+          "window_end": "2024-11-26"
+        }
+      ],
+      "notes": "leonardoblas dataset. 14.1 MB — small corpus, likely targeted at 2024 election window. Schema check pending. No user bio expected — platform proxy: conservative/far-right lean (US political Telegram channels 2024). Exclude from Sigma_Delta."
+    },
+    {
+      "slug": "senator_tweets",
+      "platform": "twitter",
+      "tier": "calibration",
+      "inference_method": "calibration_only",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/twitter/senator_tweets/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/twitter/senator_tweets/",
+      "files": [
+        "senator_tweets.csv"
+      ],
+      "format": "CSV",
+      "approximate_size_mb": 520.3,
+      "shock_coverage": [],
+      "notes": "m-newhauser Kaggle dataset. Official US senator tweets spanning multiple years. CALIBRATION ONLY — do not use for bloc sentiment estimation or Sigma_Delta. Use to validate that delta-bin assignments from RoBERTa are directionally consistent with legislator voting records on the same shock. Filter by date and keyword to align with any shock in shocks.json."
+    },
+    {
+      "slug": "reddit_pushshift",
+      "platform": "reddit",
+      "tier": 2,
+      "inference_method": "subreddit_proxy",
+      "status": "downloaded",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/reddit/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/reddit/",
+      "files": [
+        "*.zst (zstandard-compressed NDJSON, one file per subreddit — see subreddits list)"
+      ],
+      "format": "zstandard NDJSON",
+      "approximate_size_mb": 69380,
+      "subreddits": [
+        "politics",
+        "atheism",
+        "exmormon",
+        "AskMen",
+        "AskWomen",
+        "TwoXChromosomes",
+        "Catholicism",
+        "Conservative",
+        "BlackPeopleTwitter",
+        "exmuslim",
+        "islam",
+        "PoliticalDiscussion",
+        "AskConservatives",
+        "AskALiberal",
+        "AskFeminists",
+        "Republican",
+        "Jewish",
+        "exjw",
+        "mormon",
+        "Feminism",
+        "moderate_politics",
+        "progressive",
+        "excatholic",
+        "LatinoPeopleTwitter",
+        "exlldm",
+        "asianamerican",
+        "mormonpolitics",
+        "Liberal",
+        "ProgressiveHQ",
+        "BlackLivesMatter",
+        "BlackPeopleofReddit",
+        "askblackpeople",
+        "blackmen",
+        "BlackMentalHealth",
+        "BlackIsBetter",
+        "exjew",
+        "ReformJews",
+        "jewishleft",
+        "jewishpolitics",
+        "JewsOfConscience",
+        "Reformed",
+        "askanatheist",
+        "SoCalLatina",
+        "Chicano",
+        "askaconservative"
+      ],
+      "shock_coverage": [
+        {
+          "shock_slug": "metoo_2017",
+          "shock_date": "2017-10-15",
+          "window_start": "2017-10-12",
+          "window_end": "2018-04-13",
+          "filter_subreddits": [
+            "TwoXChromosomes",
+            "Feminism",
+            "AskFeminists",
+            "AskWomen"
+          ]
+        },
+        {
+          "shock_slug": "kavanaugh_2018",
+          "shock_date": "2018-09-27",
+          "window_start": "2018-09-24",
+          "window_end": "2018-10-11",
+          "filter_subreddits": [
+            "TwoXChromosomes",
+            "Feminism",
+            "AskFeminists",
+            "AskWomen",
+            "politics",
+            "Conservative"
+          ]
+        },
+        {
+          "shock_slug": "blm_george_floyd_2020",
+          "shock_date": "2020-05-25",
+          "window_start": "2020-05-22",
+          "window_end": "2020-07-24",
+          "filter_subreddits": [
+            "BlackLivesMatter",
+            "BlackPeopleTwitter",
+            "BlackPeopleofReddit",
+            "politics"
+          ]
+        }
+      ],
+      "notes": "Academic Torrents Pushshift dump. Downloaded 2026-06-03 via BitTorrent (~50GB target slice for project subreddits). No user bio in Pushshift — subreddit-level demographic proxy for all posts. Exclude from Sigma_Delta (inference_method=subreddit_proxy). BlackIsBetter: NSFW check required before processing. Incomplete .part files for DebateAChristian (2MB, no full file) and DebateCommunism (132MB, no full file) — re-download or skip. Can be filtered by keyword + date window for any shock in shocks.json beyond the three explicitly assigned."
+    },
+    {
+      "slug": "blm_george_floyd_2020",
+      "platform": "reddit",
+      "tier": 2,
+      "inference_method": "subreddit_proxy",
+      "status": "derived_from_reddit_pushshift",
+      "source_archive": "reddit_pushshift",
+      "mac_path": "/Volumes/JUHIDRIVE/electoralData/archives/reddit/",
+      "pi_path": "/mnt/juhidrive/electoralData/archives/reddit/",
+      "files": [
+        "BlackLivesMatter_comments.zst",
+        "BlackPeopleTwitter_comments.zst",
+        "BlackPeopleTwitter_submissions.zst",
+        "BlackPeopleofReddit_comments.zst",
+        "askblackpeople_comments.zst",
+        "blackmen_comments.zst",
+        "BlackMentalHealth_comments.zst"
+      ],
+      "format": "zstandard NDJSON",
+      "approximate_size_mb": 2418,
+      "subreddits": [
+        "BlackLivesMatter",
+        "BlackPeopleTwitter",
+        "BlackPeopleofReddit",
+        "askblackpeople",
+        "blackmen",
+        "BlackMentalHealth"
+      ],
+      "shock_coverage": [
+        {
+          "shock_slug": "blm_george_floyd_2020",
+          "shock_date": "2020-05-25",
+          "window_start": "2020-05-22",
+          "window_end": "2020-07-24"
+        }
+      ],
+      "notes": "Logical filter of reddit_pushshift targeting African American subreddits for the George Floyd / BLM shock. Twitter BLM 2020 coverage dropped 2026-06-03 — all Twitter BLM candidates were IDs-only, wrong language, or wrong time period. Reddit Pushshift is sole social media source for blm_george_floyd_2020. Exclude from Sigma_Delta. BlackIsBetter excluded pending NSFW content check. inference_method=subreddit_proxy for all posts."
+    }
+  ]
+}

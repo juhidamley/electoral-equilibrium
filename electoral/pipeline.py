@@ -52,6 +52,7 @@ except ImportError:
 
 
 from electoral.config import PipelineConfig
+from electoral.kernels.sentiment import merge_all_posts
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
@@ -74,6 +75,12 @@ def task_voter_panel(config: PipelineConfig):
 @task(**_RETRY)
 def task_baseline_portfolio(config: PipelineConfig, panel):
     return build_baseline_portfolio(config, panel)
+
+
+@task(**_RETRY)
+def task_merge_posts(config: PipelineConfig):
+    """Merge per-platform JSONL files → rawdata/merged/{shock_id}/posts.jsonl."""
+    return merge_all_posts()
 
 
 @task(**_RETRY)
@@ -124,7 +131,10 @@ def run_pipeline(
     # Stage 1: voter panel — no upstream dependencies
     panel = task_voter_panel(config)
 
-    # Stages 2 + 3: both depend only on panel → run concurrently under Prefect
+    # Stage 2: merge per-platform social files → rawdata/merged/ (runs after panel)
+    task_merge_posts(config)
+
+    # Stages 3 + 4: both depend only on panel → run concurrently under Prefect
     baseline = task_baseline_portfolio(config, panel)
     sentiment = task_sentiment_data(config, panel)
 
@@ -189,6 +199,7 @@ def main() -> None:
         config = PipelineConfig.from_json(args.config)
         config.validate()
         panel = build_voter_panel(config)
+        merge_all_posts()
         build_baseline_portfolio(config, panel)
         sentiment = build_sentiment_data(config, panel)
         if config.pipeline_mode == "historical":

@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ACTOR_ID = "apidojo/tweet-scraper"
 MAX_ITEMS_FREE_TIER = 500  # Hard limit to stay within free tier
+MAX_ITEMS_QUOTA_RETRY = 100  # Reduced count retried when free-tier credit is exhausted
 
 # Apify actor input field names vary by actor version.
 # We support two common schemas and fall back gracefully.
@@ -303,6 +304,13 @@ class ApifyXScraper:
     def run(self) -> int:
         """Execute the Apify actor run and write results to JSONL.
 
+        Free-tier quota fallback:
+        - First attempt: normal run (self._max_items, up to 500).
+        - If the actor run fails with a quota/credit error, retry once with
+          MAX_ITEMS_QUOTA_RETRY (100) to minimise cost.
+        - If the retry also fails, log a warning and return 0. The pipeline
+          falls back to Bluesky alone for this shock. It does NOT crash.
+
         Returns the number of records successfully written.
         """
         ApifyClient = _import_apify()
@@ -316,17 +324,31 @@ class ApifyXScraper:
             len(self._keywords),
             self._max_items,
         )
-        logger.debug("Actor input: %s", json.dumps(run_input, indent=2))
 
-        try:
-            actor_run = client.actor(self._actor_id).call(
-                run_input=run_input,
-                timeout_secs=300,  # 5 min max; free tier runs are fast
-                memory_mbytes=256,
+        actor_run = self._call_actor(client, run_input)
+
+        if actor_run is None:
+            # First attempt failed — retry with reduced item count
+            logger.warning(
+                "Apify free-tier quota may be exhausted for shock '%s'. "
+                "Retrying with max_items=%d (fallback).",
+                self._shock_id,
+                MAX_ITEMS_QUOTA_RETRY,
             )
-        except Exception as exc:
-            logger.error("Apify actor run failed: %s", exc)
-            raise
+            run_input_reduced = dict(run_input)
+            # Update max items in the actor schema-specific field
+            for field in ("maxItems", "max_items"):
+                if field in run_input_reduced:
+                    run_input_reduced[field] = MAX_ITEMS_QUOTA_RETRY
+            actor_run = self._call_actor(client, run_input_reduced)
+
+        if actor_run is None:
+            logger.warning(
+                "Apify actor failed after quota-fallback retry for shock '%s'. "
+                "Skipping Apify for this shock — relying on Bluesky alone.",
+                self._shock_id,
+            )
+            return 0
 
         dataset_id = actor_run.get("defaultDatasetId")
         if not dataset_id:
@@ -362,6 +384,29 @@ class ApifyXScraper:
             self.output_path,
         )
         return written
+
+    def _call_actor(self, client: Any, run_input: dict[str, Any]) -> dict[str, Any] | None:
+        """Attempt a single actor call; return the run dict or None on failure.
+
+        Returns None for quota/credit errors and unexpected failures.
+        Does not raise — callers handle the fallback logic.
+        """
+        try:
+            return client.actor(self._actor_id).call(
+                run_input=run_input,
+                timeout_secs=300,
+                memory_mbytes=256,
+            )
+        except Exception as exc:
+            exc_str = str(exc).lower()
+            # Apify surfaces quota/credit issues as HTTP 402 or messages containing
+            # "insufficient", "credit", "quota", "payment", or "limit exceeded".
+            quota_keywords = ("insufficient", "credit", "quota", "payment", "402", "limit exceeded")
+            if any(kw in exc_str for kw in quota_keywords):
+                logger.warning("Apify quota/credit error detected: %s", exc)
+            else:
+                logger.error("Apify actor call failed: %s", exc)
+            return None
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

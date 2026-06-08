@@ -1,0 +1,60 @@
+# Discord target server guild IDs for Electoral Equilibrium discord_extract job
+#
+# HOW TO FILL THIS IN:
+#   1. Run discord_download.slurm to fetch dataset.zst
+#   2. Run discord_metadata.slurm to produce server_list.txt
+#   3. Open server_list.txt (format: <guild_id>\t<server_name>)
+#   4. Identify servers matching each category below
+#   5. Replace each PLACEHOLDER_<category> line with the real guild ID
+#      One guild ID per line, no quotes, no tab — just the numeric ID
+#
+# After editing, submit the array job:
+#   sbatch --array=0-$(( $(grep -cv '^\s*#\|^\s*$' target_servers.txt) - 1 )) discord_extract.slurm
+#
+# ── POLITICS ────────────────────────────────────────────────────────────────
+# PLACEHOLDER_politics_1
+# PLACEHOLDER_politics_2
+
+# ── CONSERVATIVE ─────────────────────────────────────────────────────────────
+# PLACEHOLDER_conservative_1
+# PLACEHOLDER_conservative_2
+
+# ── PROGRESSIVE ──────────────────────────────────────────────────────────────
+# PLACEHOLDER_progressive_1
+# PLACEHOLDER_progressive_2
+
+# ── CHRISTIAN (general) ──────────────────────────────────────────────────────
+# PLACEHOLDER_christian_1
+# PLACEHOLDER_christian_2
+
+# ── CATHOLIC ─────────────────────────────────────────────────────────────────
+# PLACEHOLDER_catholic_1
+# PLACEHOLDER_catholic_2
+
+# ── EVANGELICAL ──────────────────────────────────────────────────────────────
+# PLACEHOLDER_evangelical_1
+# PLACEHOLDER_evangelical_2
+
+# ── MUSLIM ───────────────────────────────────────────────────────────────────
+# PLACEHOLDER_muslim_1
+# PLACEHOLDER_muslim_2
+
+# ── JEWISH ───────────────────────────────────────────────────────────────────
+# PLACEHOLDER_jewish_1
+# PLACEHOLDER_jewish_2
+
+# ── LATINO ───────────────────────────────────────────────────────────────────
+# PLACEHOLDER_latino_1
+# PLACEHOLDER_latino_2
+
+# ── ASIAN ────────────────────────────────────────────────────────────────────
+# PLACEHOLDER_asian_1
+# PLACEHOLDER_asian_2
+
+# ── BLACK / AFRICAN AMERICAN CULTURE ─────────────────────────────────────────
+# PLACEHOLDER_blackculture_1
+# PLACEHOLDER_blackculture_2
+
+# ── MILITARY / VETERANS ──────────────────────────────────────────────────────
+# PLACEHOLDER_military_1
+# PLACEHOLDER_military_2

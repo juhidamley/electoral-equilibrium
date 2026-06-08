@@ -503,5 +503,258 @@ class TestLoadShocks:
         assert len(ayatollah["keywords"]) > 0
         # Pilot test case must include the key identifying terms
         kw_lower = [k.lower() for k in ayatollah["keywords"]]
-        assert any("soleimani" in k for k in kw_lower)
+        assert any("khamenei" in k for k in kw_lower)
         assert any("iran" in k for k in kw_lower)
+
+
+# ── FacebookCollector — mode selection and schema ─────────────────────────────
+
+
+class TestFacebookCollectorModeSelection:
+    """FacebookCollector must select mode at construction time, not at collect() time."""
+
+    def test_auto_mode_selects_reaction_fallback_when_no_cl_token(self, monkeypatch):
+        """Without FACEBOOK_CL_TOKEN, mode='auto' must select reaction_fallback."""
+        monkeypatch.delenv("FACEBOOK_CL_TOKEN", raising=False)
+        monkeypatch.setenv("FACEBOOK_GRAPH_TOKEN", "fake_graph_token")
+
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector(output_root="/tmp/test_social", mode="auto")
+        assert fc.mode == FacebookCollector.MODE_REACTION_FALLBACK
+
+    def test_auto_mode_selects_content_library_when_cl_token_set(self, monkeypatch):
+        """With FACEBOOK_CL_TOKEN, mode='auto' must select content_library."""
+        monkeypatch.setenv("FACEBOOK_CL_TOKEN", "fake_cl_token")
+
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector(
+            output_root="/tmp/test_social", mode="auto", cl_token="fake_cl_token"
+        )
+        assert fc.mode == FacebookCollector.MODE_CONTENT_LIBRARY
+
+    def test_explicit_reaction_fallback_mode(self, monkeypatch):
+        monkeypatch.setenv("FACEBOOK_GRAPH_TOKEN", "fake_graph_token")
+
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector(
+            output_root="/tmp/test_social",
+            mode="reaction_fallback",
+            graph_token="fake_graph_token",
+        )
+        assert fc.mode == FacebookCollector.MODE_REACTION_FALLBACK
+
+    def test_content_library_without_token_raises(self, monkeypatch):
+        monkeypatch.delenv("FACEBOOK_CL_TOKEN", raising=False)
+
+        from electoral.nlp.social import FacebookCollector
+
+        with pytest.raises(ValueError, match="FACEBOOK_CL_TOKEN"):
+            FacebookCollector(output_root="/tmp", mode="content_library")
+
+    def test_reaction_fallback_without_graph_token_raises(self, monkeypatch):
+        monkeypatch.delenv("FACEBOOK_GRAPH_TOKEN", raising=False)
+
+        from electoral.nlp.social import FacebookCollector
+
+        with pytest.raises(ValueError, match="FACEBOOK_GRAPH_TOKEN"):
+            FacebookCollector(output_root="/tmp", mode="reaction_fallback")
+
+    def test_invalid_mode_raises(self, monkeypatch):
+        monkeypatch.setenv("FACEBOOK_GRAPH_TOKEN", "fake")
+
+        from electoral.nlp.social import FacebookCollector
+
+        with pytest.raises(ValueError, match="mode must be"):
+            FacebookCollector(output_root="/tmp", mode="bad_mode", graph_token="fake")
+
+    def test_output_path_uses_correct_subdir_reaction(self, monkeypatch):
+        monkeypatch.setenv("FACEBOOK_GRAPH_TOKEN", "fake_graph_token")
+
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector(
+            output_root="/tmp/social", mode="reaction_fallback", graph_token="fake"
+        )
+        fc._shock_id = "kavanaugh_2018"
+        assert "facebook_reactions" in str(fc.output_path)
+        assert "kavanaugh_2018" in str(fc.output_path)
+
+    def test_output_path_uses_correct_subdir_cl(self, monkeypatch):
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector(output_root="/tmp/social", mode="content_library", cl_token="fake")
+        fc._shock_id = "kavanaugh_2018"
+        assert "facebook_cl" in str(fc.output_path)
+
+
+class TestFacebookCollectorValence:
+    """Valence computation from reaction counts."""
+
+    def test_all_likes_returns_positive(self):
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector.__new__(FacebookCollector)
+        fc.REACTION_VALENCE = FacebookCollector.REACTION_VALENCE
+
+        post = {
+            "reactions_like": {"summary": {"total_count": 100}},
+            "reactions_love": {"summary": {"total_count": 0}},
+            "reactions_wow": {"summary": {"total_count": 0}},
+            "reactions_haha": {"summary": {"total_count": 0}},
+            "reactions_angry": {"summary": {"total_count": 0}},
+            "reactions_sad": {"summary": {"total_count": 0}},
+        }
+        v = fc._compute_valence(post)
+        assert v > 0.0
+
+    def test_all_angry_returns_negative(self):
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector.__new__(FacebookCollector)
+        fc.REACTION_VALENCE = FacebookCollector.REACTION_VALENCE
+
+        post = {
+            "reactions_like": {"summary": {"total_count": 0}},
+            "reactions_love": {"summary": {"total_count": 0}},
+            "reactions_wow": {"summary": {"total_count": 0}},
+            "reactions_haha": {"summary": {"total_count": 0}},
+            "reactions_angry": {"summary": {"total_count": 100}},
+            "reactions_sad": {"summary": {"total_count": 0}},
+        }
+        v = fc._compute_valence(post)
+        assert v < 0.0
+
+    def test_no_reactions_returns_zero(self):
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector.__new__(FacebookCollector)
+        fc.REACTION_VALENCE = FacebookCollector.REACTION_VALENCE
+        v = fc._compute_valence({})
+        assert v == 0.0
+
+    def test_valence_in_valid_range(self):
+        from electoral.nlp.social import FacebookCollector
+
+        fc = FacebookCollector.__new__(FacebookCollector)
+        fc.REACTION_VALENCE = FacebookCollector.REACTION_VALENCE
+
+        post = {
+            "reactions_like": {"summary": {"total_count": 500}},
+            "reactions_angry": {"summary": {"total_count": 300}},
+            "reactions_sad": {"summary": {"total_count": 200}},
+        }
+        v = fc._compute_valence(post)
+        assert -1.0 <= v <= 1.0
+
+
+# ── Apify quota fallback ──────────────────────────────────────────────────────
+
+
+class TestApifyQuotaFallback:
+    """ApifyXScraper must not crash when Apify quota is exhausted."""
+
+    def test_call_actor_returns_none_on_quota_error(self):
+        """_call_actor returns None (not raise) for quota/credit errors."""
+        from unittest.mock import MagicMock
+
+        from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper
+
+        scraper = ApifyXScraper(
+            shock_id="test_shock",
+            keywords=["test"],
+            output_root="/tmp",
+            apify_token="fake_token",
+            max_items=10,
+        )
+        # Simulate a quota error from the Apify client
+        client_mock = MagicMock()
+        client_mock.actor.return_value.call.side_effect = Exception(
+            "insufficient credits to run this actor"
+        )
+
+        result = scraper._call_actor(client_mock, {"maxItems": 10})
+        assert result is None
+
+    def test_call_actor_returns_none_on_generic_error(self):
+        """_call_actor returns None for any actor run failure."""
+        from unittest.mock import MagicMock
+
+        from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper
+
+        scraper = ApifyXScraper(
+            shock_id="test_shock",
+            keywords=["test"],
+            output_root="/tmp",
+            apify_token="fake_token",
+            max_items=10,
+        )
+        client_mock = MagicMock()
+        client_mock.actor.return_value.call.side_effect = Exception("network timeout")
+
+        result = scraper._call_actor(client_mock, {"maxItems": 10})
+        assert result is None
+
+    def test_run_returns_zero_when_both_attempts_fail(self, monkeypatch):
+        """run() returns 0 (not crash) when all actor attempts fail."""
+        from unittest.mock import MagicMock, patch
+
+        from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper
+
+        scraper = ApifyXScraper(
+            shock_id="test_shock",
+            keywords=["test"],
+            output_root="/tmp",
+            apify_token="fake_token",
+            max_items=10,
+        )
+
+        with patch.object(scraper, "_call_actor", return_value=None):
+            with patch(
+                "electoral.nlp.collectors.apify_x_scraper._import_apify",
+                return_value=MagicMock(),
+            ):
+                result = scraper.run()
+
+        assert result == 0
+
+    def test_quota_retry_uses_reduced_max_items(self):
+        """On first failure, retry uses MAX_ITEMS_QUOTA_RETRY (100), not original count."""
+        from unittest.mock import MagicMock, patch
+
+        from electoral.nlp.collectors import apify_x_scraper as mod
+        from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper
+
+        scraper = ApifyXScraper(
+            shock_id="test_shock",
+            keywords=["test"],
+            output_root="/tmp",
+            apify_token="fake_token",
+            max_items=500,
+        )
+
+        call_results = [None, None]
+        call_args_received: list[dict] = []
+
+        def fake_call_actor(client, run_input):
+            call_args_received.append(dict(run_input))
+            return call_results.pop(0) if call_results else None
+
+        with patch.object(scraper, "_call_actor", side_effect=fake_call_actor):
+            with patch(
+                "electoral.nlp.collectors.apify_x_scraper._import_apify",
+                return_value=MagicMock(),
+            ):
+                scraper.run()
+
+        # Second call should use the reduced item count
+        assert len(call_args_received) == 2
+        second_call = call_args_received[1]
+        # maxItems key should be reduced to MAX_ITEMS_QUOTA_RETRY
+        max_items_key = next(
+            (k for k in second_call if "max" in k.lower() and "items" in k.lower()), None
+        )
+        if max_items_key:
+            assert second_call[max_items_key] == mod.MAX_ITEMS_QUOTA_RETRY

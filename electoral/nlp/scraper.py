@@ -413,6 +413,176 @@ def scrape_outlet(
     return counts
 
 
+# ── Published API ────────────────────────────────────────────────────────────
+
+
+def _parse_published_at(raw: str) -> datetime | None:
+    """Parse RSS pubDate or Atom published into an aware datetime, or None."""
+    if not raw:
+        return None
+    for fmt in (
+        "%a, %d %b %Y %H:%M:%S %z",  # RFC 2822 (RSS): Mon, 03 Feb 2020 12:00:00 +0000
+        "%a, %d %b %Y %H:%M:%S %Z",  # same but with named timezone (GMT)
+        "%Y-%m-%dT%H:%M:%S%z",  # Atom ISO-8601 with offset
+        "%Y-%m-%dT%H:%M:%SZ",  # Atom ISO-8601 UTC
+        "%Y-%m-%d",
+    ):
+        try:
+            dt = datetime.strptime(raw.strip(), fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    return None
+
+
+def scrape_articles(
+    shock_id: str,
+    sources: list[str] | None = None,
+    date_range: tuple[str, str] | None = None,
+    *,
+    dry_run: bool = False,
+    max_articles: int | None = None,
+) -> dict[str, Any]:
+    """Scrape news articles for a specific shock event and date window.
+
+    Args:
+        shock_id:    Shock slug (e.g. ``ayatollah_assassination``). Used to key
+                     the output subdirectory under DATA_ROOT.
+        sources:     List of outlet slugs to scrape (default: all OUTLETS).
+        date_range:  ``(start_iso, end_iso)`` ISO-8601 date strings, e.g.
+                     ``("2026-02-25", "2026-03-14")``. Articles whose pubDate
+                     falls outside this window are discarded. If None, no date
+                     filter is applied (fetches whatever the RSS feed currently
+                     has — useful for live shocks).
+        dry_run:     Fetch and parse but do not write files.
+        max_articles: Cap per outlet (for testing).
+
+    Returns:
+        ``{"shock_id": str, "outlets": {slug: {"attempted", "discarded", "written"}}}``
+
+    Output path: ``DATA_ROOT / shock_id / {outlet_slug} / {date}.jsonl``
+    """
+    slug_set: set[str] | None = set(sources) if sources is not None else None
+    active_outlets = [o for o in OUTLETS if slug_set is None or o["slug"] in slug_set]
+    if not active_outlets:
+        raise ValueError(f"No matching outlets for sources={sources!r}")
+
+    start_dt: datetime | None = None
+    end_dt: datetime | None = None
+    if date_range is not None:
+        start_dt = datetime.fromisoformat(date_range[0])
+        start_dt = (
+            start_dt.replace(tzinfo=timezone.utc)
+            if start_dt.tzinfo is None
+            else start_dt.astimezone(timezone.utc)
+        )
+
+        end_dt = datetime.fromisoformat(date_range[1])
+        end_dt = (
+            end_dt.replace(tzinfo=timezone.utc)
+            if end_dt.tzinfo is None
+            else end_dt.astimezone(timezone.utc)
+        )
+
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    result: dict[str, Any] = {"shock_id": shock_id, "outlets": {}}
+
+    for idx, outlet in enumerate(active_outlets):
+        if idx > 0:
+            time.sleep(INTER_OUTLET_DELAY)
+
+        slug = outlet["slug"]
+        display = outlet["display"]
+        out_path = DATA_ROOT / shock_id / slug / f"{date_str}.jsonl"
+        counts: dict[str, int] = {"attempted": 0, "discarded": 0, "written": 0}
+
+        log.info("[%s/%s] fetching feed", shock_id, display)
+        feed_resp = _fetch(outlet["feed_url"])
+        if feed_resp is None:
+            log.error("[%s/%s] feed unreachable — skipping", shock_id, display)
+            result["outlets"][slug] = counts
+            continue
+
+        items = _parse_feed(feed_resp.content)
+        log.info("[%s/%s] %d feed items", shock_id, display, len(items))
+        seen_ids = _load_seen_ids(out_path)
+
+        for i, item in enumerate(items):
+            if max_articles is not None and counts["written"] >= max_articles:
+                break
+
+            # Date-range filter
+            if start_dt is not None or end_dt is not None:
+                pub_dt = _parse_published_at(item.get("published_at", ""))
+                if pub_dt is not None:
+                    if start_dt is not None and pub_dt < start_dt:
+                        log.debug("[%s/%s] skip pre-window: %s", shock_id, slug, item["url"])
+                        counts["discarded"] += 1
+                        continue
+                    if end_dt is not None and pub_dt > end_dt:
+                        log.debug("[%s/%s] skip post-window: %s", shock_id, slug, item["url"])
+                        counts["discarded"] += 1
+                        continue
+                # If date unparseable, include conservatively
+
+            url = item["url"]
+            article_id = _url_hash(url)
+            counts["attempted"] += 1
+
+            if article_id in seen_ids:
+                log.debug("[%s/%s] skip dedup: %s", shock_id, slug, url)
+                continue
+
+            if i > 0:
+                time.sleep(INTER_ARTICLE_DELAY)
+
+            page_resp = _fetch(url)
+            if page_resp is None:
+                counts["discarded"] += 1
+                continue
+
+            text = _extract_text(page_resp.text, outlet["content_selectors"])
+            wc = _word_count(text)
+
+            if wc < MIN_WORD_COUNT:
+                log.debug("[%s/%s] discard wc=%d: %s", shock_id, slug, wc, url)
+                counts["discarded"] += 1
+                continue
+
+            record = _build_record(
+                url=url,
+                title=item["title"],
+                text=text,
+                published_at=item["published_at"],
+                outlet_slug=slug,
+                word_count=wc,
+            )
+            # Stamp shock_id into the payload at collection time
+            record["payload"]["shock_id"] = shock_id
+            _append_record(out_path, record, dry_run=dry_run)
+            seen_ids.add(article_id)
+            counts["written"] += 1
+            log.info("[%s/%s] wrote wc=%d: %s", shock_id, slug, wc, url)
+
+        discard_rate = (
+            counts["discarded"] / counts["attempted"] * 100 if counts["attempted"] else 0.0
+        )
+        log.info(
+            "[%s/%s] done — attempted=%d  discarded=%d (%.0f%%)  written=%d",
+            shock_id,
+            display,
+            counts["attempted"],
+            counts["discarded"],
+            discard_rate,
+            counts["written"],
+        )
+        result["outlets"][slug] = counts
+
+    return result
+
+
 # ── CLI entry point ───────────────────────────────────────────────────────────
 
 
@@ -438,6 +608,21 @@ def _parse_args() -> argparse.Namespace:
         metavar="SLUG",
         help="Run a single outlet by slug (e.g. fox, nyt).",
     )
+    parser.add_argument(
+        "--shock-id",
+        dest="shock_id",
+        default=None,
+        metavar="SLUG",
+        help="Scrape for a specific shock event (uses scrape_articles API with date filter).",
+    )
+    parser.add_argument(
+        "--date-range",
+        dest="date_range",
+        nargs=2,
+        metavar=("START", "END"),
+        default=None,
+        help="ISO date range for --shock-id mode, e.g. 2026-02-25 2026-03-14",
+    )
     return parser.parse_args()
 
 
@@ -452,6 +637,23 @@ def main() -> None:
     if args.max_articles is not None:
         log.info("max/outlet: %d", args.max_articles)
     log.info("=" * 60)
+
+    # ── Shock-specific mode (scrape_articles API) ──────────────────────────────
+    if args.shock_id:
+        sources = [args.outlet_filter] if args.outlet_filter else None
+        date_range = tuple(args.date_range) if args.date_range else None
+        log.info("shock mode: shock_id=%s  date_range=%s", args.shock_id, date_range)
+        result = scrape_articles(
+            shock_id=args.shock_id,
+            sources=sources,
+            date_range=date_range,
+            dry_run=args.dry_run,
+            max_articles=args.max_articles,
+        )
+        total_w = sum(c["written"] for c in result["outlets"].values())
+        total_d = sum(c["discarded"] for c in result["outlets"].values())
+        log.info("shock run complete — written=%d  discarded=%d", total_w, total_d)
+        return
 
     outlets = OUTLETS
     if args.outlet_filter:
