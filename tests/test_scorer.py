@@ -129,10 +129,8 @@ class TestNormalizeWeights:
 # ── BioClassifier — keyword stage ─────────────────────────────────────────────
 
 
-@pytest.fixture
 def bio_clf():
-    return BioClassifier.from_config(config_path=_CONFIGS / "base.json")
-
+    return BioClassifier.from_config(pi_server_url=None)
 
 class TestBioClassifierKeyword:
     def test_evangelical_keyword(self, bio_clf):

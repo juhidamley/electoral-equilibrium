@@ -19,10 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture(scope="module")
 def classifier() -> BioClassifier:
     """Real BioClassifier loaded from configs — no Pi server."""
-    return BioClassifier.from_config(
-        config_path=REPO_ROOT / "configs" / "base.json",
-        pi_server_url=None,  # disable SetFit stage so tests are hermetic
-    )
+    return BioClassifier.from_config(pi_server_url=None)
 
 
 @pytest.fixture(scope="module")

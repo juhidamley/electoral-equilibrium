@@ -245,7 +245,7 @@ def deduplicate(posts: list[dict]) -> tuple[list[dict], int]:
     kept, dropped = [], 0
     for p in posts:
         payload = p["payload"]
-        uid = str(payload.get("post_id") or "")
+        uid = str(payload.get("id") or payload.get("post_id") or "")
         key = hashlib.sha1(f"{uid}{payload.get('text', '')[:50]}".encode()).hexdigest()
         if key in seen:
             dropped += 1
@@ -265,7 +265,7 @@ def write_cleaned(posts: list[dict], output_path: Path, seed: int = 42) -> None:
         for p in posts:
             envelope = {
                 "schema_version": "1.0",
-                "created_at": now,
+                "collected_at": now,
                 "stage": "clean",
                 "seed": seed,
                 "payload": p["payload"],

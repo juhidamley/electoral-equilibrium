@@ -26,10 +26,7 @@ ALL_BLOCS = (
 
 @pytest.fixture(scope="module")
 def bio_clf() -> BioClassifier:
-    return BioClassifier.from_config(
-        config_path=REPO_ROOT / "configs" / "base.json",
-        pi_server_url=None,
-    )
+    return BioClassifier.from_config(pi_server_url=None)
 
 
 def _mock_bio(race_weights=None, religion_weights=None, gender_weights=None, method="keyword_bio"):
