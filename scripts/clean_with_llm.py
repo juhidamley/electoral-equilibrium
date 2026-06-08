@@ -136,6 +136,9 @@ def _call_with_backoff(client, prompt: str) -> str:
 
 def _parse_yes_no(response_text: str, n: int) -> list[bool]:
     """Parse '1 yes / 2 no / ...' Gemini reply into a keep-flag list."""
+    if not response_text or not response_text.strip():
+        logger.warning("_parse_yes_no: empty Gemini response — keeping all %d posts", n)
+        return [True] * n
     keep = [True] * n
     for line in response_text.strip().splitlines():
         m = re.match(r'^\s*(\d+)[.:\s)]+(\w+)', line.strip().lower())

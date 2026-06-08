@@ -244,3 +244,95 @@ def _write_social_artifact(data: SocialMediaSentimentData, path: Path) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data.to_dict(), f, indent=2, ensure_ascii=False)
     logger.info("Wrote SocialMediaSentimentData[%s] → %s", data.shock, path)
+
+
+def merge_posts(
+    shock_id: str,
+    posts_root: str | Path | None = None,
+    merged_root: str | Path | None = None,
+) -> int:
+    """Concatenate all per-platform JSONL files for a shock into rawdata/merged/.
+
+    Scans rawdata/social/{platform}/{shock_id}/*.jsonl across every platform
+    directory, plus rawdata/social/archive/{shock_id}/*.jsonl. Writes a single
+    rawdata/merged/{shock_id}/posts.jsonl. The scorer reads only from merged/
+    and is blind to how many platforms or files contributed.
+
+    Running twice overwrites deterministically — output is identical.
+
+    Returns total number of post records written.
+    """
+    import json as _json
+
+    posts_root = Path(posts_root) if posts_root else _REPO_ROOT / "rawdata" / "social"
+    merged_root = Path(merged_root) if merged_root else _REPO_ROOT / "rawdata" / "merged"
+
+    out_path = merged_root / shock_id / "posts.jsonl"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    platform_counts: dict[str, int] = {}
+    total = 0
+
+    with open(out_path, "w", encoding="utf-8") as out_f:
+        # Walk every platform directory under rawdata/social/
+        if posts_root.exists():
+            for platform_dir in sorted(posts_root.iterdir()):
+                if not platform_dir.is_dir():
+                    continue
+                shock_dir = platform_dir / shock_id
+                if not shock_dir.is_dir():
+                    continue
+                platform = platform_dir.name
+                count = 0
+                for jsonl_path in sorted(shock_dir.glob("*.jsonl")):
+                    with open(jsonl_path, encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                record = _json.loads(line)
+                            except _json.JSONDecodeError:
+                                continue
+                            # Unwrap envelope; keep payload only
+                            payload = record.get("payload", record)
+                            if not payload.get("text"):
+                                continue
+                            out_f.write(_json.dumps(payload, ensure_ascii=False))
+                            out_f.write("\n")
+                            count += 1
+                            total += 1
+                if count:
+                    platform_counts[platform] = platform_counts.get(platform, 0) + count
+
+    logger.info(
+        "merge_posts(%s): %d total posts → %s  breakdown=%s",
+        shock_id, total, out_path,
+        {k: v for k, v in sorted(platform_counts.items())},
+    )
+    return total
+
+
+def merge_all_posts(
+    shock_ids: list[str] | None = None,
+    posts_root: str | Path | None = None,
+    merged_root: str | Path | None = None,
+    shocks_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Run merge_posts() for every shock event. Returns {shock_id: post_count}."""
+    shocks_path = Path(shocks_path) if shocks_path else _DEFAULT_SHOCKS_PATH
+    if shock_ids is None:
+        if shocks_path.exists():
+            with open(shocks_path, encoding="utf-8") as f:
+                shock_ids = [s["id"] for s in json.load(f)]
+        else:
+            shock_ids = []
+
+    results: dict[str, int] = {}
+    for shock_id in shock_ids:
+        results[shock_id] = merge_posts(shock_id, posts_root=posts_root, merged_root=merged_root)
+    logger.info(
+        "merge_all_posts: %d shocks merged, %d total posts",
+        len(results), sum(results.values()),
+    )
+    return results
