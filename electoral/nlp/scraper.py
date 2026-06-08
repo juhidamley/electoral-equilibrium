@@ -470,10 +470,21 @@ def scrape_articles(
         raise ValueError(f"No matching outlets for sources={sources!r}")
 
     start_dt: datetime | None = None
-    end_dt:   datetime | None = None
+    end_dt: datetime | None = None
     if date_range is not None:
-        start_dt = datetime.fromisoformat(date_range[0]).replace(tzinfo=timezone.utc)
-        end_dt   = datetime.fromisoformat(date_range[1]).replace(tzinfo=timezone.utc)
+        start_dt = datetime.fromisoformat(date_range[0])
+        start_dt = (
+            start_dt.replace(tzinfo=timezone.utc)
+            if start_dt.tzinfo is None
+            else start_dt.astimezone(timezone.utc)
+        )
+
+        end_dt = datetime.fromisoformat(date_range[1])
+        end_dt = (
+            end_dt.replace(tzinfo=timezone.utc)
+            if end_dt.tzinfo is None
+            else end_dt.astimezone(timezone.utc)
+        )
 
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     result: dict[str, Any] = {"shock_id": shock_id, "outlets": {}}
