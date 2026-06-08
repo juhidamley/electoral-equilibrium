@@ -284,19 +284,23 @@ def write_outputs(
             for a in group:
                 envelope = {
                     "schema_version": "1.0",
-                    "created_at": created_at_now,
+                    "collected_at": created_at_now,
                     "stage": "collect",
                     "seed": None,
                     "payload": {
+                        "id": a["post_id"],
                         "text": a["text"],
                         "created_at": a["created_at"],
                         "lang": "en",
                         "platform": "local_news",
                         "archive_id": "3dlnews",
+                        "source": "3dlnews",
                         "state": a["state"],
-                        "source": "local_tv",
+                        "shock_id": None,
+                        "author_did": None,
+                        "author_handle": None,
                         "author_description": None,
-                        "post_id": a["post_id"],
+                        "inference_method": None,
                     },
                 }
                 f.write(json.dumps(envelope, ensure_ascii=False) + "\n")
