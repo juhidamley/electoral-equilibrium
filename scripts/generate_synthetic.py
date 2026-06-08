@@ -191,6 +191,9 @@ Generate exactly {n_scenarios} objects. Output ONLY the JSON array."""
 # ── Gemini call ───────────────────────────────────────────────────────────────
 
 
+_BATCH_SIZE = 150  # scenarios per Gemini call; ~28k output tokens, safely within limits
+
+
 def _call_gemini(prompt: str, api_key: str, model: str = "gemini-2.5-pro") -> str:
     try:
         import google.genai as genai
@@ -205,27 +208,68 @@ def _call_gemini(prompt: str, api_key: str, model: str = "gemini-2.5-pro") -> st
         contents=prompt,
         config=genai.types.GenerateContentConfig(
             temperature=0.9,
-            max_output_tokens=32768,
+            max_output_tokens=65536,
         ),
     )
     return response.text
 
 
 def _parse_response(raw: str) -> list[dict]:
-    """Extract JSON array from Gemini response, stripping any markdown fences."""
+    """Extract JSON array from Gemini response, with robust handling of:
+    - Markdown code fences (```json ... ```)
+    - Preamble/postamble prose before/after the array
+    - Truncated responses (output-token limit hit mid-stream): falls back to
+      extracting every complete {...} object individually so partial batches
+      are not lost.
+    """
     text = raw.strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
+
+    # Strip markdown code fences regardless of where they appear
+    if "```" in text:
         lines = text.splitlines()
         text = "\n".join(
             line for line in lines if not line.startswith("```")
         ).strip()
-    # Find first '[' and last ']'
+
+    # Fast path: well-formed complete array
     start = text.find("[")
     end = text.rfind("]")
-    if start == -1 or end == -1:
-        raise ValueError("No JSON array found in Gemini response")
-    return json.loads(text[start : end + 1])
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            pass  # fall through to object-by-object extraction
+
+    # Fallback: extract every complete top-level {...} object.
+    # Works even when the outer array is truncated (no closing ']').
+    objects: list[dict] = []
+    depth = 0
+    obj_start: int | None = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and obj_start is not None:
+                fragment = text[obj_start : i + 1]
+                try:
+                    obj = json.loads(fragment)
+                    if isinstance(obj, dict):
+                        objects.append(obj)
+                except json.JSONDecodeError:
+                    pass
+                obj_start = None
+
+    if objects:
+        logger.warning(
+            "Used object-by-object fallback parser — response was likely truncated. "
+            "Recovered %d complete scenario objects.", len(objects)
+        )
+        return objects
+
+    raise ValueError("No JSON array or recoverable objects found in Gemini response")
 
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
@@ -378,42 +422,79 @@ def main() -> None:
     else:
         logger.warning("No real delta data available — diagnostics will be skipped.")
 
-    prompt = _build_prompt(shocks, panel_csv, args.n_scenarios)
-
     if args.dry_run:
+        prompt = _build_prompt(shocks, panel_csv, min(_BATCH_SIZE, args.n_scenarios))
         print(f"[dry-run] Prompt length: {len(prompt)} chars")
         print(prompt[:2000])
         return
 
-    logger.info("Calling Gemini %s for %d scenarios ...", args.model, args.n_scenarios)
-    raw = _call_gemini(prompt, api_key=api_key, model=args.model)
-    logger.info("Gemini response: %d chars", len(raw))
+    # Batch across multiple Gemini calls to stay within output-token limits.
+    # _BATCH_SIZE = 150 scenarios × ~750 chars ÷ 4 chars/token ≈ 28k tokens/call.
+    all_scenarios: list[dict] = []
+    remaining = args.n_scenarios
+    batch_num = 0
+    seen_ids: set[str] = set()
 
-    try:
-        scenarios = _parse_response(raw)
-    except (json.JSONDecodeError, ValueError) as exc:
-        logger.error("Failed to parse Gemini response: %s", exc)
-        logger.debug("Raw response:\n%s", raw[:3000])
-        sys.exit(1)
+    while remaining > 0:
+        batch_size = min(_BATCH_SIZE, remaining)
+        batch_num += 1
+        logger.info(
+            "Batch %d: requesting %d scenarios from Gemini %s (need %d more total)",
+            batch_num, batch_size, args.model, remaining,
+        )
+        prompt = _build_prompt(shocks, panel_csv, batch_size)
+        try:
+            raw = _call_gemini(prompt, api_key=api_key, model=args.model)
+        except Exception as exc:
+            logger.error("Gemini call failed on batch %d: %s", batch_num, exc)
+            break
+        logger.info("Batch %d response: %d chars", batch_num, len(raw))
 
-    logger.info("Parsed %d synthetic scenarios", len(scenarios))
+        try:
+            scenarios = _parse_response(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.error("Failed to parse batch %d response: %s", batch_num, exc)
+            logger.debug("Raw response (first 2000 chars):\n%s", raw[:2000])
+            break
 
-    # Validate each scenario has all required blocs
-    valid_scenarios: list[dict] = []
-    for s in scenarios:
-        bins = s.get("delta_bins") or {}
-        missing = [b for b in ALL_BLOCS if b not in bins]
-        if missing:
-            logger.warning("Scenario '%s' missing blocs %s — filling with neutral", s.get("id"), missing)
-            for b in missing:
-                bins[b] = "neutral"
-            s["delta_bins"] = bins
-        if bins.get("african_american") not in DELTA_BINS:
-            logger.warning("Scenario '%s' has invalid bin values — skipping", s.get("id"))
-            continue
-        valid_scenarios.append(s)
+        # Validate and dedup
+        batch_valid = 0
+        for s in scenarios:
+            sid = s.get("id", "")
+            if sid in seen_ids:
+                continue
+            if s.get("party") not in ("democrat", "republican"):
+                logger.warning("Scenario '%s' has invalid party '%s' — skipping", sid, s.get("party"))
+                continue
+            bins = s.get("delta_bins") or {}
+            missing = [b for b in ALL_BLOCS if b not in bins]
+            if missing:
+                for b in missing:
+                    bins[b] = "neutral"
+                s["delta_bins"] = bins
+            if bins.get("african_american") not in DELTA_BINS:
+                logger.warning("Scenario '%s' has invalid bin values — skipping", sid)
+                continue
+            seen_ids.add(sid)
+            all_scenarios.append(s)
+            batch_valid += 1
+
+        logger.info("Batch %d: %d/%d valid scenarios (total so far: %d)",
+                    batch_num, batch_valid, len(scenarios), len(all_scenarios))
+        remaining -= batch_valid
+
+        if batch_valid == 0:
+            logger.warning("Batch %d yielded 0 valid scenarios — stopping.", batch_num)
+            break
+
+    valid_scenarios = all_scenarios
 
     logger.info("%d/%d scenarios passed validation", len(valid_scenarios), len(scenarios))
+
+    logger.info("Total valid scenarios collected: %d / %d requested", len(valid_scenarios), args.n_scenarios)
+    if not valid_scenarios:
+        logger.error("No valid scenarios collected — nothing to write.")
+        sys.exit(1)
 
     # Build synthetic delta matrix for diagnostics
     synth_rows = [
