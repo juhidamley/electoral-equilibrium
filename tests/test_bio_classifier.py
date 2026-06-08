@@ -52,7 +52,7 @@ def test_keyword_religion_evangelical(classifier):
     result = classifier.classify("I am an evangelical Christian pastor")
     assert result.inference_method == "keyword_bio"
     assert "evangelical" in result.religion_weights
-    assert result.religion_weights["evangelical"] >= 0.5
+    assert result.religion_weights["evangelical"] > 0.8
 
 
 def test_keyword_religion_weights_sum_to_one(classifier):
@@ -124,6 +124,14 @@ def test_language_prior_spanish(classifier):
     result = classifier.classify("Hola soy de México", lang="es")
     # Bio has no English keywords, Spanish → language_prior
     assert result.inference_method in ("language_prior", None)
+
+
+def test_language_prior_spanish_boosts_latino(classifier):
+    """Spanish lang with no bio keywords must assign non-zero latino race weight."""
+    result = classifier.classify("", lang="es")
+    assert result.inference_method == "language_prior"
+    assert "latino" in result.race_weights
+    assert result.race_weights["latino"] > 0
 
 
 def test_language_prior_inference_method(classifier):
@@ -259,4 +267,59 @@ def test_language_prior_not_estimable(classifier):
 
 def test_no_signal_not_estimable(classifier):
     result = classifier.classify("Software engineer")
+    assert not result.is_estimable()
+
+
+# ── combine_signals: per-stratum weights sum to 1.0 ──────────────────────────
+
+
+def test_combine_signals_religion_sums_to_one(classifier):
+    """_normalize_weights must produce religion weights that sum to 1.0."""
+    result = classifier.classify("Catholic evangelical born again Christian")
+    assert result.inference_method == "keyword_bio"
+    if result.religion_weights:
+        assert abs(sum(result.religion_weights.values()) - 1.0) < 1e-6
+
+
+def test_combine_signals_race_sums_to_one(classifier):
+    result = classifier.classify("Proud latina and Black woman activist")
+    if result.inference_method == "keyword_bio" and result.race_weights:
+        assert abs(sum(result.race_weights.values()) - 1.0) < 1e-6
+
+
+def test_combine_signals_gender_sums_to_one(classifier):
+    result = classifier.classify("She/her, feminist and proud")
+    if result.inference_method == "keyword_bio" and result.gender_weights:
+        assert abs(sum(result.gender_weights.values()) - 1.0) < 1e-6
+
+
+def test_combine_signals_multi_stratum_each_sums_to_one(classifier):
+    """When multiple strata fire, each stratum's weights independently sum to 1.0."""
+    result = classifier.classify("Evangelical African American woman pastor")
+    if result.inference_method == "keyword_bio":
+        for stratum_name, weights in [
+            ("race",     result.race_weights),
+            ("religion", result.religion_weights),
+            ("gender",   result.gender_weights),
+        ]:
+            if weights:
+                total = sum(weights.values())
+                assert abs(total - 1.0) < 1e-6, (
+                    f"{stratum_name} weights sum to {total}, not 1.0"
+                )
+
+
+# ── Unclassifiable bio → upstream proxy passthrough ──────────────────────────
+
+
+def test_unclassifiable_bio_platform_proxy_passthrough(classifier):
+    """Bio that cannot be classified returns the upstream platform_proxy label unchanged."""
+    result = classifier.classify(
+        "xkcd enthusiast, coffee addict",
+        inference_method="platform_proxy",
+    )
+    assert result.inference_method == "platform_proxy"
+    assert not result.race_weights
+    assert not result.religion_weights
+    assert not result.gender_weights
     assert not result.is_estimable()

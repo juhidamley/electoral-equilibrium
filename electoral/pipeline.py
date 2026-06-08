@@ -199,6 +199,7 @@ def main() -> None:
         config = PipelineConfig.from_json(args.config)
         config.validate()
         panel = build_voter_panel(config)
+        merge_all_posts()
         build_baseline_portfolio(config, panel)
         sentiment = build_sentiment_data(config, panel)
         if config.pipeline_mode == "historical":

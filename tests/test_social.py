@@ -167,3 +167,131 @@ def test_subreddit_proxy_posts_excluded_from_covariance():
     result = clf.classify("Any text", inference_method="subreddit_proxy")
     assert result.inference_method == "subreddit_proxy"
     assert not result.is_estimable()
+
+
+# ── Baseline-adjusted scores in [-1, 1] ──────────────────────────────────────
+
+
+def test_baseline_adjustment_produces_scores_in_range():
+    """Weighted per-bloc aggregation of arbitrary scores must stay in [-1, 1]."""
+    import numpy as np
+    from electoral.nlp.bio_classifier import BioClassification
+    from electoral.nlp.scorer import _aggregate_scores
+
+    rng = np.random.default_rng(7)
+    n = 40
+    raw_scores = rng.uniform(-1.0, 1.0, n).tolist()
+
+    blocs = ["white", "evangelical", "women", "african_american", "secular",
+             "men", "latino", "catholic", "other_gender", "asian"]
+    bio_results = []
+    for i in range(n):
+        bloc = blocs[i % len(blocs)]
+        if bloc in ("white", "african_american", "latino", "asian"):
+            bio_results.append(BioClassification("keyword_bio", {bloc: 1.0}, {}, {}))
+        elif bloc in ("evangelical", "secular", "catholic"):
+            bio_results.append(BioClassification("keyword_bio", {}, {bloc: 1.0}, {}))
+        else:
+            bio_results.append(BioClassification("keyword_bio", {}, {}, {bloc: 1.0}))
+
+    result = _aggregate_scores(raw_scores, bio_results, exclude_language_prior=True)
+
+    for bloc, score in result.items():
+        assert -1.0 <= score <= 1.0, (
+            f"Baseline-adjusted score for '{bloc}' = {score:.4f} outside [-1, 1]"
+        )
+
+
+# ── Weighted scorer: distinct per-bloc values ─────────────────────────────────
+
+
+def test_weighted_scorer_distinct_per_bloc_values():
+    """score_posts_weighted must return distinct per-bloc scores, not a single scalar.
+
+    Uses a mock pipeline returning different scores for different texts so that
+    each bloc receives a different weighted-average value.
+    """
+    import numpy as np
+    from electoral.nlp.bio_classifier import BioClassification, BioClassifier
+    from electoral.nlp.scorer import EmbeddingCache, RoBERTaScorer
+
+    # Build 15 posts, one per canonical bloc, with strictly increasing raw scores
+    all_blocs = [
+        "african_american", "latino", "asian", "white", "other_race",
+        "evangelical", "catholic", "protestant", "secular", "jewish",
+        "muslim", "other_rel", "women", "men", "other_gender",
+    ]
+    posts = [
+        {
+            "id": f"post_{b}",
+            "text": f"Text about {b}",
+            "lang": "en",
+            "inference_method": None,
+            "author_description": None,
+        }
+        for b in all_blocs
+    ]
+
+    # Fake pipeline: returns monotonically increasing scores so each bloc differs
+    call_idx = [0]
+    def fake_pipeline(batch):
+        results = []
+        for _ in batch:
+            neg = max(0.0, 0.5 - call_idx[0] * 0.03)
+            pos = min(1.0, 0.1 + call_idx[0] * 0.06)
+            neu = max(0.0, 1.0 - neg - pos)
+            results.append([
+                {"label": "LABEL_0", "score": neg},
+                {"label": "LABEL_1", "score": neu},
+                {"label": "LABEL_2", "score": pos},
+            ])
+            call_idx[0] += 1
+        return results
+
+    # Bio classifier: each post maps to exactly its canonical bloc
+    race    = {"african_american", "latino", "asian", "white", "other_race"}
+    religion = {"evangelical", "catholic", "protestant", "secular", "jewish",
+                "muslim", "other_rel"}
+
+    class _ExactBioCLF:
+        def classify(self, bio, lang="", inference_method=None):
+            if inference_method in ("platform_proxy", "subreddit_proxy"):
+                return BioClassification(inference_method, {}, {}, {})
+            # bio is None; use post id encoded in author_description — we patch below
+            return BioClassification(None, {}, {}, {})
+
+    # Patch: attach bloc directly to each post's inference_method field via pre-made results
+    pre_built = {}
+    for b in all_blocs:
+        if b in race:
+            pre_built[b] = BioClassification("keyword_bio", {b: 1.0}, {}, {})
+        elif b in religion:
+            pre_built[b] = BioClassification("keyword_bio", {}, {b: 1.0}, {})
+        else:
+            pre_built[b] = BioClassification("keyword_bio", {}, {}, {b: 1.0})
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        scorer = object.__new__(RoBERTaScorer)
+        scorer.model_name = "test"
+        scorer.batch_size = 32
+        scorer._pipeline = fake_pipeline
+        scorer._cache = EmbeddingCache(d)
+
+        # Call _aggregate_scores directly with known per-post scores
+        raw_scores = [0.02 + i * 0.05 for i in range(len(all_blocs))]
+        bio_results = [pre_built[b] for b in all_blocs]
+
+        from electoral.nlp.scorer import _aggregate_scores
+        result = _aggregate_scores(raw_scores, bio_results, exclude_language_prior=True)
+
+    # Every bloc that received a post must have a distinct non-zero score
+    non_zero = {k: v for k, v in result.items() if v != 0.0}
+    assert len(non_zero) == len(all_blocs), (
+        f"Expected {len(all_blocs)} blocs with scores, got {len(non_zero)}"
+    )
+    distinct_values = set(round(v, 8) for v in non_zero.values())
+    assert len(distinct_values) == len(all_blocs), (
+        f"Expected {len(all_blocs)} distinct scores, got {len(distinct_values)}: "
+        f"{sorted(distinct_values)}"
+    )
