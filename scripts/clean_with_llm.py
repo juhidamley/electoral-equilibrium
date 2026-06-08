@@ -245,7 +245,7 @@ def deduplicate(posts: list[dict]) -> tuple[list[dict], int]:
     kept, dropped = [], 0
     for p in posts:
         payload = p["payload"]
-        uid = str(payload.get("post_id") or "")
+        uid = str(payload.get("id") or payload.get("post_id") or "")
         key = hashlib.sha1(f"{uid}{payload.get('text', '')[:50]}".encode()).hexdigest()
         if key in seen:
             dropped += 1
