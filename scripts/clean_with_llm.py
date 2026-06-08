@@ -264,7 +264,7 @@ def write_cleaned(posts: list[dict], output_path: Path, seed: int = 42) -> None:
         for p in posts:
             envelope = {
                 "schema_version": "1.0",
-                "created_at": now,
+                "collected_at": now,
                 "stage": "clean",
                 "seed": seed,
                 "payload": p["payload"],
