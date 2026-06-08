@@ -174,9 +174,7 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    classifier = BioClassifier.from_config(
-        config_path=REPO_ROOT / "configs" / "base.json"
-    )
+    classifier = BioClassifier.from_config(pi_server_url=None)
 
     # Track counts per bloc
     race_counts:     defaultdict[str, int] = defaultdict(int)
