@@ -49,13 +49,53 @@ DEFAULT_OUTPUT_DIR = Path("/Volumes/JUHIDRIVE/electoralData/archives/reddit_mont
 # ── Filtering constants ────────────────────────────────────────────────────────
 
 KEYWORD_FILTERS: list[str] = [
-    "politics", "political", "democrat", "republican", "conservative", "liberal",
-    "progressive", "catholic", "christian", "protestant", "evangelical", "baptist",
-    "jewish", "jew", "islam", "muslim", "black", "african", "latino", "hispanic",
-    "chicano", "asian", "atheist", "atheism", "secular", "feminist", "feminism",
-    "religion", "religious", "race", "racial", "immigration", "immigrant", "civil",
-    "rights", "vote", "voting", "election", "congress", "senate", "president",
-    "supreme", "court", "gun", "abortion", "lgbtq", "gay",
+    "politics",
+    "political",
+    "democrat",
+    "republican",
+    "conservative",
+    "liberal",
+    "progressive",
+    "catholic",
+    "christian",
+    "protestant",
+    "evangelical",
+    "baptist",
+    "jewish",
+    "jew",
+    "islam",
+    "muslim",
+    "black",
+    "african",
+    "latino",
+    "hispanic",
+    "chicano",
+    "asian",
+    "atheist",
+    "atheism",
+    "secular",
+    "feminist",
+    "feminism",
+    "religion",
+    "religious",
+    "race",
+    "racial",
+    "immigration",
+    "immigrant",
+    "civil",
+    "rights",
+    "vote",
+    "voting",
+    "election",
+    "congress",
+    "senate",
+    "president",
+    "supreme",
+    "court",
+    "gun",
+    "abortion",
+    "lgbtq",
+    "gay",
 ]
 
 _KW_RE = re.compile(
@@ -71,6 +111,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Subreddit filtering ────────────────────────────────────────────────────────
+
 
 def load_target_subreddits(path: Path) -> set[str]:
     """Load optional list of known high-value subreddits from JSON config.
@@ -96,6 +137,7 @@ def is_relevant_subreddit(subreddit: str, target_set: set[str]) -> bool:
 
 
 # ── File discovery ─────────────────────────────────────────────────────────────
+
 
 def _year_month_from_path(path: Path) -> str | None:
     """Extract YYYY-MM from a Pushshift filename like RC_2017-01.bz2."""
@@ -127,6 +169,7 @@ def list_input_files(
 
 
 # ── Per-file processing ────────────────────────────────────────────────────────
+
 
 def _iter_bz2_lines(path: Path) -> Iterator[dict]:
     """Yield parsed JSON dicts from a bz2 file, one per line."""
@@ -225,7 +268,10 @@ def process_file(
     total_kept = sum(subreddit_counts.values())
     logger.info(
         "%s: done — %s lines, %s posts kept across %d subreddits",
-        path.name, f"{total_lines:,}", f"{total_kept:,}", len(subreddit_counts),
+        path.name,
+        f"{total_lines:,}",
+        f"{total_kept:,}",
+        len(subreddit_counts),
     )
     top20 = subreddit_counts.most_common(20)
     logger.info("%s: top 20 subreddits by posts kept:", path.name)
@@ -237,21 +283,23 @@ def process_file(
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Filter Reddit monthly bz2 dumps")
     p.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     p.add_argument("--year-start", type=int, default=None)
     p.add_argument("--year-end", type=int, default=None)
-    p.add_argument("--dry-run", action="store_true",
-                   help="Scan and report without writing output")
+    p.add_argument("--dry-run", action="store_true", help="Scan and report without writing output")
     p.add_argument(
-        "--task-id", type=int,
+        "--task-id",
+        type=int,
         default=int(__import__("os").environ.get("SLURM_ARRAY_TASK_ID", -1)),
         help="Process only the Nth sorted bz2 file (SLURM array mode)",
     )
-    p.add_argument("--list-tasks", action="store_true",
-                   help="Print file count for SLURM array sizing and exit")
+    p.add_argument(
+        "--list-tasks", action="store_true", help="Print file count for SLURM array sizing and exit"
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
@@ -298,7 +346,8 @@ def main() -> None:
 
         logger.info(
             "All files done — %s total posts kept across %d subreddits",
-            f"{sum(grand_total.values()):,}", len(grand_total),
+            f"{sum(grand_total.values()):,}",
+            len(grand_total),
         )
 
 

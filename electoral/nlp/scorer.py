@@ -19,12 +19,9 @@ These proxies are converted to synthetic BioClassification objects by the scorer
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
-import re
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -152,7 +149,10 @@ class EmbeddingCache:
             return
         try:
             import pyarrow.parquet as pq
-            table = pq.read_table(self._path, columns=["post_id", "prob_neg", "prob_neu", "prob_pos"])
+
+            table = pq.read_table(
+                self._path, columns=["post_id", "prob_neg", "prob_neu", "prob_pos"]
+            )
             ids = table.column("post_id").to_pylist()
             negs = table.column("prob_neg").to_pylist()
             neus = table.column("prob_neu").to_pylist()
@@ -161,7 +161,9 @@ class EmbeddingCache:
                 self._store[pid] = np.array([neg, neu, pos], dtype=np.float32)
             logger.info("EmbeddingCache: loaded %d entries from %s", len(self._store), self._path)
         except Exception as exc:
-            logger.warning("EmbeddingCache: failed to load %s (%s) — starting empty", self._path, exc)
+            logger.warning(
+                "EmbeddingCache: failed to load %s (%s) — starting empty", self._path, exc
+            )
 
     def get(self, post_id: str) -> np.ndarray | None:
         vec = self._store.get(post_id)
@@ -182,15 +184,18 @@ class EmbeddingCache:
             return
         import pyarrow as pa
         import pyarrow.parquet as pq
+
         self._path.parent.mkdir(parents=True, exist_ok=True)
         ids = list(self._store.keys())
         vecs = np.stack(list(self._store.values()))
-        table = pa.table({
-            "post_id":  pa.array(ids, type=pa.string()),
-            "prob_neg": pa.array(vecs[:, 0].tolist(), type=pa.float32()),
-            "prob_neu": pa.array(vecs[:, 1].tolist(), type=pa.float32()),
-            "prob_pos": pa.array(vecs[:, 2].tolist(), type=pa.float32()),
-        })
+        table = pa.table(
+            {
+                "post_id": pa.array(ids, type=pa.string()),
+                "prob_neg": pa.array(vecs[:, 0].tolist(), type=pa.float32()),
+                "prob_neu": pa.array(vecs[:, 1].tolist(), type=pa.float32()),
+                "prob_pos": pa.array(vecs[:, 2].tolist(), type=pa.float32()),
+            }
+        )
         pq.write_table(table, self._path, compression="snappy")
         logger.debug("EmbeddingCache: flushed %d entries → %s", len(ids), self._path)
         self._dirty = 0
@@ -205,10 +210,11 @@ class EmbeddingCache:
         return len(self._store)
 
     def log_stats(self) -> None:
-        total = self._hits + self._misses
         logger.info(
             "EmbeddingCache stats: size=%d hits=%d misses=%d hit_rate=%.1f%%",
-            self.size, self._hits, self._misses,
+            self.size,
+            self._hits,
+            self._misses,
             100 * self.hit_rate,
         )
 
@@ -248,6 +254,7 @@ class RoBERTaScorer:
         if device is None:
             try:
                 import torch
+
                 if torch.backends.mps.is_available():
                     device = "mps"
                 elif torch.cuda.is_available():
@@ -307,9 +314,9 @@ class RoBERTaScorer:
         ids = post_ids if post_ids and len(post_ids) == n else [None] * n
 
         # Partition into cache hits and model-needed indices
-        needs_model: list[int] = []       # indices into texts/results
+        needs_model: list[int] = []  # indices into texts/results
         needs_model_ids: list[str | None] = []
-        truncated: list[str] = []         # texts for the model
+        truncated: list[str] = []  # texts for the model
 
         for i, (t, pid) in enumerate(zip(texts, ids)):
             t_strip = t.strip()
@@ -404,7 +411,8 @@ class RoBERTaScorer:
         aggregated = _aggregate_scores(scores, bio_results, exclude_language_prior)
         logger.info(
             "score_posts_weighted: shock=%s n_posts=%d cache_hit_rate=%.1f%% scores=%s",
-            shock_id, len(posts),
+            shock_id,
+            len(posts),
             100 * self._cache.hit_rate,
             {k: f"{v:+.3f}" for k, v in list(aggregated.items())[:5]},
         )
@@ -453,7 +461,8 @@ class RoBERTaScorer:
         aggregated = _aggregate_scores(scores, bio_results, exclude_language_prior)
         logger.info(
             "scorer: shock='%s' n_posts=%d scores=%s",
-            shock_id, len(posts),
+            shock_id,
+            len(posts),
             {k: f"{v:+.3f}" for k, v in list(aggregated.items())[:5]},
         )
         return aggregated
@@ -497,11 +506,7 @@ def score_news_for_shocks(
                 gender_weights={},
             )
 
-    dummy_clf = _NoOpBioClassifier()  # type: ignore[assignment]
-
-    scores_by_bloc_shock: dict[str, dict[str, float]] = {
-        bloc: {} for bloc in _ALL_BLOCS
-    }
+    scores_by_bloc_shock: dict[str, dict[str, float]] = {bloc: {} for bloc in _ALL_BLOCS}
 
     for shock_id in shocks:
         articles_for_shock = by_shock[shock_id]
@@ -529,7 +534,8 @@ def score_news_for_shocks(
 
         logger.info(
             "score_news_for_shocks: shock='%s' n_articles=%d",
-            shock_id, len(articles_for_shock),
+            shock_id,
+            len(articles_for_shock),
         )
 
     return SentimentData(
@@ -600,7 +606,9 @@ def score_social_for_shock(
 
         logger.info(
             "score_social_for_shock: shock='%s' platform='%s' n_posts=%d",
-            shock_id, platform, len(posts),
+            shock_id,
+            platform,
+            len(posts),
         )
 
     return SocialMediaSentimentData(

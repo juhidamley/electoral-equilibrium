@@ -31,7 +31,12 @@ from typing import Any
 
 import numpy as np
 
-from electoral.artifacts import LLMFineTuneData, PredictionMarketData, SentimentData, SocialMediaSentimentData
+from electoral.artifacts import (
+    LLMFineTuneData,
+    PredictionMarketData,
+    SentimentData,
+    SocialMediaSentimentData,
+)
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 
 logger = logging.getLogger(__name__)
@@ -39,14 +44,18 @@ logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_FINETUNE_DIR = _REPO_ROOT / "data" / "finetune"
 
-_ALL_BLOCS: list[str] = (
-    list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
-)
+_ALL_BLOCS: list[str] = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
 
 BIN_MIDPOINTS: dict[str, float] = {
-    "strong_neg": -0.120, "mod_neg": -0.070, "mild_neg": -0.035,
-    "slight_neg": -0.012, "neutral":  0.000, "slight_pos": +0.012,
-    "mild_pos":   +0.035, "mod_pos":  +0.070, "strong_pos": +0.120,
+    "strong_neg": -0.120,
+    "mod_neg": -0.070,
+    "mild_neg": -0.035,
+    "slight_neg": -0.012,
+    "neutral": 0.000,
+    "slight_pos": +0.012,
+    "mild_pos": +0.035,
+    "mod_pos": +0.070,
+    "strong_pos": +0.120,
 }
 
 # 9-token bin thresholds (lower bound inclusive, upper bound exclusive except neutral)
@@ -117,7 +126,8 @@ def estimate_elasticity(
         if len(x_vals) < 3:
             logger.debug(
                 "elasticity: bloc='%s' has only %d observations (< 3); skipping.",
-                bloc, len(x_vals),
+                bloc,
+                len(x_vals),
             )
             elasticities[bloc] = float("nan")
             continue
@@ -140,7 +150,8 @@ def estimate_elasticity(
     n_valid = sum(1 for v in elasticities.values() if np.isfinite(v))
     logger.info(
         "estimate_elasticity: %d/%d blocs have valid β coefficients.",
-        n_valid, len(_ALL_BLOCS),
+        n_valid,
+        len(_ALL_BLOCS),
     )
     return elasticities
 
@@ -210,8 +221,7 @@ def fit_elasticity(
         from sklearn.linear_model import RidgeCV  # type: ignore[import]
     except ImportError as exc:
         raise ImportError(
-            "scikit-learn is required for fit_elasticity. "
-            "Install with: pip install scikit-learn"
+            "scikit-learn is required for fit_elasticity. " "Install with: pip install scikit-learn"
         ) from exc
 
     alphas = alpha_grid or _DEFAULT_ALPHA_GRID
@@ -236,8 +246,7 @@ def fit_elasticity(
 
         # Shocks that have a valid polling delta for this bloc
         valid_shocks = [
-            s for s in all_shock_ids
-            if s in bloc_deltas and np.isfinite(bloc_deltas[s])
+            s for s in all_shock_ids if s in bloc_deltas and np.isfinite(bloc_deltas[s])
         ]
 
         n = len(valid_shocks)
@@ -246,7 +255,9 @@ def fit_elasticity(
         if n < _MIN_OBS:
             logger.debug(
                 "fit_elasticity: bloc='%s' has %d obs (< %d); skipping.",
-                bloc, n, _MIN_OBS,
+                bloc,
+                n,
+                _MIN_OBS,
             )
             nan_coef = {src: float("nan") for src in sources}
             coefficients[bloc] = nan_coef
@@ -292,7 +303,9 @@ def fit_elasticity(
 
         logger.debug(
             "fit_elasticity: bloc='%s' n=%d alpha=%.3f r2=%.3f coefs=%s",
-            bloc, n, ridge.alpha_,
+            bloc,
+            n,
+            ridge.alpha_,
             cv_r2[bloc],
             {src: f"{c:+.4f}" for src, c in coefficients[bloc].items()},
         )
@@ -300,7 +313,10 @@ def fit_elasticity(
     n_valid = sum(1 for b in _ALL_BLOCS if np.isfinite(coefficients[b]["news"]))
     logger.info(
         "fit_elasticity: %d/%d blocs have valid coefficients (%d sources: %s)",
-        n_valid, len(_ALL_BLOCS), len(sources), sources,
+        n_valid,
+        len(_ALL_BLOCS),
+        len(sources),
+        sources,
     )
 
     return ElasticityFit(
@@ -402,9 +418,7 @@ def assemble_finetune_dataset(
             f.write("\n")
             n_examples += 1
 
-    logger.info(
-        "assemble_finetune_dataset: wrote %d examples to %s", n_examples, output_path
-    )
+    logger.info("assemble_finetune_dataset: wrote %d examples to %s", n_examples, output_path)
 
     return LLMFineTuneData(
         base_model=base_model,
@@ -451,10 +465,7 @@ def _aggregate_social_scores(
                 sums[bloc] += score
                 counts[bloc] += 1
 
-    return {
-        b: (sums[b] / counts[b] if counts[b] > 0 else 0.0)
-        for b in _ALL_BLOCS
-    }
+    return {b: (sums[b] / counts[b] if counts[b] > 0 else 0.0) for b in _ALL_BLOCS}
 
 
 def _market_block(pmd: PredictionMarketData | None) -> dict | None:
@@ -462,12 +473,12 @@ def _market_block(pmd: PredictionMarketData | None) -> dict | None:
     if pmd is None:
         return None
     return {
-        "pre_shock_prob":  pmd.pre_shock_prob,
-        "post_shock_1h":   pmd.post_shock_1h,
-        "post_shock_24h":  pmd.post_shock_24h,
-        "post_shock_72h":  pmd.post_shock_72h,
-        "delta_prob":      pmd.delta_prob,
-        "sources":         pmd.sources,
+        "pre_shock_prob": pmd.pre_shock_prob,
+        "post_shock_1h": pmd.post_shock_1h,
+        "post_shock_24h": pmd.post_shock_24h,
+        "post_shock_72h": pmd.post_shock_72h,
+        "delta_prob": pmd.delta_prob,
+        "sources": pmd.sources,
     }
 
 
@@ -555,8 +566,7 @@ def build_finetune_dataset(
         year = _shock_year(shock_id, shocks_lookup)
 
         news_scores = {
-            b: float(sentiment_data.scores.get(b, {}).get(shock_id, 0.0))
-            for b in _ALL_BLOCS
+            b: float(sentiment_data.scores.get(b, {}).get(shock_id, 0.0)) for b in _ALL_BLOCS
         }
         social_scores = _aggregate_social_scores(social_by_shock, shock_id)
         pmd = market_data.get(shock_id)
@@ -566,16 +576,16 @@ def build_finetune_dataset(
         weight = 1.5 if market_block is not None else 1.0
 
         record = {
-            "shock_id":              shock_id,
-            "description":           shock_desc.get(shock_id, shock_id),
-            "party":                 shock_party.get(shock_id, "democrat"),
-            "year":                  year,
-            "source":                "real",
-            "weight":                weight,
-            "news_roberta_scores":   news_scores,
+            "shock_id": shock_id,
+            "description": shock_desc.get(shock_id, shock_id),
+            "party": shock_party.get(shock_id, "democrat"),
+            "year": year,
+            "source": "real",
+            "weight": weight,
+            "news_roberta_scores": news_scores,
             "social_roberta_scores": social_scores,
-            "delta_bins":            {b: score_to_bin(news_scores[b]) for b in _ALL_BLOCS},
-            "prediction_market":     market_block,
+            "delta_bins": {b: score_to_bin(news_scores[b]) for b in _ALL_BLOCS},
+            "prediction_market": market_block,
         }
 
         if year == _EVAL_YEAR:
@@ -599,20 +609,23 @@ def build_finetune_dataset(
                         continue
                     # Synthetic records use delta_bins directly; build zero score vectors
                     bins = raw.get("delta_bins") or {}
-                    bin_midpoints = {b: BIN_MIDPOINTS.get(bins.get(b, "neutral"), 0.0)
-                                     for b in _ALL_BLOCS}
-                    train_records.append({
-                        "shock_id":              raw.get("id", f"synthetic_{lineno}"),
-                        "description":           raw.get("description", ""),
-                        "party":                 raw.get("party", "democrat"),
-                        "year":                  None,
-                        "source":                "synthetic",
-                        "weight":                0.5,
-                        "news_roberta_scores":   bin_midpoints,
-                        "social_roberta_scores": {b: 0.0 for b in _ALL_BLOCS},
-                        "delta_bins":            {b: bins.get(b, "neutral") for b in _ALL_BLOCS},
-                        "prediction_market":     None,
-                    })
+                    bin_midpoints = {
+                        b: BIN_MIDPOINTS.get(bins.get(b, "neutral"), 0.0) for b in _ALL_BLOCS
+                    }
+                    train_records.append(
+                        {
+                            "shock_id": raw.get("id", f"synthetic_{lineno}"),
+                            "description": raw.get("description", ""),
+                            "party": raw.get("party", "democrat"),
+                            "year": None,
+                            "source": "synthetic",
+                            "weight": 0.5,
+                            "news_roberta_scores": bin_midpoints,
+                            "social_roberta_scores": {b: 0.0 for b in _ALL_BLOCS},
+                            "delta_bins": {b: bins.get(b, "neutral") for b in _ALL_BLOCS},
+                            "prediction_market": None,
+                        }
+                    )
         else:
             logger.warning("synthetic_jsonl_path not found: %s", synth_path)
 
@@ -639,7 +652,7 @@ def build_finetune_dataset(
 
     # No overlap
     train_ids = {r["shock_id"] for r in train_records}
-    eval_ids  = {r["shock_id"] for r in eval_records}
+    eval_ids = {r["shock_id"] for r in eval_records}
     overlap = train_ids & eval_ids
     if overlap:
         raise ValueError(
@@ -658,18 +671,18 @@ def build_finetune_dataset(
     _write(eval_records, eval_output)
 
     n_train = len(train_records)
-    n_eval  = len(eval_records)
+    n_eval = len(eval_records)
     logger.info(
         "build_finetune_dataset: train=%d (real=%d synthetic=%d) eval=%d → %s / %s",
         n_train,
         sum(1 for r in train_records if r["source"] == "real"),
         sum(1 for r in train_records if r["source"] == "synthetic"),
         n_eval,
-        train_output, eval_output,
+        train_output,
+        eval_output,
     )
 
-    all_years = [r["year"] for r in train_records + eval_records
-                 if r["year"] is not None]
+    all_years = [r["year"] for r in train_records + eval_records if r["year"] is not None]
     cycles_used = sorted({y for y in all_years if y % 4 == 0})
 
     return LLMFineTuneData(

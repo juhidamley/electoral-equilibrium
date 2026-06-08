@@ -55,19 +55,19 @@ logging.basicConfig(
 )
 log = logging.getLogger("pi_bio_server")
 
-REPO_ROOT   = Path(__file__).resolve().parents[1]
-MODELS_DIR  = REPO_ROOT / "models"
-MODEL_NAME  = "all-MiniLM-L6-v2"
-HEF_PATH    = MODELS_DIR / "setfit_embedding.hef"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MODELS_DIR = REPO_ROOT / "models"
+MODEL_NAME = "all-MiniLM-L6-v2"
+HEF_PATH = MODELS_DIR / "setfit_embedding.hef"
 
 # Server returns null if top-class probability is below this.
 _MIN_CONF = 0.50
 
 # Stratum → (model_dir, SetFit label field, server label prefix)
 _STRATA = {
-    "race":     ("setfit_race",     "race"),
+    "race": ("setfit_race", "race"),
     "religion": ("setfit_religion", "religion"),
-    "gender":   ("setfit_gender",   "gender"),
+    "gender": ("setfit_gender", "gender"),
 }
 
 # Gender internal labels ("F"/"M") → canonical bloc IDs
@@ -94,9 +94,7 @@ class _HailoRunner:
             from hailo_platform import (  # type: ignore[import]
                 HEF,
                 VDevice,
-                HailoStreamInterface,
                 InferVStreams,
-                ConfigureParams,
                 InputVStreamParams,
                 OutputVStreamParams,
             )
@@ -108,8 +106,7 @@ class _HailoRunner:
 
         if not hef_path.exists():
             raise FileNotFoundError(
-                f"HEF not found: {hef_path}\n"
-                "Compile with:  python scripts/compile_hailo.py"
+                f"HEF not found: {hef_path}\n" "Compile with:  python scripts/compile_hailo.py"
             )
 
         log.info("Loading Hailo HEF from %s ...", hef_path)
@@ -120,25 +117,23 @@ class _HailoRunner:
         self._ng_params = self._ng.create_params()
 
         # Resolve input/output names from the compiled graph
-        input_vstreams_params  = InputVStreamParams.make(self._ng)
+        input_vstreams_params = InputVStreamParams.make(self._ng)
         output_vstreams_params = OutputVStreamParams.make(self._ng)
-        self._InferVStreams       = InferVStreams
-        self._input_vstreams_p  = input_vstreams_params
+        self._InferVStreams = InferVStreams
+        self._input_vstreams_p = input_vstreams_params
         self._output_vstreams_p = output_vstreams_params
 
         # Determine the single input and output layer names
-        input_names  = list(input_vstreams_params.keys())
+        input_names = list(input_vstreams_params.keys())
         output_names = list(output_vstreams_params.keys())
         if len(input_names) != 1 or len(output_names) != 1:
             raise RuntimeError(
                 f"Expected HEF with 1 input and 1 output; got "
                 f"inputs={input_names}, outputs={output_names}"
             )
-        self._input_name  = input_names[0]
+        self._input_name = input_names[0]
         self._output_name = output_names[0]
-        log.info(
-            "Hailo ready — input=%s output=%s", self._input_name, self._output_name
-        )
+        log.info("Hailo ready — input=%s output=%s", self._input_name, self._output_name)
 
     def encode(self, tokenizer: Any, text: str) -> np.ndarray:
         """Tokenize on CPU, embed on NPU. Returns (384,) float32 numpy array."""
@@ -149,9 +144,7 @@ class _HailoRunner:
             truncation=True,
             max_length=128,
         )
-        input_data = {
-            self._input_name: tokens["input_ids"].astype(np.float32)
-        }
+        input_data = {self._input_name: tokens["input_ids"].astype(np.float32)}
         with self._InferVStreams(
             self._ng,
             self._input_vstreams_p,
@@ -173,8 +166,7 @@ def _load_label_config(model_dir: Path) -> dict[int, str]:
     cfg_path = model_dir / "label_config.json"
     if not cfg_path.exists():
         raise FileNotFoundError(
-            f"label_config.json missing in {model_dir}. "
-            "Re-run train_setfit.py to regenerate."
+            f"label_config.json missing in {model_dir}. " "Re-run train_setfit.py to regenerate."
         )
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     return {int(k): v for k, v in cfg["id2label"].items()}
@@ -191,9 +183,7 @@ def _load_cpu_state(models_dir: Path) -> dict:
     try:
         from setfit import SetFitModel  # type: ignore[import]
     except ImportError as exc:
-        raise RuntimeError(
-            "setfit is not installed. Run:  pip install 'setfit>=1.0'"
-        ) from exc
+        raise RuntimeError("setfit is not installed. Run:  pip install 'setfit>=1.0'") from exc
 
     state: dict[str, Any] = {"mode": "cpu", "models": {}}
 
@@ -201,8 +191,7 @@ def _load_cpu_state(models_dir: Path) -> dict:
         model_dir = models_dir / dir_name
         if not model_dir.exists():
             raise FileNotFoundError(
-                f"SetFit model not found: {model_dir}\n"
-                "Run:  python scripts/train_setfit.py"
+                f"SetFit model not found: {model_dir}\n" "Run:  python scripts/train_setfit.py"
             )
         log.info("Loading CPU model for stratum '%s' from %s ...", stratum, model_dir)
         sf_model = SetFitModel.from_pretrained(str(model_dir))
@@ -224,11 +213,9 @@ def _load_npu_state(models_dir: Path) -> dict:
     """
     try:
         from transformers import AutoTokenizer  # type: ignore[import]
-        from setfit import SetFitModel          # type: ignore[import]
+        from setfit import SetFitModel  # type: ignore[import]
     except ImportError as exc:
-        raise RuntimeError(
-            "transformers and setfit must be installed for NPU mode."
-        ) from exc
+        raise RuntimeError("transformers and setfit must be installed for NPU mode.") from exc
 
     hailo_runner = _HailoRunner(HEF_PATH)
 
@@ -246,8 +233,7 @@ def _load_npu_state(models_dir: Path) -> dict:
         model_dir = models_dir / dir_name
         if not model_dir.exists():
             raise FileNotFoundError(
-                f"SetFit model not found: {model_dir}\n"
-                "Run:  python scripts/train_setfit.py"
+                f"SetFit model not found: {model_dir}\n" "Run:  python scripts/train_setfit.py"
             )
         log.info("Loading NPU head for stratum '%s' from %s ...", stratum, model_dir)
         sf_model = SetFitModel.from_pretrained(str(model_dir))
@@ -271,7 +257,9 @@ def _classify_cpu(bio: str, state: dict) -> tuple[str | None, list[float]]:
     # Encode once using the race model's backbone (same for all strata)
     sf_race = models["race"]["sf_model"]
     embedding: np.ndarray = sf_race.model_body.encode(
-        [bio], convert_to_numpy=True, normalize_embeddings=True,
+        [bio],
+        convert_to_numpy=True,
+        normalize_embeddings=True,
     )[0]
 
     best_bloc: str | None = None
@@ -315,8 +303,8 @@ def _classify_cpu(bio: str, state: dict) -> tuple[str | None, list[float]]:
 def _classify_npu(bio: str, state: dict) -> tuple[str | None, list[float]]:
     """NPU-mode classification. Returns (bloc_str | None, embedding_list)."""
     hailo_runner = state["hailo_runner"]
-    tokenizer    = state["tokenizer"]
-    models       = state["models"]
+    tokenizer = state["tokenizer"]
+    models = state["models"]
 
     embedding = hailo_runner.encode(tokenizer, bio)
 
@@ -324,7 +312,7 @@ def _classify_npu(bio: str, state: dict) -> tuple[str | None, list[float]]:
     best_conf: float = _MIN_CONF
 
     for stratum, (_, prefix) in _STRATA.items():
-        head     = models[stratum]["head"]
+        head = models[stratum]["head"]
         id2label = models[stratum]["id2label"]
 
         try:
@@ -360,8 +348,7 @@ def _build_app(state: dict):
         from pydantic import BaseModel
     except ImportError as exc:
         raise RuntimeError(
-            "fastapi and pydantic are not installed.\n"
-            "Run:  pip install fastapi uvicorn pydantic"
+            "fastapi and pydantic are not installed.\n" "Run:  pip install fastapi uvicorn pydantic"
         ) from exc
 
     mode: str = state["mode"]
@@ -379,8 +366,8 @@ def _build_app(state: dict):
     def health():
         return {
             "status": "ok",
-            "mode":   mode,
-            "model":  MODEL_NAME,
+            "mode": mode,
+            "model": MODEL_NAME,
         }
 
     @app.post("/classify")
@@ -475,7 +462,9 @@ def main() -> None:
 
     log.info(
         "Bio classifier server ready. mode=%s  host=%s  port=%d",
-        state["mode"], args.host, args.port,
+        state["mode"],
+        args.host,
+        args.port,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

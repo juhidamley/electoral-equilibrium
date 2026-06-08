@@ -57,40 +57,41 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHOCKS_PATH = REPO_ROOT / "configs" / "shocks.json"
 
-DEFAULT_INPUT_DIR  = Path("/Volumes/JUHIDRIVE/electoralData/sampled")
+DEFAULT_INPUT_DIR = Path("/Volumes/JUHIDRIVE/electoralData/sampled")
 DEFAULT_OUTPUT_DIR = Path("/Volumes/JUHIDRIVE/electoralData/cleaned")
-ARCHIVES_README    = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
+ARCHIVES_README = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
 
 # ── Gemini config ──────────────────────────────────────────────────────────────
 
-GEMINI_MODEL       = "gemini-2.5-flash"
-GEMINI_SLEEP       = 4.0        # seconds between requests (60 / 15 RPM = 4 s)
-GEMINI_BATCH       = 50         # posts per prompt
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_SLEEP = 4.0  # seconds between requests (60 / 15 RPM = 4 s)
+GEMINI_BATCH = 50  # posts per prompt
 GEMINI_MAX_RETRIES = 5
-GEMINI_BACKOFF_BASE = 2.0       # wait = base ** attempt (seconds)
+GEMINI_BACKOFF_BASE = 2.0  # wait = base ** attempt (seconds)
 
 # ── Abbreviation map (Step 3) ─────────────────────────────────────────────────
 
 _ABBREV: list[tuple[re.Pattern, str]] = [
-    (re.compile(r'\bSCOTUS\b'),  "Supreme Court"),
-    (re.compile(r'\bPOTUS\b'),   "President"),
-    (re.compile(r'\bFLOTUS\b'),  "First Lady"),
-    (re.compile(r'\bVPOTUS\b'),  "Vice President"),
-    (re.compile(r'\bMAGA\b'),    "Make America Great Again"),
+    (re.compile(r"\bSCOTUS\b"), "Supreme Court"),
+    (re.compile(r"\bPOTUS\b"), "President"),
+    (re.compile(r"\bFLOTUS\b"), "First Lady"),
+    (re.compile(r"\bVPOTUS\b"), "Vice President"),
+    (re.compile(r"\bMAGA\b"), "Make America Great Again"),
 ]
 
-_URL_RE      = re.compile(r'https?://\S+')
-_MENTION_RE  = re.compile(r'@\w+')
-_HASHTAG_RE  = re.compile(r'#(\w+)')
-_MULTI_WS_RE = re.compile(r'\s{2,}')
-_RT_RE       = re.compile(r'^RT\s+@\w+', re.IGNORECASE)
-_EMOJI_RE    = re.compile(
-    r'^[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F9FF\s]+$',
+_URL_RE = re.compile(r"https?://\S+")
+_MENTION_RE = re.compile(r"@\w+")
+_HASHTAG_RE = re.compile(r"#(\w+)")
+_MULTI_WS_RE = re.compile(r"\s{2,}")
+_RT_RE = re.compile(r"^RT\s+@\w+", re.IGNORECASE)
+_EMOJI_RE = re.compile(
+    r"^[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F9FF\s]+$",
     re.UNICODE,
 )
 
 
 # ── Shock registry ─────────────────────────────────────────────────────────────
+
 
 def load_shocks() -> dict[str, dict]:
     return {s["id"]: s for s in json.loads(SHOCKS_PATH.read_text())}
@@ -98,13 +99,12 @@ def load_shocks() -> dict[str, dict]:
 
 # ── Step 1: Off-topic detection (Gemini 2.0 Flash) ────────────────────────────
 
+
 def _gemini_client():
     try:
         from google import genai
     except ImportError:
-        raise RuntimeError(
-            "google-genai not installed — run: pip install google-genai"
-        )
+        raise RuntimeError("google-genai not installed — run: pip install google-genai")
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI")
     if not api_key:
         raise RuntimeError(
@@ -117,16 +117,16 @@ def _gemini_client():
 def _call_with_backoff(client, prompt: str) -> str:
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
-            return client.models.generate_content(
-                model=GEMINI_MODEL, contents=prompt
-            ).text
+            return client.models.generate_content(model=GEMINI_MODEL, contents=prompt).text
         except Exception as exc:
             err = str(exc)
             if "429" in err or "quota" in err.lower() or "rate" in err.lower():
                 wait = GEMINI_BACKOFF_BASE ** (attempt + 1)
                 logger.warning(
                     "Gemini 429 — waiting %.0f s (attempt %d/%d)",
-                    wait, attempt + 1, GEMINI_MAX_RETRIES,
+                    wait,
+                    attempt + 1,
+                    GEMINI_MAX_RETRIES,
                 )
                 time.sleep(wait)
             else:
@@ -141,7 +141,7 @@ def _parse_yes_no(response_text: str, n: int) -> list[bool]:
         return [True] * n
     keep = [True] * n
     for line in response_text.strip().splitlines():
-        m = re.match(r'^\s*(\d+)[.:\s)]+(\w+)', line.strip().lower())
+        m = re.match(r"^\s*(\d+)[.:\s)]+(\w+)", line.strip().lower())
         if m:
             idx, answer = int(m.group(1)) - 1, m.group(2)
             if 0 <= idx < n:
@@ -163,11 +163,8 @@ def filter_off_topic(
     dropped = 0
 
     for batch_start in range(0, len(posts), GEMINI_BATCH):
-        batch = posts[batch_start: batch_start + GEMINI_BATCH]
-        numbered = "\n".join(
-            f"{i + 1}. {p['payload']['text'][:300]}"
-            for i, p in enumerate(batch)
-        )
+        batch = posts[batch_start : batch_start + GEMINI_BATCH]
+        numbered = "\n".join(f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch))
         prompt = (
             f"For each numbered post below, reply with just the number and yes or no — "
             f"is this post about {shock_description}? "
@@ -190,6 +187,7 @@ def filter_off_topic(
 
 # ── Step 2: Spam filter (deterministic) ───────────────────────────────────────
 
+
 def _stripped_len(text: str) -> int:
     return len(_MENTION_RE.sub("", _URL_RE.sub("", text)).strip())
 
@@ -200,7 +198,7 @@ def _is_spam(text: str) -> bool:
         return True
     if _EMOJI_RE.match(t):
         return True
-    if re.fullmatch(r'https?://\S+', t):  # bare URL, no commentary
+    if re.fullmatch(r"https?://\S+", t):  # bare URL, no commentary
         return True
     if _stripped_len(t) < 10:
         return True
@@ -219,12 +217,13 @@ def filter_spam(posts: list[dict]) -> tuple[list[dict], int]:
 
 # ── Step 3: Text normalisation (deterministic) ────────────────────────────────
 
+
 def normalise(text: str) -> str:
     for pattern, replacement in _ABBREV:
         text = pattern.sub(replacement, text)
     text = _URL_RE.sub("", text)
     text = _MENTION_RE.sub("", text)
-    text = _HASHTAG_RE.sub(r'\1', text)
+    text = _HASHTAG_RE.sub(r"\1", text)
     text = _MULTI_WS_RE.sub(" ", text)
     return text.strip()
 
@@ -239,6 +238,7 @@ def apply_normalisation(posts: list[dict]) -> list[dict]:
 
 
 # ── Step 4: Deduplication (deterministic) ─────────────────────────────────────
+
 
 def deduplicate(posts: list[dict]) -> tuple[list[dict], int]:
     seen: set[str] = set()
@@ -256,6 +256,7 @@ def deduplicate(posts: list[dict]) -> tuple[list[dict], int]:
 
 
 # ── Output ─────────────────────────────────────────────────────────────────────
+
 
 def write_cleaned(posts: list[dict], output_path: Path, seed: int = 42) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,17 +297,19 @@ def append_readme_log(stats: list[dict], readme_path: Path, dry_run: bool) -> No
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Four-step LLM cleaning pipeline")
-    p.add_argument("--input-dir",  type=Path, default=DEFAULT_INPUT_DIR)
+    p.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    p.add_argument("--shock-id",   default=None,
-                   help="Process only this shock slug (default: all)")
-    p.add_argument("--dry-run",    action="store_true",
-                   help="Skip Gemini off-topic filter (steps 2-4 only)")
-    p.add_argument("--max-posts",  type=int, default=None,
-                   help="Cap total posts processed (for testing)")
-    p.add_argument("--verbose",    action="store_true")
+    p.add_argument("--shock-id", default=None, help="Process only this shock slug (default: all)")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Skip Gemini off-topic filter (steps 2-4 only)"
+    )
+    p.add_argument(
+        "--max-posts", type=int, default=None, help="Cap total posts processed (for testing)"
+    )
+    p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
 
@@ -328,7 +331,7 @@ def main() -> None:
     # Expected layout: {input_dir}/{shock_id}/{archive_id}.jsonl
     groups: dict[tuple[str, str], list[Path]] = defaultdict(list)
     for jsonl in sorted(args.input_dir.rglob("*.jsonl")):
-        shock_id   = jsonl.parent.name
+        shock_id = jsonl.parent.name
         archive_id = jsonl.stem
         if args.shock_id and shock_id != args.shock_id:
             continue
@@ -349,7 +352,7 @@ def main() -> None:
     total_processed = 0
 
     for (shock_id, archive_id), paths in sorted(groups.items()):
-        shock      = shocks_by_id.get(shock_id, {})
+        shock = shocks_by_id.get(shock_id, {})
         shock_desc = shock.get("description", shock_id)
 
         posts: list[dict] = []
@@ -392,15 +395,17 @@ def main() -> None:
         write_cleaned(posts, output_path)
         logger.info("  → %s", output_path)
 
-        all_stats.append({
-            "shock_id":          shock_id,
-            "archive_id":        archive_id,
-            "n_input":           n_input,
-            "off_topic_dropped": off_topic_dropped,
-            "spam_dropped":      spam_dropped,
-            "dedup_dropped":     dedup_dropped,
-            "n_output":          len(posts),
-        })
+        all_stats.append(
+            {
+                "shock_id": shock_id,
+                "archive_id": archive_id,
+                "n_input": n_input,
+                "off_topic_dropped": off_topic_dropped,
+                "spam_dropped": spam_dropped,
+                "dedup_dropped": dedup_dropped,
+                "n_output": len(posts),
+            }
+        )
 
         total_processed += n_input
         if args.max_posts and total_processed >= args.max_posts:
@@ -409,11 +414,12 @@ def main() -> None:
 
     if all_stats:
         append_readme_log(all_stats, ARCHIVES_README, dry_run=args.dry_run)
-        total_in  = sum(s["n_input"]  for s in all_stats)
+        total_in = sum(s["n_input"] for s in all_stats)
         total_out = sum(s["n_output"] for s in all_stats)
         logger.info(
             "Done — %d → %d posts (%.1f%% kept)",
-            total_in, total_out,
+            total_in,
+            total_out,
             100 * total_out / total_in if total_in else 0,
         )
 

@@ -22,11 +22,8 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from electoral.artifacts import SentimentData, SocialMediaSentimentData
-from electoral.config import PipelineConfig
-from electoral.core.io import write_artifact
 from electoral.nlp.archive import HistoricalArchiveLoader
 from electoral.nlp.bio_classifier import BioClassifier
 from electoral.nlp.news_loader import ScrapedNewsLoader
@@ -80,9 +77,7 @@ def _load_social_posts(
                         try:
                             record = _json.loads(line)
                         except _json.JSONDecodeError as exc:
-                            logger.warning(
-                                "%s line %d: JSON error (%s)", jsonl_path, lineno, exc
-                            )
+                            logger.warning("%s line %d: JSON error (%s)", jsonl_path, lineno, exc)
                             continue
                         # Unwrap envelope if present
                         payload = record.get("payload", record)
@@ -93,7 +88,9 @@ def _load_social_posts(
                 result[shock_id][platform] = posts
                 logger.debug(
                     "Loaded %d posts: shock='%s' platform='%s'",
-                    len(posts), shock_id, platform,
+                    len(posts),
+                    shock_id,
+                    platform,
                 )
 
     return result
@@ -156,9 +153,7 @@ def run_sentiment_pipeline(
             with open(shocks_path, encoding="utf-8") as f:
                 shocks_cfg = json.load(f)
 
-    logger.info(
-        "run_sentiment_pipeline: %d shocks, model='%s'", len(shock_ids), model_name
-    )
+    logger.info("run_sentiment_pipeline: %d shocks, model='%s'", len(shock_ids), model_name)
 
     # ── Step 1: Bio classifier ────────────────────────────────────────────────
     bio_clf = BioClassifier.from_config(
@@ -215,8 +210,7 @@ def run_sentiment_pipeline(
         social_results.append(social_sentiment)
 
     logger.info(
-        "run_sentiment_pipeline complete: "
-        "SentimentData(shocks=%d blocs=%d) social=%d",
+        "run_sentiment_pipeline complete: " "SentimentData(shocks=%d blocs=%d) social=%d",
         len(sentiment_data.shocks),
         len(sentiment_data.scores),
         len(social_results),
@@ -307,7 +301,9 @@ def merge_posts(
 
     logger.info(
         "merge_posts(%s): %d total posts → %s  breakdown=%s",
-        shock_id, total, out_path,
+        shock_id,
+        total,
+        out_path,
         {k: v for k, v in sorted(platform_counts.items())},
     )
     return total
@@ -333,6 +329,7 @@ def merge_all_posts(
         results[shock_id] = merge_posts(shock_id, posts_root=posts_root, merged_root=merged_root)
     logger.info(
         "merge_all_posts: %d shocks merged, %d total posts",
-        len(results), sum(results.values()),
+        len(results),
+        sum(results.values()),
     )
     return results

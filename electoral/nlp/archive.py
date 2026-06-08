@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -112,9 +113,7 @@ class HistoricalArchiveLoader:
             subreddit = path.stem if path.parent == reddit_root else path.parent.name
             n_before = len(posts)
             posts.extend(self._load_reddit_file(path, subreddit))
-            logger.debug(
-                "Reddit archive %s: loaded %d posts", path, len(posts) - n_before
-            )
+            logger.debug("Reddit archive %s: loaded %d posts", path, len(posts) - n_before)
 
         logger.info("Reddit archive: %d posts total from %s", len(posts), reddit_root)
         return posts
@@ -142,22 +141,14 @@ class HistoricalArchiveLoader:
     def _normalize_reddit(self, raw: dict[str, Any], subreddit: str) -> dict | None:
         """Normalize a raw Reddit post dict to canonical payload schema."""
         # Extract text from various field names used by different Reddit API versions
-        text = (
-            raw.get("selftext")
-            or raw.get("body")
-            or raw.get("text")
-            or raw.get("title")
-            or ""
-        )
+        text = raw.get("selftext") or raw.get("body") or raw.get("text") or raw.get("title") or ""
         if not isinstance(text, str):
             text = ""
         text = text.strip()
         if not text or text == "[deleted]" or text == "[removed]":
             return None
 
-        post_id = str(
-            raw.get("id") or raw.get("post_id") or raw.get("name") or ""
-        )
+        post_id = str(raw.get("id") or raw.get("post_id") or raw.get("name") or "")
         if not post_id:
             post_id = f"reddit_{abs(hash(text)):016x}"
 
@@ -200,7 +191,8 @@ class HistoricalArchiveLoader:
                     posts.extend(self._load_webhose_file(path))
                     logger.debug(
                         "Webhose archive %s: loaded %d posts",
-                        path, len(posts) - n_before,
+                        path,
+                        len(posts) - n_before,
                     )
 
         if source in ("3dlnews", "all"):
@@ -211,7 +203,8 @@ class HistoricalArchiveLoader:
                     posts.extend(self._load_3dlnews_file(path))
                     logger.debug(
                         "3DLNews archive %s: loaded %d posts",
-                        path, len(posts) - n_before,
+                        path,
+                        len(posts) - n_before,
                     )
 
         logger.info("News archive (%s): %d posts total", source, len(posts))
@@ -238,13 +231,7 @@ class HistoricalArchiveLoader:
 
     def _normalize_webhose(self, raw: dict[str, Any]) -> dict | None:
         """Normalize a Webhose API article to canonical post schema."""
-        text = (
-            raw.get("text")
-            or raw.get("body")
-            or raw.get("title")
-            or raw.get("summary")
-            or ""
-        )
+        text = raw.get("text") or raw.get("body") or raw.get("title") or raw.get("summary") or ""
         if not isinstance(text, str):
             text = ""
         text = text.strip()
@@ -358,9 +345,7 @@ class HistoricalArchiveLoader:
                     try:
                         raw = json.loads(line)
                     except json.JSONDecodeError as exc:
-                        logger.warning(
-                            "%s line %d: JSON error (%s)", path, lineno, exc
-                        )
+                        logger.warning("%s line %d: JSON error (%s)", path, lineno, exc)
                         continue
                     if "payload" in raw:
                         raw = raw["payload"]
@@ -437,17 +422,19 @@ class HistoricalArchiveLoader:
         Returns the list of normalized payload dicts (envelope stripped).
         """
         # ── 1. Resolve archive directory ─────────────────────────────────────
+        # Resolution order: JUHIDRIVE_ROOT env var > base.json data_root > self._root
         config_path = _REPO_ROOT / "configs" / "base.json"
         try:
-            data_root = Path(json.loads(config_path.read_text()).get(
-                "data_root", str(self._root)
-            ))
+            _cfg_root = json.loads(config_path.read_text()).get("data_root", str(self._root))
         except (OSError, json.JSONDecodeError):
-            data_root = self._root
+            _cfg_root = str(self._root)
+        data_root = Path(os.environ.get("JUHIDRIVE_ROOT") or _cfg_root)
 
         archive_dir = _resolve_archive_dir(data_root, archive_id)
         if archive_dir is None:
-            logger.error("Archive directory not found for archive_id=%s under %s", archive_id, data_root)
+            logger.error(
+                "Archive directory not found for archive_id=%s under %s", archive_id, data_root
+            )
             return []
 
         # ── 2. Load posts ─────────────────────────────────────────────────────
@@ -459,11 +446,16 @@ class HistoricalArchiveLoader:
             posts = _filter_window(posts, shock_dt, window_hours)
             logger.info(
                 "load(%s, %s): %d posts within ±%dh of %s",
-                shock_id, archive_id, len(posts), window_hours,
+                shock_id,
+                archive_id,
+                len(posts),
+                window_hours,
                 shock_dt.strftime("%Y-%m-%d"),
             )
         else:
-            logger.warning("load: shock_id=%s not found in shocks.json — skipping window filter", shock_id)
+            logger.warning(
+                "load: shock_id=%s not found in shocks.json — skipping window filter", shock_id
+            )
 
         # ── 4. Bot blocklist ──────────────────────────────────────────────────
         if bot_blocklist:
@@ -489,6 +481,7 @@ class HistoricalArchiveLoader:
         out_path = Path(output_root) / shock_id / f"{archive_id}.jsonl"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         from electoral.nlp.collectors.schema import append_post_record
+
         for post in posts:
             append_post_record(out_path, post, seed=seed)
         logger.info("load: wrote %d posts → %s", len(posts), out_path)
@@ -524,9 +517,14 @@ class HistoricalArchiveLoader:
 
     _TEXT_CANDIDATES = ["text", "tweet", "full_text", "status", "content", "body"]
     _DATE_CANDIDATES = ["created_at", "date", "timestamp", "time", "created", "posted_at"]
-    _BIO_CANDIDATES  = ["user_description", "description", "user.description",
-                         "author_description", "user_bio"]
-    _ID_CANDIDATES   = ["id", "tweet_id", "post_id", "id_str", "tweetid"]
+    _BIO_CANDIDATES = [
+        "user_description",
+        "description",
+        "user.description",
+        "author_description",
+        "user_bio",
+    ]
+    _ID_CANDIDATES = ["id", "tweet_id", "post_id", "id_str", "tweetid"]
 
     @classmethod
     def _pick(cls, row: dict, candidates: list[str]) -> str | None:
@@ -578,17 +576,18 @@ class HistoricalArchiveLoader:
         ts_raw = self._pick(raw, self._DATE_CANDIDATES)
         created_at = normalize_timestamp(ts_raw)
         user = raw.get("user") or {}
-        bio = (
-            self._pick(raw, self._BIO_CANDIDATES)
-            or (user.get("description") if isinstance(user, dict) else None)
+        bio = self._pick(raw, self._BIO_CANDIDATES) or (
+            user.get("description") if isinstance(user, dict) else None
         )
         author_id = str(
-            raw.get("user_id") or raw.get("user_id_str")
+            raw.get("user_id")
+            or raw.get("user_id_str")
             or (user.get("id_str") if isinstance(user, dict) else None)
             or ""
         )
         author_handle = (
-            raw.get("username") or raw.get("screen_name")
+            raw.get("username")
+            or raw.get("screen_name")
             or (user.get("screen_name") if isinstance(user, dict) else None)
         )
         shock_id = self._route_shock(text)
@@ -612,11 +611,12 @@ class HistoricalArchiveLoader:
 
 # Platform → default bloc proxy for posts with no bio
 _PLATFORM_PROXY_MAP: dict[str, str] = {
-    "telegram":    "evangelical",
+    "telegram": "evangelical",
     "truthsocial": "evangelical",
-    "tiktok":      "secular",
-    "discord":     "secular",
+    "tiktok": "secular",
+    "discord": "secular",
 }
+
 
 def _platform_proxy(platform: str) -> str | None:
     return _PLATFORM_PROXY_MAP.get(platform.lower().split("_")[0])
@@ -698,6 +698,7 @@ def _apply_bio_classification(posts: list[dict], config_path: Path) -> list[dict
         return posts
     try:
         from electoral.nlp.bio_classifier import BioClassifier
+
         classifier = BioClassifier.from_config(config_path)
         results = classifier.classify_batch(with_bio)
         for post, result in zip(with_bio, results):
@@ -709,6 +710,7 @@ def _apply_bio_classification(posts: list[dict], config_path: Path) -> list[dict
 
 
 # ── TelegramLoader ─────────────────────────────────────────────────────────────
+
 
 class TelegramLoader:
     """Normalize Telegram JSON message exports to canonical post payload schema.
@@ -769,7 +771,7 @@ class TelegramLoader:
             return []
 
         posts: list[dict] = []
-        for path in sorted(archive_dir.rglob("*.json")) :
+        for path in sorted(archive_dir.rglob("*.json")):
             posts.extend(self._load_file(path, archive_id))
 
         shock_dt = _shock_date(shock_id, self._shocks_path)
@@ -786,6 +788,7 @@ class TelegramLoader:
         out_path = Path(output_root) / shock_id / f"{archive_id}.jsonl"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         from electoral.nlp.collectors.schema import append_post_record
+
         for post in posts:
             append_post_record(out_path, post, seed=seed)
         logger.info("TelegramLoader: wrote %d posts → %s", len(posts), out_path)
@@ -828,8 +831,7 @@ class TelegramLoader:
         raw_text = msg.get("text") or msg.get("message") or ""
         if isinstance(raw_text, list):
             raw_text = " ".join(
-                e.get("text", "") if isinstance(e, dict) else str(e)
-                for e in raw_text
+                e.get("text", "") if isinstance(e, dict) else str(e) for e in raw_text
             )
         text = str(raw_text).strip()
         if not text:
@@ -869,6 +871,7 @@ class TelegramLoader:
 
 
 # ── TikTokLoader ───────────────────────────────────────────────────────────────
+
 
 class TikTokLoader:
     """Normalize TikTok video metadata JSONL to canonical post payload schema.
@@ -945,6 +948,7 @@ class TikTokLoader:
         out_path = Path(output_root) / shock_id / f"{archive_id}.jsonl"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         from electoral.nlp.collectors.schema import append_post_record
+
         for post in posts:
             append_post_record(out_path, post, seed=seed)
         logger.info("TikTokLoader: wrote %d posts → %s", len(posts), out_path)
@@ -969,9 +973,7 @@ class TikTokLoader:
         return records
 
     def _normalize(self, raw: dict[str, Any], archive_id: str) -> dict | None:
-        text = (
-            str(raw.get("desc") or raw.get("text") or raw.get("title") or "").strip()
-        )
+        text = str(raw.get("desc") or raw.get("text") or raw.get("title") or "").strip()
         if not text:
             return None
 

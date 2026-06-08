@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,6 +34,7 @@ def bio_clf() -> BioClassifier:
 
 def _mock_bio(race_weights=None, religion_weights=None, gender_weights=None, method="keyword_bio"):
     from electoral.nlp.bio_classifier import BioClassification
+
     return BioClassification(
         inference_method=method,
         race_weights=race_weights or {},
@@ -127,6 +127,7 @@ def test_aggregate_scores_no_posts_returns_zeros():
 
 def test_embedding_cache_is_deterministic(tmp_path):
     import numpy as np
+
     cache1 = EmbeddingCache(cache_dir=tmp_path)
     vec = np.array([0.1, 0.2, 0.3], dtype=float)
     cache1.put("post_001", vec)
@@ -141,6 +142,7 @@ def test_embedding_cache_is_deterministic(tmp_path):
 
 def test_embedding_cache_hit_rate(tmp_path):
     import numpy as np
+
     cache = EmbeddingCache(cache_dir=tmp_path)
     vec = np.ones(16, dtype=float)
 
@@ -179,10 +181,7 @@ def test_finetune_dataset_no_train_eval_overlap(tmp_path):
     """train.jsonl and eval.jsonl must not share any shock_id."""
     from electoral.artifacts import SentimentData
 
-    shocks_cfg = [
-        {"id": f"shock_{i:03d}", "description": f"Shock event {i}"}
-        for i in range(10)
-    ]
+    shocks_cfg = [{"id": f"shock_{i:03d}", "description": f"Shock event {i}"} for i in range(10)]
     # eval shock: any one shock with cycle 2020 in its ID
     shocks_cfg.append({"id": "election_2020", "description": "2020 presidential election"})
 
@@ -204,9 +203,7 @@ def test_finetune_dataset_no_train_eval_overlap(tmp_path):
 
     assert train_path.exists()
     train_ids = {
-        json.loads(l)["shock_id"]
-        for l in train_path.read_text().splitlines()
-        if l.strip()
+        json.loads(line)["shock_id"] for line in train_path.read_text().splitlines() if line.strip()
     }
     # All shock IDs with a description should be in train
     assert len(train_ids) == len(shocks_cfg)
@@ -229,7 +226,7 @@ def test_finetune_dataset_all_blocs_present(tmp_path):
         shocks_config=shocks_cfg,
         output_path=out,
     )
-    records = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
     assert len(records) == 1
     output_text = records[0]["output"]
     for bloc in ALL_BLOCS:

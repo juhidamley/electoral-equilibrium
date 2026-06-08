@@ -43,25 +43,46 @@ sys.path.insert(0, str(REPO_ROOT))
 
 logger = logging.getLogger(__name__)
 
-_SHOCKS_PATH    = REPO_ROOT / "configs" / "shocks.json"
-_PANEL_DIR      = REPO_ROOT / "data" / "panel"
-_FINETUNE_DIR   = REPO_ROOT / "data" / "finetune"
-_OUTPUT_JSONL   = _FINETUNE_DIR / "synthetic.jsonl"
-_OUTPUT_DIAG    = _FINETUNE_DIR / "synthetic_diagnostics.json"
+_SHOCKS_PATH = REPO_ROOT / "configs" / "shocks.json"
+_PANEL_DIR = REPO_ROOT / "data" / "panel"
+_FINETUNE_DIR = REPO_ROOT / "data" / "finetune"
+_OUTPUT_JSONL = _FINETUNE_DIR / "synthetic.jsonl"
+_OUTPUT_DIAG = _FINETUNE_DIR / "synthetic_diagnostics.json"
 
-CANONICAL_RACES     = ["african_american", "latino", "asian", "white", "other_race"]
-CANONICAL_RELIGIONS = ["evangelical", "catholic", "protestant", "secular", "jewish", "muslim", "other_rel"]
-CANONICAL_GENDERS   = ["women", "men", "other_gender"]
-ALL_BLOCS           = CANONICAL_RACES + CANONICAL_RELIGIONS + CANONICAL_GENDERS
+CANONICAL_RACES = ["african_american", "latino", "asian", "white", "other_race"]
+CANONICAL_RELIGIONS = [
+    "evangelical",
+    "catholic",
+    "protestant",
+    "secular",
+    "jewish",
+    "muslim",
+    "other_rel",
+]
+CANONICAL_GENDERS = ["women", "men", "other_gender"]
+ALL_BLOCS = CANONICAL_RACES + CANONICAL_RELIGIONS + CANONICAL_GENDERS
 
 DELTA_BINS = [
-    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+    "strong_neg",
+    "mod_neg",
+    "mild_neg",
+    "slight_neg",
+    "neutral",
+    "slight_pos",
+    "mild_pos",
+    "mod_pos",
+    "strong_pos",
 ]
 BIN_MIDPOINTS = {
-    "strong_neg": -0.120, "mod_neg": -0.070, "mild_neg": -0.035,
-    "slight_neg": -0.012, "neutral": 0.000,  "slight_pos": +0.012,
-    "mild_pos": +0.035,   "mod_pos": +0.070, "strong_pos": +0.120,
+    "strong_neg": -0.120,
+    "mod_neg": -0.070,
+    "mild_neg": -0.035,
+    "slight_neg": -0.012,
+    "neutral": 0.000,
+    "slight_pos": +0.012,
+    "mild_pos": +0.035,
+    "mod_pos": +0.070,
+    "strong_pos": +0.120,
 }
 
 
@@ -76,7 +97,6 @@ def _load_real_shocks() -> list[dict]:
 
 def _load_panel_csv() -> str:
     """Return a compact CSV string of voter panel data for the Gemini prompt."""
-    import csv as _csv
     lines: list[str] = []
     for fname in ("panel_race.parquet", "panel_religion.parquet", "panel_gender.parquet"):
         path = _PANEL_DIR / fname
@@ -84,6 +104,7 @@ def _load_panel_csv() -> str:
             continue
         try:
             import pyarrow.parquet as pq
+
             table = pq.read_table(path)
             df = table.to_pydict()
             cols = list(df.keys())
@@ -198,9 +219,7 @@ def _call_gemini(prompt: str, api_key: str, model: str = "gemini-2.5-pro") -> st
     try:
         import google.genai as genai
     except ImportError as exc:
-        raise RuntimeError(
-            "google-genai not installed. Run: pip install google-genai"
-        ) from exc
+        raise RuntimeError("google-genai not installed. Run: pip install google-genai") from exc
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
@@ -227,9 +246,7 @@ def _parse_response(raw: str) -> list[dict]:
     # Strip markdown code fences regardless of where they appear
     if "```" in text:
         lines = text.splitlines()
-        text = "\n".join(
-            line for line in lines if not line.startswith("```")
-        ).strip()
+        text = "\n".join(line for line in lines if not line.startswith("```")).strip()
 
     # Fast path: well-formed complete array
     start = text.find("[")
@@ -265,7 +282,8 @@ def _parse_response(raw: str) -> list[dict]:
     if objects:
         logger.warning(
             "Used object-by-object fallback parser — response was likely truncated. "
-            "Recovered %d complete scenario objects.", len(objects)
+            "Recovered %d complete scenario objects.",
+            len(objects),
         )
         return objects
 
@@ -286,7 +304,7 @@ def _rbf_mmd(X: np.ndarray, Y: np.ndarray) -> tuple[float, float]:
     # Median heuristic on real data X
     dists_XX = pairwise_distances(X, metric="euclidean").ravel()
     dists_XX = dists_XX[dists_XX > 0]
-    sigma2 = float(np.median(dists_XX ** 2)) if len(dists_XX) > 0 else 1.0
+    sigma2 = float(np.median(dists_XX**2)) if len(dists_XX) > 0 else 1.0
     lam = 1.0 / (2.0 * sigma2) if sigma2 > 0 else 1.0
 
     def k(A: np.ndarray, B: np.ndarray) -> float:
@@ -320,7 +338,7 @@ def _pcd(X_real: np.ndarray, Y_synth: np.ndarray) -> float:
     n = X_real.shape[1]
     if n < 2:
         return 0.0
-    corr_real  = np.corrcoef(X_real.T)
+    corr_real = np.corrcoef(X_real.T)
     corr_synth = np.corrcoef(Y_synth.T)
     diff = corr_real - corr_synth
     # Zero the diagonal before Frobenius norm
@@ -345,7 +363,7 @@ def _compute_diagnostics(
         }
 
     mmd, lam = _rbf_mmd(real_matrix, synth_matrix)
-    mmd_weight = 0.5 * math.exp(-lam * mmd ** 2)
+    mmd_weight = 0.5 * math.exp(-lam * mmd**2)
     pca = _pca_alignment(real_matrix, synth_matrix)
     pcd = _pcd(real_matrix, synth_matrix)
 
@@ -385,14 +403,14 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--n-scenarios", type=int, default=500)
-    p.add_argument("--model",       default="gemini-2.5-pro")
-    p.add_argument("--api-key",     default=None,
-                   help="Gemini API key (default: GEMINI_API_KEY env var)")
-    p.add_argument("--output",      type=Path, default=_OUTPUT_JSONL)
+    p.add_argument("--model", default="gemini-2.5-pro")
+    p.add_argument(
+        "--api-key", default=None, help="Gemini API key (default: GEMINI_API_KEY env var)"
+    )
+    p.add_argument("--output", type=Path, default=_OUTPUT_JSONL)
     p.add_argument("--diagnostics", type=Path, default=_OUTPUT_DIAG)
-    p.add_argument("--dry-run",     action="store_true",
-                   help="Skip Gemini call; print prompt and exit")
-    p.add_argument("--verbose",     action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="Skip Gemini call; print prompt and exit")
+    p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
 
@@ -405,11 +423,10 @@ def main() -> None:
     )
 
     import os
+
     api_key = args.api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI")
     if not api_key and not args.dry_run:
-        logger.error(
-            "GEMINI_API_KEY not set. Export it or pass --api-key. Use --dry-run to skip."
-        )
+        logger.error("GEMINI_API_KEY not set. Export it or pass --api-key. Use --dry-run to skip.")
         sys.exit(1)
 
     shocks = _load_real_shocks()
@@ -440,7 +457,10 @@ def main() -> None:
         batch_num += 1
         logger.info(
             "Batch %d: requesting %d scenarios from Gemini %s (need %d more total)",
-            batch_num, batch_size, args.model, remaining,
+            batch_num,
+            batch_size,
+            args.model,
+            remaining,
         )
         prompt = _build_prompt(shocks, panel_csv, batch_size)
         try:
@@ -464,7 +484,9 @@ def main() -> None:
             if sid in seen_ids:
                 continue
             if s.get("party") not in ("democrat", "republican"):
-                logger.warning("Scenario '%s' has invalid party '%s' — skipping", sid, s.get("party"))
+                logger.warning(
+                    "Scenario '%s' has invalid party '%s' — skipping", sid, s.get("party")
+                )
                 continue
             bins = s.get("delta_bins") or {}
             missing = [b for b in ALL_BLOCS if b not in bins]
@@ -479,8 +501,13 @@ def main() -> None:
             all_scenarios.append(s)
             batch_valid += 1
 
-        logger.info("Batch %d: %d/%d valid scenarios (total so far: %d)",
-                    batch_num, batch_valid, len(scenarios), len(all_scenarios))
+        logger.info(
+            "Batch %d: %d/%d valid scenarios (total so far: %d)",
+            batch_num,
+            batch_valid,
+            len(scenarios),
+            len(all_scenarios),
+        )
         remaining -= batch_valid
 
         if batch_valid == 0:
@@ -490,7 +517,9 @@ def main() -> None:
     # Trim any overshoot (last batch may yield slightly more than remaining)
     valid_scenarios = all_scenarios[: args.n_scenarios]
 
-    logger.info("Total valid scenarios collected: %d / %d requested", len(valid_scenarios), args.n_scenarios)
+    logger.info(
+        "Total valid scenarios collected: %d / %d requested", len(valid_scenarios), args.n_scenarios
+    )
     if not valid_scenarios:
         logger.error("No valid scenarios collected — nothing to write.")
         sys.exit(1)
@@ -509,7 +538,11 @@ def main() -> None:
         diagnostics.get("mmd") or 0,
         mmd_weight,
         diagnostics.get("pcd") or 0,
-        diagnostics.get("pca_alignment", {}).get("flagged") if diagnostics.get("pca_alignment") else "N/A",
+        (
+            diagnostics.get("pca_alignment", {}).get("flagged")
+            if diagnostics.get("pca_alignment")
+            else "N/A"
+        ),
     )
 
     now_iso = datetime.now(tz=timezone.utc).isoformat()
@@ -524,11 +557,13 @@ def main() -> None:
 
     # Write diagnostics
     diagnostics["n_scenarios_requested"] = args.n_scenarios
-    diagnostics["n_scenarios_written"]   = len(valid_scenarios)
-    diagnostics["model"]                 = args.model
-    diagnostics["generated_at"]          = now_iso
+    diagnostics["n_scenarios_written"] = len(valid_scenarios)
+    diagnostics["model"] = args.model
+    diagnostics["generated_at"] = now_iso
     args.diagnostics.parent.mkdir(parents=True, exist_ok=True)
-    args.diagnostics.write_text(json.dumps(diagnostics, indent=2, ensure_ascii=False), encoding="utf-8")
+    args.diagnostics.write_text(
+        json.dumps(diagnostics, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     logger.info("Wrote diagnostics → %s", args.diagnostics)
 
 

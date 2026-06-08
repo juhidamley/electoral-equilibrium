@@ -21,7 +21,6 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Any
 
 from electoral.artifacts import PredictionMarketData
 
@@ -49,9 +48,7 @@ def volume_weighted_price(
         Volume-weighted price in [0, 1], or None if no prices available.
     """
     valid = {
-        p: price
-        for p, price in market_prices.items()
-        if price is not None and math.isfinite(price)
+        p: price for p, price in market_prices.items() if price is not None and math.isfinite(price)
     }
     if not valid:
         return None
@@ -91,10 +88,7 @@ def _aggregate_offset(
     volumes: dict[str, float | None] | None,
 ) -> float | None:
     """Aggregate a single time-offset price across all platforms."""
-    prices = {
-        platform: prices.get(offset_key)
-        for platform, prices in platform_prices.items()
-    }
+    prices = {platform: prices.get(offset_key) for platform, prices in platform_prices.items()}
     return volume_weighted_price(prices, volumes)
 
 
@@ -163,7 +157,8 @@ class MarketAggregator:
         artifact.validate()
         logger.info(
             "aggregate('%s', %s): pre=%.3f post_24h=%s delta=%+.3f sources=%s",
-            shock_id, party,
+            shock_id,
+            party,
             pre,
             f"{post_24h:.3f}" if post_24h is not None else "None",
             delta,
@@ -200,6 +195,7 @@ class MarketAggregator:
                 results[shock_id] = artifact
         logger.info(
             "collect_and_write_all: %d/%d shocks produced artifacts",
-            len(results), len(shock_ids),
+            len(results),
+            len(shock_ids),
         )
         return results

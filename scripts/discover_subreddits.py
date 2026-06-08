@@ -117,8 +117,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--year-start", type=int, default=None)
     p.add_argument("--year-end", type=int, default=None)
     p.add_argument("--top-n", type=int, default=50, help="Subreddits to show in ranked table")
-    p.add_argument("--output-csv", type=Path, default=None,
-                   help="Write full ranked table to this CSV path")
+    p.add_argument(
+        "--output-csv", type=Path, default=None, help="Write full ranked table to this CSV path"
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 

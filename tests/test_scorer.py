@@ -7,9 +7,8 @@ They test normalization, keyword matching, aggregation logic, and bin mapping.
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -86,13 +85,17 @@ class TestScoreToBin:
         assert score_to_bin(1.0) == "strong_pos"
 
     def test_all_bins_covered(self):
-        bins = {
-            score_to_bin(v)
-            for v in [-0.9, -0.4, -0.2, -0.1, 0.0, 0.1, 0.2, 0.4, 0.9]
-        }
+        bins = {score_to_bin(v) for v in [-0.9, -0.4, -0.2, -0.1, 0.0, 0.1, 0.2, 0.4, 0.9]}
         expected = {
-            "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-            "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+            "strong_neg",
+            "mod_neg",
+            "mild_neg",
+            "slight_neg",
+            "neutral",
+            "slight_pos",
+            "mild_pos",
+            "mod_pos",
+            "strong_pos",
         }
         assert bins == expected
 
@@ -294,7 +297,9 @@ class TestAggregateScores:
     def test_language_prior_excluded_from_weights(self):
         bio_estimable = self._make_bio(race={"white": 1.0}, method="keyword_bio")
         bio_lp = self._make_bio(race={"latino": 1.0}, method="language_prior")
-        result = _aggregate_scores([1.0, -1.0], [bio_estimable, bio_lp], exclude_language_prior=True)
+        result = _aggregate_scores(
+            [1.0, -1.0], [bio_estimable, bio_lp], exclude_language_prior=True
+        )
         # Only white gets scored; latino (language_prior) is excluded
         assert abs(result["white"] - 1.0) < 1e-6
         assert result["latino"] == 0.0
@@ -314,6 +319,7 @@ class TestAggregateScores:
     def test_all_blocs_present_in_result(self):
         result = _zero_scores()
         from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+
         for bloc in list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS):
             assert bloc in result
 
@@ -324,10 +330,12 @@ class TestAggregateScores:
 class TestExtractOutletProxy:
     def test_valid_proxy(self):
         post = {
-            "author_description": json.dumps({
-                "outlet": "cbn",
-                "proxy": {"religion": {"evangelical": 1.0}},
-            })
+            "author_description": json.dumps(
+                {
+                    "outlet": "cbn",
+                    "proxy": {"religion": {"evangelical": 1.0}},
+                }
+            )
         }
         result = _extract_outlet_proxy(post)
         assert result is not None
@@ -372,8 +380,10 @@ class TestTruncateText:
 class TestRoBERTaScorerImportGuard:
     def test_raises_import_error_without_transformers(self):
         import sys
+
         # Temporarily hide transformers from import
         with patch.dict(sys.modules, {"transformers": None}):
             from electoral.nlp import scorer as scorer_mod
+
             with pytest.raises((ImportError, TypeError)):
                 scorer_mod.RoBERTaScorer(model_name="some/model")

@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -126,6 +127,13 @@ class BioClassifier:
         gen_lex = json.loads(_GENDER_LEXICON_PATH.read_text(encoding="utf-8"))["keywords"]
         lang_priors = json.loads(_LANGUAGE_PRIORS_PATH.read_text(encoding="utf-8"))
 
+        if pi_server_url is None:
+            # Resolution order: PI_BIO_SERVER_URL > PI_TAILSCALE_IP > base.json
+            pi_server_url = os.environ.get("PI_BIO_SERVER_URL") or (
+                f"http://{os.environ['PI_TAILSCALE_IP']}:9000"
+                if os.environ.get("PI_TAILSCALE_IP")
+                else None
+            )
         if pi_server_url is None and config_path is not None:
             try:
                 cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
@@ -295,7 +303,9 @@ class BioClassifier:
         else:
             logger.warning(
                 "Pi server returned unknown bloc %r (stratum=%r, id=%r); skipping.",
-                bloc, stratum, bloc_id,
+                bloc,
+                stratum,
+                bloc_id,
             )
             return None
 

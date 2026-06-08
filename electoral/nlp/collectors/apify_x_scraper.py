@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 # ── Default actor configuration ───────────────────────────────────────────────
 
 DEFAULT_ACTOR_ID = "apidojo/tweet-scraper"
-MAX_ITEMS_FREE_TIER = 500     # Hard limit to stay within free tier
+MAX_ITEMS_FREE_TIER = 500  # Hard limit to stay within free tier
 MAX_ITEMS_QUOTA_RETRY = 100  # Reduced count retried when free-tier credit is exhausted
 
 # Apify actor input field names vary by actor version.
@@ -385,9 +385,7 @@ class ApifyXScraper:
         )
         return written
 
-    def _call_actor(
-        self, client: Any, run_input: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def _call_actor(self, client: Any, run_input: dict[str, Any]) -> dict[str, Any] | None:
         """Attempt a single actor call; return the run dict or None on failure.
 
         Returns None for quota/credit errors and unexpected failures.

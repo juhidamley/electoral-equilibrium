@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -82,7 +81,7 @@ def test_keyword_multi_stratum(classifier):
     result = classifier.classify("Born again Christian and African American writer")
     assert result.inference_method == "keyword_bio"
     assert result.religion_weights  # evangelical from "born again"
-    assert result.race_weights      # african_american from "african american"
+    assert result.race_weights  # african_american from "african american"
 
 
 def test_keyword_gender_weights_sum_to_one(classifier):
@@ -298,15 +297,13 @@ def test_combine_signals_multi_stratum_each_sums_to_one(classifier):
     result = classifier.classify("Evangelical African American woman pastor")
     if result.inference_method == "keyword_bio":
         for stratum_name, weights in [
-            ("race",     result.race_weights),
+            ("race", result.race_weights),
             ("religion", result.religion_weights),
-            ("gender",   result.gender_weights),
+            ("gender", result.gender_weights),
         ]:
             if weights:
                 total = sum(weights.values())
-                assert abs(total - 1.0) < 1e-6, (
-                    f"{stratum_name} weights sum to {total}, not 1.0"
-                )
+                assert abs(total - 1.0) < 1e-6, f"{stratum_name} weights sum to {total}, not 1.0"
 
 
 # ── Unclassifiable bio → upstream proxy passthrough ──────────────────────────

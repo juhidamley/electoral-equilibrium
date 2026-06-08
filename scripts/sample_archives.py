@@ -61,11 +61,11 @@ GENDER_LEXICON_PATH = REPO_ROOT / "configs" / "gender_lexicon.json"
 
 # ── Sampling constants ────────────────────────────────────────────────────────
 
-TARGET_PER_ARCHIVE = 200_000   # posts per standalone major archive dataset
-TARGET_PER_SHOCK = 5_000       # posts per (shock, archive) pair
-PRE_SHOCK_DAYS = 3             # days before shock date to include
-EXTREMITY_THRESHOLD = 0.5      # VADER |compound| > this = extreme
-EXTREMITY_WEIGHT = 2.0         # oversample multiplier for extreme posts
+TARGET_PER_ARCHIVE = 200_000  # posts per standalone major archive dataset
+TARGET_PER_SHOCK = 5_000  # posts per (shock, archive) pair
+PRE_SHOCK_DAYS = 3  # days before shock date to include
+EXTREMITY_THRESHOLD = 0.5  # VADER |compound| > this = extreme
+EXTREMITY_WEIGHT = 2.0  # oversample multiplier for extreme posts
 UNKNOWN_BLOC = "unknown"
 
 # Relative sampling weights per bloc — CNN 2024 NEP (religion/gender) and
@@ -96,17 +96,44 @@ BLOC_SHARES: dict[str, float] = {
 }
 
 # CSV field name candidates (tried in order, first match wins)
-_TEXT_COLS = ["text", "tweet", "full_text", "status", "content", "body", "message", "post_text", "Text"]
-_DATE_COLS = ["created_at", "date", "timestamp", "time", "created", "posted_at", "Date",
-              "time_created", "date_utc"]
-_BIO_COLS = ["user_description", "description", "bio", "user.description", "author_description",
-             "user_bio", "profile_description"]
+_TEXT_COLS = [
+    "text",
+    "tweet",
+    "full_text",
+    "status",
+    "content",
+    "body",
+    "message",
+    "post_text",
+    "Text",
+]
+_DATE_COLS = [
+    "created_at",
+    "date",
+    "timestamp",
+    "time",
+    "created",
+    "posted_at",
+    "Date",
+    "time_created",
+    "date_utc",
+]
+_BIO_COLS = [
+    "user_description",
+    "description",
+    "bio",
+    "user.description",
+    "author_description",
+    "user_bio",
+    "profile_description",
+]
 _ID_COLS = ["id", "tweet_id", "post_id", "message_id", "_id", "ID", "tweetid"]
 
 logger = logging.getLogger(__name__)
 
 
 # ── Task list ─────────────────────────────────────────────────────────────────
+
 
 def build_task_list(shocks_path: Path) -> list[dict]:
     """Return list of {shock_id, archive_id, shock_date, window_start, window_end, ...} dicts.
@@ -128,26 +155,27 @@ def build_task_list(shocks_path: Path) -> list[dict]:
         window_days = shock.get("shock_window_days", 14)
         shock_date_str = dw.get("shock_date") or shock["date"]
         shock_dt = datetime.fromisoformat(shock_date_str)
-        window_start = dw.get("start") or (
-            shock_dt - timedelta(days=PRE_SHOCK_DAYS)
-        ).strftime("%Y-%m-%d")
-        window_end = dw.get("end") or (
-            shock_dt + timedelta(days=window_days)
-        ).strftime("%Y-%m-%d")
+        window_start = dw.get("start") or (shock_dt - timedelta(days=PRE_SHOCK_DAYS)).strftime(
+            "%Y-%m-%d"
+        )
+        window_end = dw.get("end") or (shock_dt + timedelta(days=window_days)).strftime("%Y-%m-%d")
         for archive_id in shock.get("archive_ids", []):
-            tasks.append({
-                "shock_id": shock["id"],
-                "archive_id": archive_id,
-                "shock_date": shock_date_str,
-                "window_start": window_start,
-                "window_end": window_end,
-                "window_days": window_days,
-                "target_blocs": shock.get("target_blocs", []),
-            })
+            tasks.append(
+                {
+                    "shock_id": shock["id"],
+                    "archive_id": archive_id,
+                    "shock_date": shock_date_str,
+                    "window_start": window_start,
+                    "window_end": window_end,
+                    "window_days": window_days,
+                    "target_blocs": shock.get("target_blocs", []),
+                }
+            )
     return tasks
 
 
 # ── Lexicon loading and keyword bio pass ──────────────────────────────────────
+
 
 def load_lexicons() -> dict[str, dict[str, dict[str, float]]]:
     """Load race/religion/gender lexicons. Returns {stratum: {keyword: {bloc: weight}}}."""
@@ -196,6 +224,7 @@ def keyword_bio_bloc(bio: str | None, lexicons: dict) -> str:
 
 # ── Sentiment scorer ──────────────────────────────────────────────────────────
 
+
 def make_sentiment_scorer():
     """Return a text → VADER compound score function.
 
@@ -204,6 +233,7 @@ def make_sentiment_scorer():
     """
     try:
         from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
         _analyzer = SentimentIntensityAnalyzer()
         return lambda text: _analyzer.polarity_scores(text[:512])["compound"]
     except ImportError:
@@ -215,6 +245,7 @@ def make_sentiment_scorer():
 
 
 # ── Timestamp parsing ─────────────────────────────────────────────────────────
+
 
 def parse_timestamp(value: Any) -> datetime | None:
     """Parse a timestamp from int/float epoch, ISO string, or common date strings."""
@@ -228,7 +259,7 @@ def parse_timestamp(value: Any) -> datetime | None:
             return None
         # Fix malformed ISO timestamps where the seconds field has 3 digits
         # (e.g. "2020-06-01T00:00:030Z" → "2020-06-01T00:00:30Z").
-        s = re.sub(r'(\d{2}):(\d{2}):0(\d{2})', r'\1:\2:\3', s)
+        s = re.sub(r"(\d{2}):(\d{2}):0(\d{2})", r"\1:\2:\3", s)
         # Snowflake decode for Truth Social / Mastodon IDs embedded as _id
         # Caller responsibility to pass snowflake via explicit decode before calling here.
         for fmt in (
@@ -239,7 +270,7 @@ def parse_timestamp(value: Any) -> datetime | None:
             "%Y-%m-%d %H:%M:%S",
             "%Y-%m-%d",
             "%a %b %d %H:%M:%S %z %Y",  # Twitter API v1: "Mon Nov 05 01:23:45 +0000 2012"
-            "%d-%m-%Y %H:%M",           # covidvaccine.csv: "18-08-2020 12:55"
+            "%d-%m-%Y %H:%M",  # covidvaccine.csv: "18-08-2020 12:55"
             "%d-%m-%Y",
         ):
             try:
@@ -257,9 +288,7 @@ def parse_timestamp(value: Any) -> datetime | None:
 def snowflake_to_dt(snowflake_id: Any) -> datetime | None:
     """Decode a Mastodon snowflake ID to UTC datetime."""
     try:
-        return datetime.fromtimestamp(
-            (int(str(snowflake_id)) >> 16) / 1000.0, tz=timezone.utc
-        )
+        return datetime.fromtimestamp((int(str(snowflake_id)) >> 16) / 1000.0, tz=timezone.utc)
     except (ValueError, TypeError, OSError, OverflowError):
         return None
 
@@ -272,7 +301,7 @@ def _months_in_window(
     Window: [shock_dt - pre_days - buffer_days, shock_dt + window_days + buffer_days]
     """
     start = shock_dt - timedelta(days=pre_days + buffer_days)
-    end   = shock_dt + timedelta(days=window_days + buffer_days)
+    end = shock_dt + timedelta(days=window_days + buffer_days)
     months: list[tuple[int, int]] = []
     y, m = start.year, start.month
     while (y, m) <= (end.year, end.month):
@@ -284,6 +313,7 @@ def _months_in_window(
 
 
 # ── Archive readers ───────────────────────────────────────────────────────────
+
 
 def _pick_col(row: dict, candidates: list[str]) -> str | None:
     for c in candidates:
@@ -400,11 +430,15 @@ def _iter_pushshift_rows(
             _ts = row.get("created_utc")
             _date_str = (
                 datetime.utcfromtimestamp(float(_ts)).strftime("%Y-%m-%d")
-                if _ts is not None else "unknown"
+                if _ts is not None
+                else "unknown"
             )
             logger.debug(
                 "%s: scanned %s lines, %s posts in window, current date %s",
-                path_name, f"{lineno:,}", f"{posts_found:,}", _date_str,
+                path_name,
+                f"{lineno:,}",
+                f"{posts_found:,}",
+                _date_str,
             )
         body = str(row.get("body") or "").strip()
         if not body or body in ("[deleted]", "[removed]"):
@@ -500,9 +534,9 @@ def iter_archive(
                     "text": text,
                     "created_at": created_at,
                     "author_description": row.get("author_description")
-                        or row.get("user_description")
-                        or row.get("description")
-                        or row.get("author"),
+                    or row.get("user_description")
+                    or row.get("description")
+                    or row.get("author"),
                     "post_id": str(row.get("id") or row.get("post_id") or ""),
                     "platform": row.get("platform", "unknown"),
                 }
@@ -521,10 +555,10 @@ def iter_archive(
                 continue
             # Event code → (shock_id, known_date) for the LIWC MeToo/Kavanaugh dataset
             _SAV_EVENT_MAP: dict[int, tuple[str, str]] = {
-                1: ("metoo_2017",          "2017-10-15"),
-                2: ("kavanaugh_ford",       "2018-09-27"),
-                3: ("kavanaugh_confirmed",  "2018-10-06"),
-                4: ("weinstein_convicted",  "2020-02-24"),
+                1: ("metoo_2017", "2017-10-15"),
+                2: ("kavanaugh_ford", "2018-09-27"),
+                3: ("kavanaugh_confirmed", "2018-10-06"),
+                4: ("weinstein_convicted", "2020-02-24"),
             }
             try:
                 df, _ = _pyreadstat_mod.read_sav(str(path))
@@ -540,7 +574,8 @@ def iter_archive(
                 shock_id, date_str = _SAV_EVENT_MAP.get(event_code, (None, None))
                 created_at = (
                     datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
-                    if date_str else None
+                    if date_str
+                    else None
                 )
                 yield {
                     "text": text,
@@ -553,6 +588,7 @@ def iter_archive(
 
 
 # ── Three-strata sampler ──────────────────────────────────────────────────────
+
 
 def temporal_day_key(created_at: datetime | None, shock_date: datetime) -> int | None:
     """Return integer day offset from shock_date, or None if outside window or missing."""
@@ -586,22 +622,29 @@ def sample_archive(
     # ── Load and annotate all posts within the temporal window ────────────────
     pre = (
         (window_start_dt.date() - shock_date.date()).days
-        if window_start_dt is not None else -PRE_SHOCK_DAYS
+        if window_start_dt is not None
+        else -PRE_SHOCK_DAYS
     )
     post = (
         (window_end_dt.date() - shock_date.date()).days
-        if window_end_dt is not None else window_days
+        if window_end_dt is not None
+        else window_days
     )
 
     bucket_posts: dict[int, list[dict]] = defaultdict(list)
     total_loaded = 0
 
-    cutoff = (window_end_dt + timedelta(days=30)) if window_end_dt is not None else (
-        shock_date + timedelta(days=window_days + 30)
+    cutoff = (
+        (window_end_dt + timedelta(days=30))
+        if window_end_dt is not None
+        else (shock_date + timedelta(days=window_days + 30))
     )
     for raw in iter_archive(
-        archive_dir, archive_id,
-        cutoff_date=cutoff, shock_date=shock_date, window_days=window_days,
+        archive_dir,
+        archive_id,
+        cutoff_date=cutoff,
+        shock_date=shock_date,
+        window_days=window_days,
     ):
         day = temporal_day_key(raw["created_at"], shock_date)
         if day is None or day < pre or day > post:
@@ -633,10 +676,7 @@ def sample_archive(
         # Blocs present in this day's posts; unknown gets equal share
         present_blocs = list(by_bloc.keys())
         # Compute unnormalized share for each present bloc
-        raw_shares = {
-            b: BLOC_SHARES.get(b, 1.0 / len(present_blocs))
-            for b in present_blocs
-        }
+        raw_shares = {b: BLOC_SHARES.get(b, 1.0 / len(present_blocs)) for b in present_blocs}
         total_share = sum(raw_shares.values())
         norm_shares = {b: s / total_share for b, s in raw_shares.items()}
 
@@ -664,6 +704,7 @@ def sample_archive(
 
 # ── Output writer ─────────────────────────────────────────────────────────────
 
+
 def write_output(
     posts: list[dict],
     output_path: Path,
@@ -683,8 +724,11 @@ def write_output(
                 "seed": seed,
                 "payload": {
                     "text": post["text"],
-                    "created_at": post["created_at"].isoformat()
-                        if isinstance(post.get("created_at"), datetime) else None,
+                    "created_at": (
+                        post["created_at"].isoformat()
+                        if isinstance(post.get("created_at"), datetime)
+                        else None
+                    ),
                     "lang": post.get("lang", "en"),
                     "platform": post.get("platform", "unknown"),
                     "archive_id": archive_id,
@@ -702,19 +746,29 @@ def write_output(
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Stratified archive sampler")
     p.add_argument(
-        "--task-id", type=int,
+        "--task-id",
+        type=int,
         default=int(os.environ.get("SLURM_ARRAY_TASK_ID", -1)),
         help="Array task index (default: $SLURM_ARRAY_TASK_ID)",
     )
-    p.add_argument("--list-tasks", action="store_true",
-                   help="Print task count (used by Justfile to set array bounds)")
-    p.add_argument("--archive-root", type=Path, default=None,
-                   help="Root of archive directories (default: base.json data_root)")
-    p.add_argument("--output-dir", type=Path, default=None,
-                   help="Output directory for sampled JSONL files")
+    p.add_argument(
+        "--list-tasks",
+        action="store_true",
+        help="Print task count (used by Justfile to set array bounds)",
+    )
+    p.add_argument(
+        "--archive-root",
+        type=Path,
+        default=None,
+        help="Root of archive directories (default: base.json data_root)",
+    )
+    p.add_argument(
+        "--output-dir", type=Path, default=None, help="Output directory for sampled JSONL files"
+    )
     p.add_argument("--target-per-shock", type=int, default=TARGET_PER_SHOCK)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--verbose", action="store_true")
@@ -768,7 +822,8 @@ def main() -> None:
     if task_id < 0 or task_id >= len(tasks):
         logger.error(
             "task-id %d out of range [0, %d). Use --list-tasks to see available tasks.",
-            task_id, len(tasks),
+            task_id,
+            len(tasks),
         )
         sys.exit(1)
 
@@ -782,8 +837,13 @@ def main() -> None:
 
     logger.info(
         "Task %d/%d: shock=%s archive=%s shock_date=%s window=[%s, %s]",
-        task_id, len(tasks), shock_id, archive_id,
-        task["shock_date"], task["window_start"], task["window_end"],
+        task_id,
+        len(tasks),
+        shock_id,
+        archive_id,
+        task["shock_date"],
+        task["window_start"],
+        task["window_end"],
     )
 
     # Determine archive directory — search platform subdirectories
@@ -793,7 +853,7 @@ def main() -> None:
         # reddit_monthly: Pushshift monthly dumps organised by date rather than subreddit.
         # Contains posts from ALL subreddits — filter post['platform'] (subreddit name)
         # after sampling to isolate target communities for each shock.
-        "reddit_monthly":    archive_root / "reddit" / "reddit_monthly",
+        "reddit_monthly": archive_root / "reddit" / "reddit_monthly",
         "truth_social_2024": archive_root / "truthsocial" / "kashish_usc",
         "truth_social_2022": archive_root / "truthsocial" / "zenodo_notredame",
         "truth_social_2025": archive_root / "truthsocial" / "notmooodoo9",
@@ -817,7 +877,8 @@ def main() -> None:
         else:
             logger.warning(
                 "Override path for archive_id=%s does not exist: %s — skipping task.",
-                archive_id, override,
+                archive_id,
+                override,
             )
             return
     else:
@@ -834,7 +895,8 @@ def main() -> None:
             else:
                 logger.error(
                     "Archive directory not found for archive_id=%s under %s",
-                    archive_id, archive_root,
+                    archive_id,
+                    archive_root,
                 )
                 sys.exit(1)
 

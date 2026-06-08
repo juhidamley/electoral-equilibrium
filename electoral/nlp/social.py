@@ -226,11 +226,17 @@ class TruthSocialCollector(SocialCollector):
         import urllib.parse
         import urllib.request
 
-        from electoral.nlp.collectors.schema import append_post_record, build_post_payload, normalize_timestamp
+        from electoral.nlp.collectors.schema import (
+            append_post_record,
+            build_post_payload,
+            normalize_timestamp,
+        )
 
         if keywords is None:
             if not (self._output_root.parent / "configs" / "shocks.json").exists():
-                logger.warning("TruthSocialCollector: no keywords and shocks.json not found; skipping.")
+                logger.warning(
+                    "TruthSocialCollector: no keywords and shocks.json not found; skipping."
+                )
                 return 0
             shocks_path = self._output_root.parent / "configs" / "shocks.json"
             shocks = _json.load(open(shocks_path))
@@ -243,11 +249,13 @@ class TruthSocialCollector(SocialCollector):
 
         self._shock_id = shock_id
         query = " OR ".join(keywords[:5])  # Truth Social search supports limited boolean
-        params = urllib.parse.urlencode({
-            "q": query,
-            "type": "statuses",
-            "limit": min(self._max_results, 40),
-        })
+        params = urllib.parse.urlencode(
+            {
+                "q": query,
+                "type": "statuses",
+                "limit": min(self._max_results, 40),
+            }
+        )
         url = f"{self._API_BASE}{self._SEARCH_PATH}?{params}"
 
         try:
@@ -261,7 +269,9 @@ class TruthSocialCollector(SocialCollector):
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 data = _json.loads(resp.read().decode())
         except urllib.error.URLError as exc:
-            logger.warning("TruthSocialCollector: network error (%s); skipping shock '%s'.", exc, shock_id)
+            logger.warning(
+                "TruthSocialCollector: network error (%s); skipping shock '%s'.", exc, shock_id
+            )
             return 0
         except Exception as exc:
             logger.warning("TruthSocialCollector: unexpected error (%s); skipping.", exc)
@@ -273,6 +283,7 @@ class TruthSocialCollector(SocialCollector):
             text = status.get("content", "") or ""
             # Strip HTML tags that Truth Social includes in content
             import re
+
             text = re.sub(r"<[^>]+>", " ", text).strip()
             if not text:
                 continue
@@ -304,7 +315,10 @@ class TruthSocialCollector(SocialCollector):
 
         logger.info(
             "TruthSocialCollector: shock=%s written=%d/%d → %s",
-            shock_id, written, len(statuses), self.output_path,
+            shock_id,
+            written,
+            len(statuses),
+            self.output_path,
         )
         return written
 
@@ -476,7 +490,11 @@ class FacebookCollector(SocialCollector):
                 "Install via the Meta Content Library SDK or switch to reaction_fallback mode."
             ) from exc
 
-        from electoral.nlp.collectors.schema import append_post_record, build_post_payload, normalize_timestamp
+        from electoral.nlp.collectors.schema import (
+            append_post_record,
+            build_post_payload,
+            normalize_timestamp,
+        )
 
         client = ContentLibraryClient(access_token=self._cl_token)
         query = " OR ".join(keywords or [])
@@ -516,7 +534,9 @@ class FacebookCollector(SocialCollector):
 
         logger.info(
             "FacebookCollector (content_library): shock=%s written=%d → %s",
-            shock_id, written, self.output_path,
+            shock_id,
+            written,
+            self.output_path,
         )
         return written
 
@@ -541,9 +561,12 @@ class FacebookCollector(SocialCollector):
         import urllib.error
         import urllib.parse
         import urllib.request
-        from datetime import datetime, timezone
 
-        from electoral.nlp.collectors.schema import append_post_record, build_post_payload, normalize_timestamp
+        from electoral.nlp.collectors.schema import (
+            append_post_record,
+            build_post_payload,
+            normalize_timestamp,
+        )
 
         written = 0
 
@@ -583,13 +606,16 @@ class FacebookCollector(SocialCollector):
             except urllib.error.HTTPError as exc:
                 logger.warning(
                     "FacebookCollector: HTTP %d for page '%s' (%s) — skipping.",
-                    exc.code, page_name, page_id,
+                    exc.code,
+                    page_name,
+                    page_id,
                 )
                 continue
             except urllib.error.URLError as exc:
                 logger.warning(
                     "FacebookCollector: network error for page '%s': %s — skipping.",
-                    page_name, exc,
+                    page_name,
+                    exc,
                 )
                 continue
 
@@ -626,7 +652,10 @@ class FacebookCollector(SocialCollector):
 
         logger.info(
             "FacebookCollector (reaction_fallback): shock=%s written=%d across %d pages → %s",
-            shock_id, written, len(self._page_ids), self.output_path,
+            shock_id,
+            written,
+            len(self._page_ids),
+            self.output_path,
         )
         return written
 

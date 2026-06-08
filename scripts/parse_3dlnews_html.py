@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
-import io
 import json
 import logging
 import zipfile
@@ -36,9 +35,7 @@ from pathlib import Path
 try:
     from bs4 import BeautifulSoup
 except ImportError as exc:
-    raise SystemExit(
-        "beautifulsoup4 is required: pip install beautifulsoup4"
-    ) from exc
+    raise SystemExit("beautifulsoup4 is required: pip install beautifulsoup4") from exc
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +71,7 @@ def _parse_date(value: str | None) -> str | None:
 
 
 # ── HTML extraction ────────────────────────────────────────────────────────────
+
 
 def _extract_article(html_bytes: bytes) -> dict:
     """Parse article HTML and return {title, body, date}."""
@@ -130,19 +128,28 @@ def _extract_article(html_bytes: bytes) -> dict:
 
     # ── Body text ──────────────────────────────────────────────────────────────
     # Remove nav/header/footer/script/style/aside noise before extraction.
-    for tag in soup(["script", "style", "nav", "header", "footer", "aside",
-                     "form", "noscript", "iframe"]):
+    for tag in soup(
+        ["script", "style", "nav", "header", "footer", "aside", "form", "noscript", "iframe"]
+    ):
         tag.decompose()
 
     body = ""
     # Prefer <article>, then main content containers, then <body>
-    article_tag = (
-        soup.find("article")
-        or soup.find(attrs={"class": lambda c: c and any(
-            kw in " ".join(c).lower()
-            for kw in ("article-body", "story-body", "article__body",
-                       "post-body", "entry-content", "content-body")
-        )})
+    article_tag = soup.find("article") or soup.find(
+        attrs={
+            "class": lambda c: c
+            and any(
+                kw in " ".join(c).lower()
+                for kw in (
+                    "article-body",
+                    "story-body",
+                    "article__body",
+                    "post-body",
+                    "entry-content",
+                    "content-body",
+                )
+            )
+        }
     )
     if article_tag:
         body = article_tag.get_text(" ", strip=True)
@@ -156,6 +163,7 @@ def _extract_article(html_bytes: bytes) -> dict:
 
 
 # ── Zip walker ─────────────────────────────────────────────────────────────────
+
 
 def _post_id(zip_member_name: str) -> str:
     """Stable 12-char hex ID from filename."""
@@ -263,6 +271,7 @@ def iter_articles(
 
 # ── Writer ─────────────────────────────────────────────────────────────────────
 
+
 def write_outputs(
     articles,
     output_dir: Path,
@@ -308,20 +317,20 @@ def write_outputs(
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Parse 3DLNews HTML.gz files from zip into posts.jsonl"
+    p = argparse.ArgumentParser(description="Parse 3DLNews HTML.gz files from zip into posts.jsonl")
+    p.add_argument("--zip-path", required=True, type=Path, help="Path to 3DLNews-2.0-HTML.zip")
+    p.add_argument("--states", required=True, help="Comma-separated state codes, e.g. CA,TX,FL")
+    p.add_argument("--years", required=True, help="Comma-separated years, e.g. 2016,2017,2020")
+    p.add_argument(
+        "--output-dir", required=True, type=Path, help="Directory to write state/year .jsonl files"
     )
-    p.add_argument("--zip-path", required=True, type=Path,
-                   help="Path to 3DLNews-2.0-HTML.zip")
-    p.add_argument("--states", required=True,
-                   help="Comma-separated state codes, e.g. CA,TX,FL")
-    p.add_argument("--years", required=True,
-                   help="Comma-separated years, e.g. 2016,2017,2020")
-    p.add_argument("--output-dir", required=True, type=Path,
-                   help="Directory to write state/year .jsonl files")
-    p.add_argument("--source-type", default=None,
-                   help="Filter to zip subdirectory e.g. '3-TV' or '1-Google' (default: all)")
+    p.add_argument(
+        "--source-type",
+        default=None,
+        help="Filter to zip subdirectory e.g. '3-TV' or '1-Google' (default: all)",
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
@@ -342,7 +351,9 @@ def main() -> None:
 
     logger.info(
         "Parsing 3DLNews: %d states, %d years, source_type=%s",
-        len(states), len(years), args.source_type or "all",
+        len(states),
+        len(years),
+        args.source_type or "all",
     )
 
     articles = iter_articles(

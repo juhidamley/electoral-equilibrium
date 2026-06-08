@@ -105,10 +105,13 @@ def run_hailo_compile(onnx_path: Path, hef_path: Path) -> None:
     """Compile ONNX to HEF via hailo compile."""
     hef_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "hailo", "compile",
-        "--hw-arch", HW_ARCH,
+        "hailo",
+        "compile",
+        "--hw-arch",
+        HW_ARCH,
         str(onnx_path),
-        "-o", str(hef_path),
+        "-o",
+        str(hef_path),
     ]
     logger.info("Running: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True)

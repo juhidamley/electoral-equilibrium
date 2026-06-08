@@ -71,7 +71,12 @@ def _ts(dt: datetime) -> int:
 
 def _fetch_polymarket(contract_id: str, shock_dt: datetime) -> dict[str, float | None]:
     """Fetch prices at t-24h, t+1h, t+24h, t+72h from Polymarket CLOB API."""
-    offsets = {"pre_shock_prob": -24, "post_shock_1h": 1, "post_shock_24h": 24, "post_shock_72h": 72}
+    offsets = {
+        "pre_shock_prob": -24,
+        "post_shock_1h": 1,
+        "post_shock_24h": 24,
+        "post_shock_72h": 72,
+    }
     result: dict[str, float | None] = {k: None for k in offsets}
 
     for key, hours in offsets.items():
@@ -144,9 +149,7 @@ def _fetch_metaculus(question_id: str, shock_dt: datetime) -> dict[str, float | 
         return result
 
     # Metaculus returns community_prediction as a probability in [0, 1]
-    pred = (
-        data.get("community_prediction", {}) or {}
-    ).get("full", {}) or {}
+    pred = (data.get("community_prediction", {}) or {}).get("full", {}) or {}
     q = pred.get("q2") or pred.get("q3")  # median or mean
     if q is not None:
         try:
@@ -235,7 +238,9 @@ def _parse_iem_csv(csv_path: Path, shock_dt: datetime) -> dict[str, float | None
                 date_str = row.get("Date") or row.get("date") or ""
                 price_str = row.get("LastPrice") or row.get("last_price") or row.get("Price") or ""
                 try:
-                    dt = datetime.strptime(date_str.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    dt = datetime.strptime(date_str.strip(), "%Y-%m-%d").replace(
+                        tzinfo=timezone.utc
+                    )
                     price = float(price_str.strip())
                     rows.append((dt, price))
                 except (ValueError, AttributeError):
@@ -358,9 +363,7 @@ class MarketCollector:
             logger.info("Parsing IEM CSV for '%s': %s", shock_id, csv_path)
             results["iem"] = _parse_iem_csv(csv_path, shock_dt)
 
-        logger.info(
-            "collect('%s'): %d platforms with data", shock_id, len(results)
-        )
+        logger.info("collect('%s'): %d platforms with data", shock_id, len(results))
         return results
 
     def collect_all(self, shock_ids: list[str] | None = None) -> dict[str, dict]:
@@ -379,6 +382,7 @@ class MarketCollector:
 
         logger.info(
             "collect_all: %d/%d shocks had market data",
-            len(all_results), len(shock_ids),
+            len(all_results),
+            len(shock_ids),
         )
         return all_results

@@ -529,7 +529,9 @@ class TestFacebookCollectorModeSelection:
 
         from electoral.nlp.social import FacebookCollector
 
-        fc = FacebookCollector(output_root="/tmp/test_social", mode="auto", cl_token="fake_cl_token")
+        fc = FacebookCollector(
+            output_root="/tmp/test_social", mode="auto", cl_token="fake_cl_token"
+        )
         assert fc.mode == FacebookCollector.MODE_CONTENT_LIBRARY
 
     def test_explicit_reaction_fallback_mode(self, monkeypatch):
@@ -573,7 +575,9 @@ class TestFacebookCollectorModeSelection:
 
         from electoral.nlp.social import FacebookCollector
 
-        fc = FacebookCollector(output_root="/tmp/social", mode="reaction_fallback", graph_token="fake")
+        fc = FacebookCollector(
+            output_root="/tmp/social", mode="reaction_fallback", graph_token="fake"
+        )
         fc._shock_id = "kavanaugh_2018"
         assert "facebook_reactions" in str(fc.output_path)
         assert "kavanaugh_2018" in str(fc.output_path)
@@ -718,7 +722,7 @@ class TestApifyQuotaFallback:
 
     def test_quota_retry_uses_reduced_max_items(self):
         """On first failure, retry uses MAX_ITEMS_QUOTA_RETRY (100), not original count."""
-        from unittest.mock import MagicMock, call, patch
+        from unittest.mock import MagicMock, patch
 
         from electoral.nlp.collectors import apify_x_scraper as mod
         from electoral.nlp.collectors.apify_x_scraper import ApifyXScraper

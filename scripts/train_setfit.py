@@ -40,8 +40,8 @@ sys.path.insert(0, str(REPO_ROOT))
 logger = logging.getLogger(__name__)
 
 LABELS_PATH = REPO_ROOT / "data" / "bio_labels" / "labeled_bios.jsonl"
-MODELS_DIR  = REPO_ROOT / "models"
-BACKBONE    = "sentence-transformers/all-MiniLM-L6-v2"
+MODELS_DIR = REPO_ROOT / "models"
+BACKBONE = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Require at least this many examples per class to include it in training.
 MIN_SAMPLES_PER_CLASS = 8
@@ -50,19 +50,26 @@ MIN_SAMPLES_PER_CLASS = 8
 # these back to "gender:women" / "gender:men" in the /classify response.
 STRATA: dict[str, dict] = {
     "race": {
-        "dir":    MODELS_DIR / "setfit_race",
-        "field":  "race_bloc",
+        "dir": MODELS_DIR / "setfit_race",
+        "field": "race_bloc",
         "labels": ["african_american", "latino", "asian", "white", "other_race"],
     },
     "religion": {
-        "dir":    MODELS_DIR / "setfit_religion",
-        "field":  "religion_bloc",
-        "labels": ["evangelical", "catholic", "protestant", "secular",
-                   "jewish", "muslim", "other_rel"],
+        "dir": MODELS_DIR / "setfit_religion",
+        "field": "religion_bloc",
+        "labels": [
+            "evangelical",
+            "catholic",
+            "protestant",
+            "secular",
+            "jewish",
+            "muslim",
+            "other_rel",
+        ],
     },
     "gender": {
-        "dir":    MODELS_DIR / "setfit_gender",
-        "field":  "gender_signal",
+        "dir": MODELS_DIR / "setfit_gender",
+        "field": "gender_signal",
         "labels": ["F", "M"],
     },
 }
@@ -143,15 +150,11 @@ def train_stratum(
     try:
         from setfit import SetFitModel, SetFitTrainer, TrainingArguments
     except ImportError:
-        raise RuntimeError(
-            "setfit is not installed. Run:  pip install 'setfit>=1.0'"
-        )
+        raise RuntimeError("setfit is not installed. Run:  pip install 'setfit>=1.0'")
     try:
         from datasets import Dataset
     except ImportError:
-        raise RuntimeError(
-            "datasets is not installed. Run:  pip install 'datasets>=2.18'"
-        )
+        raise RuntimeError("datasets is not installed. Run:  pip install 'datasets>=2.18'")
     from sklearn.metrics import classification_report, f1_score
     from sklearn.model_selection import train_test_split
 
@@ -163,32 +166,43 @@ def train_stratum(
     if len(set(label_ids)) < 2:
         logger.warning(
             "Stratum '%s': only one class ('%s') — skipping (need ≥2 classes).",
-            stratum_name, label_names[0],
+            stratum_name,
+            label_names[0],
         )
         return None
 
     n_total = len(texts)
     logger.info(
         "Stratum '%s': %d examples, %d classes, backbone=%s",
-        stratum_name, n_total, len(label_names), BACKBONE,
+        stratum_name,
+        n_total,
+        len(label_names),
+        BACKBONE,
     )
 
-    arr_texts  = np.array(texts,     dtype=object)
+    arr_texts = np.array(texts, dtype=object)
     arr_labels = np.array(label_ids, dtype=int)
 
     try:
         X_tr, X_ev, y_tr, y_ev = train_test_split(
-            arr_texts, arr_labels, test_size=0.20, random_state=42, stratify=arr_labels,
+            arr_texts,
+            arr_labels,
+            test_size=0.20,
+            random_state=42,
+            stratify=arr_labels,
         )
     except ValueError:
         # Stratify fails when any class has <2 members after split — fall back
         logger.warning("Stratum '%s': stratified split failed, using random split.", stratum_name)
         X_tr, X_ev, y_tr, y_ev = train_test_split(
-            arr_texts, arr_labels, test_size=0.20, random_state=42,
+            arr_texts,
+            arr_labels,
+            test_size=0.20,
+            random_state=42,
         )
 
     train_ds = Dataset.from_dict({"text": X_tr.tolist(), "label": y_tr.tolist()})
-    eval_ds  = Dataset.from_dict({"text": X_ev.tolist(), "label": y_ev.tolist()})
+    eval_ds = Dataset.from_dict({"text": X_ev.tolist(), "label": y_ev.tolist()})
 
     logger.info("Loading backbone %s for stratum '%s' ...", BACKBONE, stratum_name)
     model = SetFitModel.from_pretrained(
@@ -197,11 +211,7 @@ def train_stratum(
     )
 
     def compute_metrics(y_pred, y_test):
-        return {
-            "macro_f1": float(
-                f1_score(y_test, y_pred, average="macro", zero_division=0)
-            )
-        }
+        return {"macro_f1": float(f1_score(y_test, y_pred, average="macro", zero_division=0))}
 
     training_args = TrainingArguments(
         num_epochs=args.epochs,
@@ -230,7 +240,10 @@ def train_stratum(
     # Full classification report for diagnostics
     preds = model.predict(X_ev.tolist())
     report = classification_report(
-        y_ev, preds, target_names=label_names, zero_division=0,
+        y_ev,
+        preds,
+        target_names=label_names,
+        zero_division=0,
     )
     logger.info("Stratum '%s' classification report:\n%s", stratum_name, report)
 
@@ -242,12 +255,10 @@ def train_stratum(
     label_cfg = {
         "id2label": {str(i): lbl for i, lbl in enumerate(label_names)},
         "label2id": {lbl: i for i, lbl in enumerate(label_names)},
-        "stratum":  stratum_name,
+        "stratum": stratum_name,
         "backbone": BACKBONE,
     }
-    (out_dir / "label_config.json").write_text(
-        json.dumps(label_cfg, indent=2), encoding="utf-8"
-    )
+    (out_dir / "label_config.json").write_text(json.dumps(label_cfg, indent=2), encoding="utf-8")
 
     logger.info("Saved stratum '%s' → %s", stratum_name, out_dir)
     return macro_f1

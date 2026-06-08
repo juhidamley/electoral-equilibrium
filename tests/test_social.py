@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from electoral.nlp.collectors.schema import (
     append_post_record,
@@ -59,7 +58,8 @@ def test_post_payload_has_required_fields():
 
 def test_bluesky_payload_includes_author_description_and_lang():
     payload = _make_payload(
-        "bluesky", "bsky:003",
+        "bluesky",
+        "bsky:003",
         author_description="Evangelical pastor from Texas",
     )
     assert "author_description" in payload
@@ -71,7 +71,7 @@ def test_bluesky_payload_includes_author_description_and_lang():
 def test_apify_output_schema_matches_bluesky():
     """ApifyCollector and BlueSkyCollector must produce payloads with identical keys."""
     bluesky_payload = _make_payload("bluesky", "bsky:schema", author_description="bio")
-    apify_payload   = _make_payload("apify",   "apify:schema", inference_method="platform_proxy")
+    apify_payload = _make_payload("apify", "apify:schema", inference_method="platform_proxy")
     assert set(bluesky_payload.keys()) == set(apify_payload.keys()), (
         f"BlueSky has extra keys: {set(bluesky_payload) - set(apify_payload)}\n"
         f"Apify has extra keys:   {set(apify_payload) - set(bluesky_payload)}"
@@ -100,7 +100,7 @@ def test_append_post_record_writes_valid_jsonl(tmp_path):
     out = tmp_path / "posts.jsonl"
     payload = _make_payload("bluesky", "schema:001")
     append_post_record(out, payload, seed=42)
-    lines = [l for l in out.read_text().splitlines() if l.strip()]
+    lines = [line for line in out.read_text().splitlines() if line.strip()]
     assert len(lines) == 1
     record = json.loads(lines[0])
     assert record["schema_version"] == "1.0"
@@ -119,9 +119,7 @@ def test_merge_posts_concatenates_all_platforms(tmp_path):
         shock_dir.mkdir(parents=True)
         payload = _make_payload(platform, f"{platform}:001", shock_id=shock_id)
         envelope = wrap_envelope(payload, seed=42)
-        (shock_dir / "posts.jsonl").write_text(
-            json.dumps(envelope) + "\n", encoding="utf-8"
-        )
+        (shock_dir / "posts.jsonl").write_text(json.dumps(envelope) + "\n", encoding="utf-8")
 
     merged_root = tmp_path / "merged"
     total = merge_posts(shock_id, posts_root=social_root, merged_root=merged_root)
@@ -129,7 +127,7 @@ def test_merge_posts_concatenates_all_platforms(tmp_path):
     assert total == 3
     merged_path = merged_root / shock_id / "posts.jsonl"
     assert merged_path.exists()
-    records = [json.loads(l) for l in merged_path.read_text().splitlines() if l.strip()]
+    records = [json.loads(line) for line in merged_path.read_text().splitlines() if line.strip()]
     assert len(records) == 3
     assert {r.get("platform") for r in records} == {"bluesky", "apify", "reddit"}
 
@@ -147,7 +145,11 @@ def test_merge_posts_idempotent(tmp_path):
     c1 = merge_posts(shock_id, posts_root=social_root, merged_root=merged_root)
     c2 = merge_posts(shock_id, posts_root=social_root, merged_root=merged_root)
     assert c1 == c2 == 1
-    lines = [l for l in (merged_root / shock_id / "posts.jsonl").read_text().splitlines() if l.strip()]
+    lines = [
+        line
+        for line in (merged_root / shock_id / "posts.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
     assert len(lines) == 1  # second run overwrites, not appends
 
 
@@ -182,8 +184,18 @@ def test_baseline_adjustment_produces_scores_in_range():
     n = 40
     raw_scores = rng.uniform(-1.0, 1.0, n).tolist()
 
-    blocs = ["white", "evangelical", "women", "african_american", "secular",
-             "men", "latino", "catholic", "other_gender", "asian"]
+    blocs = [
+        "white",
+        "evangelical",
+        "women",
+        "african_american",
+        "secular",
+        "men",
+        "latino",
+        "catholic",
+        "other_gender",
+        "asian",
+    ]
     bio_results = []
     for i in range(n):
         bloc = blocs[i % len(blocs)]
@@ -197,9 +209,9 @@ def test_baseline_adjustment_produces_scores_in_range():
     result = _aggregate_scores(raw_scores, bio_results, exclude_language_prior=True)
 
     for bloc, score in result.items():
-        assert -1.0 <= score <= 1.0, (
-            f"Baseline-adjusted score for '{bloc}' = {score:.4f} outside [-1, 1]"
-        )
+        assert (
+            -1.0 <= score <= 1.0
+        ), f"Baseline-adjusted score for '{bloc}' = {score:.4f} outside [-1, 1]"
 
 
 # ── Weighted scorer: distinct per-bloc values ─────────────────────────────────
@@ -211,47 +223,49 @@ def test_weighted_scorer_distinct_per_bloc_values():
     Uses a mock pipeline returning different scores for different texts so that
     each bloc receives a different weighted-average value.
     """
-    import numpy as np
-    from electoral.nlp.bio_classifier import BioClassification, BioClassifier
+    from electoral.nlp.bio_classifier import BioClassification
     from electoral.nlp.scorer import EmbeddingCache, RoBERTaScorer
 
     # Build 15 posts, one per canonical bloc, with strictly increasing raw scores
     all_blocs = [
-        "african_american", "latino", "asian", "white", "other_race",
-        "evangelical", "catholic", "protestant", "secular", "jewish",
-        "muslim", "other_rel", "women", "men", "other_gender",
+        "african_american",
+        "latino",
+        "asian",
+        "white",
+        "other_race",
+        "evangelical",
+        "catholic",
+        "protestant",
+        "secular",
+        "jewish",
+        "muslim",
+        "other_rel",
+        "women",
+        "men",
+        "other_gender",
     ]
-    posts = [
-        {
-            "id": f"post_{b}",
-            "text": f"Text about {b}",
-            "lang": "en",
-            "inference_method": None,
-            "author_description": None,
-        }
-        for b in all_blocs
-    ]
-
     # Fake pipeline: returns monotonically increasing scores so each bloc differs
     call_idx = [0]
+
     def fake_pipeline(batch):
         results = []
         for _ in batch:
             neg = max(0.0, 0.5 - call_idx[0] * 0.03)
             pos = min(1.0, 0.1 + call_idx[0] * 0.06)
             neu = max(0.0, 1.0 - neg - pos)
-            results.append([
-                {"label": "LABEL_0", "score": neg},
-                {"label": "LABEL_1", "score": neu},
-                {"label": "LABEL_2", "score": pos},
-            ])
+            results.append(
+                [
+                    {"label": "LABEL_0", "score": neg},
+                    {"label": "LABEL_1", "score": neu},
+                    {"label": "LABEL_2", "score": pos},
+                ]
+            )
             call_idx[0] += 1
         return results
 
     # Bio classifier: each post maps to exactly its canonical bloc
-    race    = {"african_american", "latino", "asian", "white", "other_race"}
-    religion = {"evangelical", "catholic", "protestant", "secular", "jewish",
-                "muslim", "other_rel"}
+    race = {"african_american", "latino", "asian", "white", "other_race"}
+    religion = {"evangelical", "catholic", "protestant", "secular", "jewish", "muslim", "other_rel"}
 
     class _ExactBioCLF:
         def classify(self, bio, lang="", inference_method=None):
@@ -271,6 +285,7 @@ def test_weighted_scorer_distinct_per_bloc_values():
             pre_built[b] = BioClassification("keyword_bio", {}, {}, {b: 1.0})
 
     import tempfile
+
     with tempfile.TemporaryDirectory() as d:
         scorer = object.__new__(RoBERTaScorer)
         scorer.model_name = "test"
@@ -283,13 +298,14 @@ def test_weighted_scorer_distinct_per_bloc_values():
         bio_results = [pre_built[b] for b in all_blocs]
 
         from electoral.nlp.scorer import _aggregate_scores
+
         result = _aggregate_scores(raw_scores, bio_results, exclude_language_prior=True)
 
     # Every bloc that received a post must have a distinct non-zero score
     non_zero = {k: v for k, v in result.items() if v != 0.0}
-    assert len(non_zero) == len(all_blocs), (
-        f"Expected {len(all_blocs)} blocs with scores, got {len(non_zero)}"
-    )
+    assert len(non_zero) == len(
+        all_blocs
+    ), f"Expected {len(all_blocs)} blocs with scores, got {len(non_zero)}"
     distinct_values = set(round(v, 8) for v in non_zero.values())
     assert len(distinct_values) == len(all_blocs), (
         f"Expected {len(all_blocs)} distinct scores, got {len(distinct_values)}: "

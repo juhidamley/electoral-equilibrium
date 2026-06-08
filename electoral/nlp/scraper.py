@@ -421,10 +421,10 @@ def _parse_published_at(raw: str) -> datetime | None:
     if not raw:
         return None
     for fmt in (
-        "%a, %d %b %Y %H:%M:%S %z",   # RFC 2822 (RSS): Mon, 03 Feb 2020 12:00:00 +0000
-        "%a, %d %b %Y %H:%M:%S %Z",   # same but with named timezone (GMT)
-        "%Y-%m-%dT%H:%M:%S%z",        # Atom ISO-8601 with offset
-        "%Y-%m-%dT%H:%M:%SZ",         # Atom ISO-8601 UTC
+        "%a, %d %b %Y %H:%M:%S %z",  # RFC 2822 (RSS): Mon, 03 Feb 2020 12:00:00 +0000
+        "%a, %d %b %Y %H:%M:%S %Z",  # same but with named timezone (GMT)
+        "%Y-%m-%dT%H:%M:%S%z",  # Atom ISO-8601 with offset
+        "%Y-%m-%dT%H:%M:%SZ",  # Atom ISO-8601 UTC
         "%Y-%m-%d",
     ):
         try:
@@ -470,10 +470,10 @@ def scrape_articles(
         raise ValueError(f"No matching outlets for sources={sources!r}")
 
     start_dt: datetime | None = None
-    end_dt:   datetime | None = None
+    end_dt: datetime | None = None
     if date_range is not None:
         start_dt = datetime.fromisoformat(date_range[0]).replace(tzinfo=timezone.utc)
-        end_dt   = datetime.fromisoformat(date_range[1]).replace(tzinfo=timezone.utc)
+        end_dt = datetime.fromisoformat(date_range[1]).replace(tzinfo=timezone.utc)
 
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     result: dict[str, Any] = {"shock_id": shock_id, "outlets": {}}
@@ -482,7 +482,7 @@ def scrape_articles(
         if idx > 0:
             time.sleep(INTER_OUTLET_DELAY)
 
-        slug    = outlet["slug"]
+        slug = outlet["slug"]
         display = outlet["display"]
         out_path = DATA_ROOT / shock_id / slug / f"{date_str}.jsonl"
         counts: dict[str, int] = {"attempted": 0, "discarded": 0, "written": 0}
@@ -533,7 +533,7 @@ def scrape_articles(
                 continue
 
             text = _extract_text(page_resp.text, outlet["content_selectors"])
-            wc   = _word_count(text)
+            wc = _word_count(text)
 
             if wc < MIN_WORD_COUNT:
                 log.debug("[%s/%s] discard wc=%d: %s", shock_id, slug, wc, url)
@@ -556,13 +556,16 @@ def scrape_articles(
             log.info("[%s/%s] wrote wc=%d: %s", shock_id, slug, wc, url)
 
         discard_rate = (
-            counts["discarded"] / counts["attempted"] * 100
-            if counts["attempted"] else 0.0
+            counts["discarded"] / counts["attempted"] * 100 if counts["attempted"] else 0.0
         )
         log.info(
             "[%s/%s] done — attempted=%d  discarded=%d (%.0f%%)  written=%d",
-            shock_id, display,
-            counts["attempted"], counts["discarded"], discard_rate, counts["written"],
+            shock_id,
+            display,
+            counts["attempted"],
+            counts["discarded"],
+            discard_rate,
+            counts["written"],
         )
         result["outlets"][slug] = counts
 
@@ -636,7 +639,7 @@ def main() -> None:
             dry_run=args.dry_run,
             max_articles=args.max_articles,
         )
-        total_w = sum(c["written"]   for c in result["outlets"].values())
+        total_w = sum(c["written"] for c in result["outlets"].values())
         total_d = sum(c["discarded"] for c in result["outlets"].values())
         log.info("shock run complete — written=%d  discarded=%d", total_w, total_d)
         return

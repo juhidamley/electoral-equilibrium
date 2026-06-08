@@ -24,6 +24,7 @@ from typing import Any
 try:
     import requests as _requests
     from bs4 import BeautifulSoup as _BeautifulSoup
+
     _FETCH_AVAILABLE = True
 except ImportError:
     _FETCH_AVAILABLE = False
@@ -202,7 +203,11 @@ class ScrapedNewsLoader:
 
         logger.info(
             "ScrapedNewsLoader: %d articles from %s (outlet=%s, since=%s, until=%s)",
-            len(posts), self._root, outlet, since, until,
+            len(posts),
+            self._root,
+            outlet,
+            since,
+            until,
         )
         return posts
 
@@ -355,9 +360,7 @@ def load_huggingface_news(
             )
         )
 
-    logger.info(
-        "Loaded %d records from HuggingFace dataset '%s'", len(posts), dataset_name
-    )
+    logger.info("Loaded %d records from HuggingFace dataset '%s'", len(posts), dataset_name)
     return posts
 
 
@@ -377,17 +380,27 @@ def _parse_date(d: str | date | None) -> date | None:
 
 _FETCH_HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; "
-        "research project, non-commercial)"
+        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; " "research project, non-commercial)"
     ),
     "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-_NOISE_TAGS = frozenset([
-    "script", "style", "nav", "header", "footer", "aside",
-    "figure", "figcaption", "iframe", "noscript", "form",
-])
+_NOISE_TAGS = frozenset(
+    [
+        "script",
+        "style",
+        "nav",
+        "header",
+        "footer",
+        "aside",
+        "figure",
+        "figcaption",
+        "iframe",
+        "noscript",
+        "form",
+    ]
+)
 
 _CONTENT_SELECTORS = [
     "article",
@@ -440,8 +453,7 @@ def _url_id(url: str) -> str:
 
 def _parse_article_date(raw: dict[str, Any]) -> date | None:
     """Try common date field names and return a date object."""
-    for field in ("publication_date", "published", "date", "published_at",
-                  "created_at", "crawled"):
+    for field in ("publication_date", "published", "date", "published_at", "created_at", "crawled"):
         val = raw.get(field)
         if not val:
             continue
@@ -462,6 +474,7 @@ def _parse_article_date(raw: dict[str, Any]) -> date | None:
 
 
 # ── ThreeDLNewsLoader ─────────────────────────────────────────────────────────
+
 
 class ThreeDLNewsLoader:
     """Load 3DLNews archive URL entries, fetch HTML, and return canonical payloads.
@@ -554,8 +567,7 @@ class ThreeDLNewsLoader:
                     url = str(raw.get("url") or raw.get("link") or "")
                     if outlet_lower:
                         outlet_field = str(
-                            raw.get("outlet") or raw.get("source") or
-                            raw.get("domain") or ""
+                            raw.get("outlet") or raw.get("source") or raw.get("domain") or ""
                         ).lower()
                         url_host = re.sub(r"https?://([^/]+).*", r"\1", url).lower()
                         if outlet_lower not in outlet_field and outlet_lower not in url_host:
@@ -564,8 +576,11 @@ class ThreeDLNewsLoader:
 
                     # ── Text: use cached or fetch ─────────────────────────────
                     text = str(
-                        raw.get("content") or raw.get("article_text") or
-                        raw.get("text") or raw.get("body") or ""
+                        raw.get("content")
+                        or raw.get("article_text")
+                        or raw.get("text")
+                        or raw.get("body")
+                        or ""
                     ).strip()
 
                     if len(text.split()) < MIN_ARTICLE_WORDS:
@@ -573,9 +588,7 @@ class ThreeDLNewsLoader:
                             n_short += 1
                             continue
                         if not _FETCH_AVAILABLE:
-                            logger.warning(
-                                "requests/bs4 not installed; cannot fetch %s", url
-                            )
+                            logger.warning("requests/bs4 not installed; cannot fetch %s", url)
                             n_fetch_fail += 1
                             continue
                         html = _fetch_url(url, timeout=self._timeout)
@@ -592,13 +605,14 @@ class ThreeDLNewsLoader:
 
                     # ── Build payload ─────────────────────────────────────────
                     rec_outlet = str(
-                        raw.get("outlet") or raw.get("source") or
-                        raw.get("domain") or "unknown"
+                        raw.get("outlet") or raw.get("source") or raw.get("domain") or "unknown"
                     )
                     created_at = normalize_timestamp(
-                        raw.get("publication_date") or raw.get("published") or
-                        raw.get("date") or raw.get("published_at") or
-                        raw.get("created_at")
+                        raw.get("publication_date")
+                        or raw.get("published")
+                        or raw.get("date")
+                        or raw.get("published_at")
+                        or raw.get("created_at")
                     )
                     post_id = str(raw.get("id") or raw.get("url") or "")
                     if not post_id:
@@ -615,8 +629,9 @@ class ThreeDLNewsLoader:
                         shock_id=shock_id,
                         author_did=None,
                         author_handle=rec_outlet,
-                        author_description=json.dumps({"outlet": rec_outlet,
-                                                        "state": raw.get("state")}),
+                        author_description=json.dumps(
+                            {"outlet": rec_outlet, "state": raw.get("state")}
+                        ),
                         inference_method="platform_proxy",
                     )
                     payload["url"] = url
@@ -633,13 +648,18 @@ class ThreeDLNewsLoader:
         logger.info(
             "3DLNewsLoader: %d articles loaded (skipped: date=%d state=%d outlet=%d "
             "short=%d fetch_fail=%d)",
-            len(records), n_skipped_date, n_skipped_state,
-            n_skipped_outlet, n_short, n_fetch_fail,
+            len(records),
+            n_skipped_date,
+            n_skipped_state,
+            n_skipped_outlet,
+            n_short,
+            n_fetch_fail,
         )
         return records
 
 
 # ── WebhoseLoader ─────────────────────────────────────────────────────────────
+
 
 class WebhoseLoader:
     """Load pre-extracted Webhose news articles from archive JSONL files.
@@ -723,8 +743,7 @@ class WebhoseLoader:
                     if domain_lower:
                         thread = raw.get("thread") or {}
                         site = str(
-                            thread.get("site") or raw.get("site_full") or
-                            raw.get("site") or url
+                            thread.get("site") or raw.get("site_full") or raw.get("site") or url
                         ).lower()
                         if domain_lower not in site:
                             n_skipped_domain += 1
@@ -732,8 +751,11 @@ class WebhoseLoader:
 
                     # ── Text ──────────────────────────────────────────────────
                     text = str(
-                        raw.get("text") or raw.get("body") or
-                        raw.get("content") or raw.get("title") or ""
+                        raw.get("text")
+                        or raw.get("body")
+                        or raw.get("content")
+                        or raw.get("title")
+                        or ""
                     ).strip()
 
                     if len(text.split()) < MIN_ARTICLE_WORDS:
@@ -787,12 +809,16 @@ class WebhoseLoader:
 
         logger.info(
             "WebhoseLoader: %d articles loaded (skipped: date=%d domain=%d short=%d)",
-            len(records), n_skipped_date, n_skipped_domain, n_short,
+            len(records),
+            n_skipped_date,
+            n_skipped_domain,
+            n_short,
         )
         return records
 
 
 # ── Output writer ─────────────────────────────────────────────────────────────
+
 
 def save_articles(
     records: list[dict],
