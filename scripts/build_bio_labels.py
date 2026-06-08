@@ -47,21 +47,22 @@ from typing import Iterator
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from electoral.nlp.bio_classifier import BioClassifier
+from electoral.nlp.bio_classifier import BioClassifier  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 ARCHIVE_ROOT = Path("/Volumes/JUHIDRIVE/electoralData/archives")
-OUTPUT_PATH  = REPO_ROOT / "data" / "bio_labels" / "labeled_bios.jsonl"
+OUTPUT_PATH = REPO_ROOT / "data" / "bio_labels" / "labeled_bios.jsonl"
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 
-CONFIDENCE_THRESHOLD = 0.55   # top-bloc weight must exceed this to be kept
-TARGET_PER_BLOC      = 150    # aim for this many per bloc; script stops early
+CONFIDENCE_THRESHOLD = 0.55  # top-bloc weight must exceed this to be kept
+TARGET_PER_BLOC = 150  # aim for this many per bloc; script stops early
 
 # ── Source definitions ────────────────────────────────────────────────────────
+
 
 def _iter_csv_bios(path: Path, bio_col: str, source: str) -> Iterator[tuple[str, str]]:
     """Yield (bio, source) from a CSV file."""
@@ -103,23 +104,28 @@ def _all_bio_sources() -> Iterator[tuple[str, str]]:
         # (iterator, priority) — higher-volume sources first
         _iter_csv_bios(
             ARCHIVE_ROOT / "twitter" / "election_2020" / "hashtag_joebiden.csv",
-            "user_description", "election_2020_joebiden",
+            "user_description",
+            "election_2020_joebiden",
         ),
         _iter_csv_bios(
             ARCHIVE_ROOT / "twitter" / "election_2020" / "hashtag_donaldtrump.csv",
-            "user_description", "election_2020_trump",
+            "user_description",
+            "election_2020_trump",
         ),
         _iter_csv_bios(
             ARCHIVE_ROOT / "twitter" / "covid_vaccine_2020" / "covidvaccine.csv",
-            "user_description", "covid_vaccine_2020",
+            "user_description",
+            "covid_vaccine_2020",
         ),
         _iter_csv_bios(
             ARCHIVE_ROOT / "twitter" / "covid_pandemic_2020" / "covid19_tweets.csv",
-            "user_description", "covid_pandemic_2020",
+            "user_description",
+            "covid_pandemic_2020",
         ),
         _iter_csv_bios(
             ARCHIVE_ROOT / "twitter" / "election_2016" / "election_day_tweets.csv",
-            "user.description", "election_2016",
+            "user.description",
+            "election_2016",
         ),
         _iter_json_bios(
             ARCHIVE_ROOT / "twitter" / "election_2012" / "tweets.json",
@@ -131,6 +137,7 @@ def _all_bio_sources() -> Iterator[tuple[str, str]]:
 
 
 # ── Label derivation ──────────────────────────────────────────────────────────
+
 
 def _top_bloc(weights: dict[str, float], threshold: float) -> tuple[str | None, float]:
     """Return (top_bloc, weight) if above threshold, else (None, 0)."""
@@ -150,19 +157,21 @@ def _gender_signal(weights: dict[str, float]) -> str | None:
         return "F"
     if top == "men":
         return "M"
-    return None   # other_gender or split
+    return None  # other_gender or split
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Auto-label bios from archives for SetFit training")
     p.add_argument("--target-per-bloc", type=int, default=TARGET_PER_BLOC)
-    p.add_argument("--confidence",      type=float, default=CONFIDENCE_THRESHOLD)
-    p.add_argument("--output",          type=Path,  default=OUTPUT_PATH)
-    p.add_argument("--dry-run",         action="store_true",
-                   help="Print final counts only; do not write file")
-    p.add_argument("--verbose",         action="store_true")
+    p.add_argument("--confidence", type=float, default=CONFIDENCE_THRESHOLD)
+    p.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    p.add_argument(
+        "--dry-run", action="store_true", help="Print final counts only; do not write file"
+    )
+    p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
 
@@ -177,9 +186,9 @@ def main() -> None:
     classifier = BioClassifier.from_config(pi_server_url=None)
 
     # Track counts per bloc
-    race_counts:     defaultdict[str, int] = defaultdict(int)
+    race_counts: defaultdict[str, int] = defaultdict(int)
     religion_counts: defaultdict[str, int] = defaultdict(int)
-    gender_counts:   defaultdict[str, int] = defaultdict(int)
+    gender_counts: defaultdict[str, int] = defaultdict(int)
 
     seen_hashes: set[str] = set()
     records: list[dict] = []
@@ -188,9 +197,10 @@ def main() -> None:
     def _all_satisfied() -> bool:
         """True when every non-null bloc has reached the target."""
         from electoral.core.types import CANONICAL_RACES, CANONICAL_RELIGIONS, CANONICAL_GENDERS
-        race_ok    = all(race_counts[b]     >= args.target_per_bloc for b in CANONICAL_RACES)
-        rel_ok     = all(religion_counts[b] >= args.target_per_bloc for b in CANONICAL_RELIGIONS)
-        gender_ok  = all(gender_counts[b]   >= args.target_per_bloc for b in CANONICAL_GENDERS)
+
+        race_ok = all(race_counts[b] >= args.target_per_bloc for b in CANONICAL_RACES)
+        rel_ok = all(religion_counts[b] >= args.target_per_bloc for b in CANONICAL_RELIGIONS)
+        gender_ok = all(gender_counts[b] >= args.target_per_bloc for b in CANONICAL_GENDERS)
         return race_ok and rel_ok and gender_ok
 
     now_iso = datetime.now(tz=timezone.utc).isoformat()
@@ -204,7 +214,8 @@ def main() -> None:
         if total_scanned % 100_000 == 0:
             logger.info(
                 "Scanned %s bios, collected %d records",
-                f"{total_scanned:,}", len(records),
+                f"{total_scanned:,}",
+                len(records),
             )
 
         # Dedup by SHA-1 of lowercased bio
@@ -215,7 +226,7 @@ def main() -> None:
 
         result = classifier.classify(bio)
 
-        race_bloc,     race_conf     = _top_bloc(result.race_weights,     args.confidence)
+        race_bloc, race_conf = _top_bloc(result.race_weights, args.confidence)
         religion_bloc, religion_conf = _top_bloc(result.religion_weights, args.confidence)
         gender_sig = _gender_signal(result.gender_weights)
 
@@ -229,7 +240,9 @@ def main() -> None:
         if religion_bloc is not None and religion_counts[religion_bloc] >= args.target_per_bloc:
             religion_bloc = None
         if gender_sig is not None:
-            gen_bloc = "women" if gender_sig == "F" else ("men" if gender_sig == "M" else "other_gender")
+            gen_bloc = (
+                "women" if gender_sig == "F" else ("men" if gender_sig == "M" else "other_gender")
+            )
             if gender_counts[gen_bloc] >= args.target_per_bloc:
                 gender_sig = None
                 gen_bloc = None
@@ -239,9 +252,12 @@ def main() -> None:
         if race_bloc is None and religion_bloc is None and gender_sig is None:
             continue
 
-        if race_bloc:     race_counts[race_bloc]         += 1
-        if religion_bloc: religion_counts[religion_bloc] += 1
-        if gen_bloc:      gender_counts[gen_bloc]        += 1
+        if race_bloc:
+            race_counts[race_bloc] += 1
+        if religion_bloc:
+            religion_counts[religion_bloc] += 1
+        if gen_bloc:
+            gender_counts[gen_bloc] += 1
 
         confidence = max(
             race_conf,
@@ -249,21 +265,26 @@ def main() -> None:
             max(result.gender_weights.values()) if result.gender_weights else 0.0,
         )
 
-        records.append({
-            "bio":            bio,
-            "race_bloc":      race_bloc,
-            "religion_bloc":  religion_bloc,
-            "gender_signal":  gender_sig,
-            "label_method":   "keyword_auto",
-            "source":         source,
-            "confidence":     round(confidence, 4),
-            "collected_at":   now_iso,
-        })
+        records.append(
+            {
+                "bio": bio,
+                "race_bloc": race_bloc,
+                "religion_bloc": religion_bloc,
+                "gender_signal": gender_sig,
+                "label_method": "keyword_auto",
+                "source": source,
+                "confidence": round(confidence, 4),
+                "collected_at": now_iso,
+            }
+        )
 
-    logger.info("Scan complete — %s bios scanned, %d records collected", f"{total_scanned:,}", len(records))
+    logger.info(
+        "Scan complete — %s bios scanned, %d records collected", f"{total_scanned:,}", len(records)
+    )
 
     # Print summary
     from electoral.core.types import CANONICAL_RACES, CANONICAL_RELIGIONS, CANONICAL_GENDERS
+
     logger.info("── Race bloc counts ──────────────────────")
     for b in CANONICAL_RACES:
         logger.info("  %-22s %d", b, race_counts[b])
