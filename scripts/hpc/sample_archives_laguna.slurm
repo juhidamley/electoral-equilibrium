@@ -26,7 +26,8 @@ mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task $SLURM_ARRAY_TASK_ID / array $SLURM_ARRAY_JOB_ID starting on $(hostname)"
 
-source "${HOME_DIR}/miniconda3/etc/profile.d/conda.sh"
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
 pip install --quiet -r "$REPO_DIR/requirements.txt"
 
@@ -36,6 +37,7 @@ python "$REPO_DIR/scripts/sample_archives.py" \
     --task-id "$SLURM_ARRAY_TASK_ID" \
     --archive-root "$ARCHIVE_ROOT" \
     --output-dir "$OUTPUT_DIR" \
+    --target-per-shock 200000 \
     --seed 42 \
     --verbose
 
