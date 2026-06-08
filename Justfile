@@ -63,9 +63,12 @@ sample-laguna:
 
 # ── Data preparation (runs locally on M5 or Windows) ─────────────────────────
 
-# LLM cleaning: off-topic filter, dedup, normalisation (local model on M5; NEVER Gemini API)
+# LLM cleaning: steps 1-4 (Gemini 2.0 Flash for off-topic filter; steps 2-4 deterministic)
+# Requires GEMINI_API_KEY or GEMINI env var. Use --dry-run to skip Gemini (steps 2-4 only).
 clean:
-    python scripts/clean_with_llm.py
+    python scripts/clean_with_llm.py \
+        --input-dir /Volumes/JUHIDRIVE/electoralData/sampled/ \
+        --output-dir /Volumes/JUHIDRIVE/electoralData/cleaned/
 
 # ── Deployment ────────────────────────────────────────────────────────────────
 

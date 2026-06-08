@@ -233,11 +233,15 @@ class BioClassifier:
         if prior is None:
             return None
         race_weights = {k: float(v) for k, v in prior.get("race", {}).items()}
+        religion_weights = {k: float(v) for k, v in prior.get("religion", {}).items()}
+        gender_weights = {k: float(v) for k, v in prior.get("gender", {}).items()}
+        if not race_weights and not religion_weights and not gender_weights:
+            return None
         return BioClassification(
             inference_method="language_prior",
             race_weights=race_weights,
-            religion_weights={},
-            gender_weights={},
+            religion_weights=religion_weights,
+            gender_weights=gender_weights,
         )
 
     def _stage3_setfit(self, bio: str) -> BioClassification | None:
