@@ -487,9 +487,8 @@ def main() -> None:
             logger.warning("Batch %d yielded 0 valid scenarios — stopping.", batch_num)
             break
 
-    valid_scenarios = all_scenarios
-
-    logger.info("%d/%d scenarios passed validation", len(valid_scenarios), len(scenarios))
+    # Trim any overshoot (last batch may yield slightly more than remaining)
+    valid_scenarios = all_scenarios[: args.n_scenarios]
 
     logger.info("Total valid scenarios collected: %d / %d requested", len(valid_scenarios), args.n_scenarios)
     if not valid_scenarios:
