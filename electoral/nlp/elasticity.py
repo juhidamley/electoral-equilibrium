@@ -14,11 +14,11 @@ Delta bin taxonomy (9 tokens, CLAUDE.md):
     mod_neg     [-0.50, -0.30)
     mild_neg    [-0.30, -0.15)
     slight_neg  [-0.15, -0.05)
-    neutral     [-0.05,  0.05]
-    slight_pos   (0.05,  0.15]
-    mild_pos     (0.15,  0.30]
-    mod_pos      (0.30,  0.50]
-    strong_pos   (0.50,  1.0]
+    neutral     [-0.05,  0.05)
+    slight_pos  [0.05,  0.15)
+    mild_pos    [0.15,  0.30)
+    mod_pos     [0.30,  0.50)
+    strong_pos  [0.50,  1.0]
 """
 
 from __future__ import annotations
