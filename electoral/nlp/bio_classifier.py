@@ -111,6 +111,8 @@ class BioClassifier:
         self._lang_priors: dict[str, Any] = language_priors.get("priors", {})
         self._pi_url = pi_server_url.rstrip("/") if pi_server_url else None
         self._pi_timeout = pi_timeout_secs
+        # Circuit breaker: set False after first Pi failure to skip subsequent calls.
+        self._pi_available: bool = self._pi_url is not None
 
     @classmethod
     def from_config(
@@ -180,7 +182,7 @@ class BioClassifier:
                 return result
 
         # Stage 3: SetFit via Pi (English posts with non-empty bio)
-        if bio and self._pi_url:
+        if bio and self._pi_available:
             result = self._stage3_setfit(bio)
             if result is not None:
                 return result
@@ -266,7 +268,8 @@ class BioClassifier:
             with urllib.request.urlopen(req, timeout=self._pi_timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
-            logger.debug("Pi bio server unavailable (%s); skipping SetFit stage.", exc)
+            logger.debug("Pi bio server unavailable (%s); disabling SetFit for this run.", exc)
+            self._pi_available = False
             return None
 
         bloc = data.get("bloc")

@@ -19,11 +19,14 @@ These proxies are converted to synthetic BioClassification objects by the scorer
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from electoral.artifacts import SentimentData, SocialMediaSentimentData
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
@@ -119,6 +122,97 @@ def _aggregate_scores(
     }
 
 
+class EmbeddingCache:
+    """Parquet-backed cache mapping post_id → 3-class probability vector.
+
+    Each cached entry stores [P(neg), P(neu), P(pos)] as float32, allowing
+    any downstream score formula (e.g. pos-neg, pos only) to be recomputed
+    without re-running the model.
+
+    All entries live in a single file:
+        data/embeddings/cache.parquet
+    with columns (post_id STRING, prob_neg FLOAT32, prob_neu FLOAT32, prob_pos FLOAT32).
+
+    The file is rewritten only on flush() — call it after each batch or at
+    the end of a scoring run. Auto-flush triggers every FLUSH_EVERY new entries.
+    """
+
+    FLUSH_EVERY = 500
+
+    def __init__(self, cache_dir: str | Path) -> None:
+        self._path = Path(cache_dir) / "cache.parquet"
+        self._store: dict[str, np.ndarray] = {}  # post_id → float32[3]
+        self._dirty = 0
+        self._hits = 0
+        self._misses = 0
+        self._load()
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            return
+        try:
+            import pyarrow.parquet as pq
+            table = pq.read_table(self._path, columns=["post_id", "prob_neg", "prob_neu", "prob_pos"])
+            ids = table.column("post_id").to_pylist()
+            negs = table.column("prob_neg").to_pylist()
+            neus = table.column("prob_neu").to_pylist()
+            poss = table.column("prob_pos").to_pylist()
+            for pid, neg, neu, pos in zip(ids, negs, neus, poss):
+                self._store[pid] = np.array([neg, neu, pos], dtype=np.float32)
+            logger.info("EmbeddingCache: loaded %d entries from %s", len(self._store), self._path)
+        except Exception as exc:
+            logger.warning("EmbeddingCache: failed to load %s (%s) — starting empty", self._path, exc)
+
+    def get(self, post_id: str) -> np.ndarray | None:
+        vec = self._store.get(post_id)
+        if vec is not None:
+            self._hits += 1
+        else:
+            self._misses += 1
+        return vec
+
+    def put(self, post_id: str, probs: np.ndarray) -> None:
+        self._store[post_id] = probs.astype(np.float32)
+        self._dirty += 1
+        if self._dirty >= self.FLUSH_EVERY:
+            self.flush()
+
+    def flush(self) -> None:
+        if self._dirty == 0 or not self._store:
+            return
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        ids = list(self._store.keys())
+        vecs = np.stack(list(self._store.values()))
+        table = pa.table({
+            "post_id":  pa.array(ids, type=pa.string()),
+            "prob_neg": pa.array(vecs[:, 0].tolist(), type=pa.float32()),
+            "prob_neu": pa.array(vecs[:, 1].tolist(), type=pa.float32()),
+            "prob_pos": pa.array(vecs[:, 2].tolist(), type=pa.float32()),
+        })
+        pq.write_table(table, self._path, compression="snappy")
+        logger.debug("EmbeddingCache: flushed %d entries → %s", len(ids), self._path)
+        self._dirty = 0
+
+    @property
+    def hit_rate(self) -> float:
+        total = self._hits + self._misses
+        return self._hits / total if total else 0.0
+
+    @property
+    def size(self) -> int:
+        return len(self._store)
+
+    def log_stats(self) -> None:
+        total = self._hits + self._misses
+        logger.info(
+            "EmbeddingCache stats: size=%d hits=%d misses=%d hit_rate=%.1f%%",
+            self.size, self._hits, self._misses,
+            100 * self.hit_rate,
+        )
+
+
 class RoBERTaScorer:
     """RoBERTa-based sentiment scorer with lazy model loading.
 
@@ -131,10 +225,14 @@ class RoBERTaScorer:
         model_name: str = DEFAULT_MODEL,
         device: str | None = None,
         batch_size: int = 32,
+        cache_dir: str | Path | None = None,
     ) -> None:
         self.model_name = model_name
         self.batch_size = batch_size
         self._pipeline = self._load_pipeline(model_name, device)
+        if cache_dir is None:
+            cache_dir = _REPO_ROOT / "data" / "embeddings"
+        self._cache = EmbeddingCache(cache_dir)
 
     @staticmethod
     def _load_pipeline(model_name: str, device: str | None):
@@ -172,44 +270,145 @@ class RoBERTaScorer:
         logger.info("RoBERTa model ready.")
         return pipe
 
-    def score_texts(self, texts: list[str]) -> list[float]:
+    def score_text(self, text: str, post_id: str | None = None) -> float:
+        """Score a single text. Checks embedding cache first if post_id is given.
+
+        Args:
+            text: Post text to score.
+            post_id: Canonical post identifier used as cache key. When provided,
+                     a cache hit skips the model forward pass entirely.
+
+        Returns:
+            Sentiment score ∈ [-1, 1] (P(pos) - P(neg)).
+        """
+        scores = self.score_texts([text], post_ids=[post_id] if post_id else None)
+        return scores[0]
+
+    def score_texts(
+        self,
+        texts: list[str],
+        post_ids: list[str | None] | None = None,
+    ) -> list[float]:
         """Score a list of texts. Returns per-text score ∈ [-1, 1].
+
+        Args:
+            texts: Post texts to score.
+            post_ids: Optional list of cache keys (same length as texts).
+                      Cache hits skip the model forward pass. Misses are
+                      run through the model and stored in the cache.
 
         Uses batched inference. Empty texts return 0.0 (neutral).
         """
         if not texts:
             return []
 
-        # Split into non-empty vs empty to avoid model errors on empty strings
-        indices_nonempty: list[int] = []
-        truncated: list[str] = []
-        for i, t in enumerate(texts):
-            t_strip = t.strip()
-            if t_strip:
-                indices_nonempty.append(i)
-                truncated.append(_truncate_text(t_strip))
+        n = len(texts)
+        results = [0.0] * n
+        ids = post_ids if post_ids and len(post_ids) == n else [None] * n
 
-        results = [0.0] * len(texts)
-        if not indices_nonempty:
+        # Partition into cache hits and model-needed indices
+        needs_model: list[int] = []       # indices into texts/results
+        needs_model_ids: list[str | None] = []
+        truncated: list[str] = []         # texts for the model
+
+        for i, (t, pid) in enumerate(zip(texts, ids)):
+            t_strip = t.strip()
+            if not t_strip:
+                continue  # empty → 0.0 (default)
+            if pid is not None:
+                vec = self._cache.get(pid)
+                if vec is not None:
+                    results[i] = float(vec[2] - vec[0])  # pos - neg
+                    continue
+            needs_model.append(i)
+            needs_model_ids.append(pid)
+            truncated.append(_truncate_text(t_strip))
+
+        n_cached = n - len(needs_model) - sum(1 for t in texts if not t.strip())
+        if n_cached > 0:
+            logger.debug("score_texts: %d/%d cache hits", n_cached, n)
+
+        if not truncated:
+            self._cache.log_stats()
             return results
 
-        # Batch inference
-        all_scores: list[float] = []
+        # Batch model inference on cache misses
+        raw_probs: list[np.ndarray] = []
         for batch_start in range(0, len(truncated), self.batch_size):
             batch = truncated[batch_start : batch_start + self.batch_size]
             raw = self._pipeline(batch)
             for item in raw:
-                # item is a list of {"label": ..., "score": ...} dicts
                 score_map = {d["label"]: d["score"] for d in item}
                 # cardiffnlp labels: LABEL_0=neg, LABEL_1=neu, LABEL_2=pos
-                pos = score_map.get("LABEL_2", score_map.get("positive", 0.0))
-                neg = score_map.get("LABEL_0", score_map.get("negative", 0.0))
-                all_scores.append(float(pos - neg))
+                neg = float(score_map.get("LABEL_0", score_map.get("negative", 0.0)))
+                neu = float(score_map.get("LABEL_1", score_map.get("neutral", 0.0)))
+                pos = float(score_map.get("LABEL_2", score_map.get("positive", 0.0)))
+                raw_probs.append(np.array([neg, neu, pos], dtype=np.float32))
 
-        for idx, score in zip(indices_nonempty, all_scores):
-            results[idx] = score
+        for idx, pid, probs in zip(needs_model, needs_model_ids, raw_probs):
+            results[idx] = float(probs[2] - probs[0])
+            if pid is not None:
+                self._cache.put(pid, probs)
 
+        self._cache.flush()
+        self._cache.log_stats()
         return results
+
+    def score_posts_weighted(
+        self,
+        posts: list[dict],
+        bio_classifier: BioClassifier,
+        shock_id: str | None = None,
+        exclude_language_prior: bool = True,
+    ) -> dict[str, float]:
+        """Score posts and aggregate by bio-inferred bloc weights.
+
+        Uses the embedding cache (keyed by post["id"]) to skip the model
+        forward pass for previously seen posts. The first call is slow
+        (embeds everything); subsequent calls with different bio weights
+        or aggregation are near-instant.
+
+        Args:
+            posts: Canonical post payload dicts with "id", "text",
+                   "author_description", "lang", "inference_method" fields.
+            bio_classifier: BioClassifier for demographic weight assignment.
+            shock_id: Used only for logging.
+            exclude_language_prior: Exclude language-prior posts from weights.
+
+        Returns:
+            Dict mapping all 15 canonical bloc IDs → score ∈ [-1, 1].
+        """
+        if not posts:
+            logger.debug("score_posts_weighted: no posts (shock=%s)", shock_id)
+            return _zero_scores()
+
+        texts = [p.get("text", "") for p in posts]
+        post_ids = [str(p.get("id") or p.get("post_id") or "") or None for p in posts]
+
+        scores = self.score_texts(texts, post_ids=post_ids)
+
+        bio_results: list[BioClassification] = []
+        for post in posts:
+            outlet_proxy = _extract_outlet_proxy(post)
+            if outlet_proxy is not None:
+                bio_results.append(outlet_proxy)
+            else:
+                bio_results.append(
+                    bio_classifier.classify(
+                        bio=post.get("author_description"),
+                        lang=post.get("lang", ""),
+                        inference_method=post.get("inference_method"),
+                    )
+                )
+
+        aggregated = _aggregate_scores(scores, bio_results, exclude_language_prior)
+        logger.info(
+            "score_posts_weighted: shock=%s n_posts=%d cache_hit_rate=%.1f%% scores=%s",
+            shock_id, len(posts),
+            100 * self._cache.hit_rate,
+            {k: f"{v:+.3f}" for k, v in list(aggregated.items())[:5]},
+        )
+        return aggregated
 
     def score_posts_for_shock(
         self,
