@@ -328,7 +328,9 @@ def main() -> None:
         else:
             status = "FAIL"
             target_met = False
-        logger.info("  %-12s  macro-F1 = %-8s  [%s]", name, f"{f1:.4f}" if f1 is not None else "N/A", status)
+        logger.info(
+            "  %-12s  macro-F1 = %-8s  [%s]", name, f"{f1:.4f}" if f1 is not None else "N/A", status
+        )
 
     if not target_met:
         logger.warning(

@@ -132,6 +132,7 @@ class TestNormalizeWeights:
 def bio_clf():
     return BioClassifier.from_config(pi_server_url=None)
 
+
 class TestBioClassifierKeyword:
     def test_evangelical_keyword(self, bio_clf):
         result = bio_clf.classify("I'm an evangelical pastor", lang="en")
