@@ -64,7 +64,7 @@ ARCHIVES_README = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
 
 # ── Gemini config ──────────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 GEMINI_SLEEP = 0.1  # seconds between requests (paid tier: 1000 RPM)
 GEMINI_BATCH = 200  # posts per prompt
 GEMINI_MAX_RETRIES = 5
