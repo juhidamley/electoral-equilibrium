@@ -163,7 +163,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -199,7 +200,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -235,7 +237,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "muslim",
@@ -270,7 +273,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -305,7 +309,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -341,7 +346,8 @@
     "archive_ids": [
       "election_2012",
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "archive_schema_notes": {
       "format": "JSON",
@@ -381,7 +387,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "women",
@@ -416,7 +423,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "muslim",
@@ -452,7 +460,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -488,7 +497,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
