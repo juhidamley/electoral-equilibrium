@@ -507,6 +507,33 @@ def iter_archive(
                 yield from _iter_pushshift_rows(_iter_bz2(bz2_path), bz2_path.name, cutoff_date)
             return
 
+    # ── reddit_monthly_filtered: read pre-filtered JSONL by overlapping months ──
+    # Layout: {archive_dir}/{year}/{subreddit}/{MM}.jsonl — canonical schema, no bz2.
+    if archive_id == "reddit_monthly_filtered":
+        if shock_date is None:
+            logger.warning(
+                "reddit_monthly_filtered: shock_date not supplied — falling through to rglob. "
+                "Pass shock_date for targeted month selection."
+            )
+        else:
+            months = _months_in_window(shock_date, PRE_SHOCK_DAYS, window_days, buffer_days=30)
+            logger.info(
+                "reddit_monthly_filtered: shock_date=%s, scanning %d month(s)",
+                shock_date.strftime("%Y-%m-%d"),
+                len(months),
+            )
+            for year, month in months:
+                year_dir = archive_dir / str(year)
+                if not year_dir.exists():
+                    continue
+                for sub_dir in sorted(year_dir.iterdir()):
+                    if not sub_dir.is_dir():
+                        continue
+                    jsonl_path = sub_dir / f"{month:02d}.jsonl"
+                    if jsonl_path.exists():
+                        yield from _iter_jsonl(jsonl_path)
+            return
+
     use_snowflake = archive_id.startswith("truth_social")
 
     for path in sorted(archive_dir.rglob("*")):
@@ -771,6 +798,13 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--target-per-shock", type=int, default=TARGET_PER_SHOCK)
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument(
+        "--archive-filter",
+        type=str,
+        default=None,
+        metavar="ARCHIVE_ID",
+        help="Only process tasks whose archive_id matches this value (e.g. reddit_monthly_filtered)",
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
@@ -805,6 +839,10 @@ def main() -> None:
         logger.error("shocks.json not found at %s", SHOCKS_PATH)
         sys.exit(1)
     tasks = build_task_list(SHOCKS_PATH)
+
+    if args.archive_filter:
+        tasks = [t for t in tasks if t["archive_id"] == args.archive_filter]
+        logger.info("archive-filter=%s: %d tasks after filtering", args.archive_filter, len(tasks))
 
     if args.list_tasks:
         # Print count for Justfile array calculation
@@ -854,6 +892,9 @@ def main() -> None:
         # Contains posts from ALL subreddits — filter post['platform'] (subreddit name)
         # after sampling to isolate target communities for each shock.
         "reddit_monthly": archive_root / "reddit" / "reddit_monthly",
+        # Pre-filtered output from filter_reddit_monthly.py.
+        # Layout: {archive_dir}/{year}/{subreddit}/{MM}.jsonl — already in canonical schema.
+        "reddit_monthly_filtered": archive_root / "reddit" / "reddit_monthly_filtered",
         "truth_social_2024": archive_root / "truthsocial" / "kashish_usc",
         "truth_social_2022": archive_root / "truthsocial" / "zenodo_notredame",
         "truth_social_2025": archive_root / "truthsocial" / "notmooodoo9",

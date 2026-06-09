@@ -522,18 +522,20 @@ class TestPredictionMarketData:
             ).validate()
 
 
-ALL_BLOCS = RACE_IDS + RELIGION_IDS + GENDER_IDS
-_N_BLOCS = len(ALL_BLOCS)
-COV_NXNX = [[0.01 if i == j else 0.0 for j in range(_N_BLOCS)] for i in range(_N_BLOCS)]
-
-
 class TestShockResponseData:
     def _make(self, **overrides):
         defaults = dict(
             shock="kavanaugh_2018",
             cycle=2018,
-            deltas={bloc: 0.0 for bloc in ALL_BLOCS},
-            covariance=COV_NXNX,
+            party="democrat",
+            delta_bins_race={r: "neutral" for r in RACE_IDS},
+            delta_bins_religion={r: "neutral" for r in RELIGION_IDS},
+            delta_bins_gender={g: "neutral" for g in GENDER_IDS},
+            deltas_race={r: 0.0 for r in RACE_IDS},
+            deltas_religion={r: 0.0 for r in RELIGION_IDS},
+            deltas_gender={g: 0.0 for g in GENDER_IDS},
+            delta_eff=0.0,
+            covariance=COV_5X5,
             source="llm_unified",
         )
         defaults.update(overrides)
@@ -543,35 +545,44 @@ class TestShockResponseData:
         assert_roundtrip(self._make())
 
     def test_non_zero_deltas(self):
-        deltas = {bloc: 0.0 for bloc in ALL_BLOCS}
-        deltas["african_american"] = -0.012
-        deltas["evangelical"] = 0.035
-        deltas["women"] = -0.070
-        assert_roundtrip(self._make(deltas=deltas))
+        assert_roundtrip(self._make(
+            deltas_race={
+                "african_american": -0.012, "latino": 0.0, "asian": 0.0,
+                "white": 0.0, "other_race": 0.0,
+            },
+            delta_bins_race={
+                "african_american": "slight_neg", "latino": "neutral", "asian": "neutral",
+                "white": "neutral", "other_race": "neutral",
+            },
+            deltas_religion={r: 0.035 if r == "evangelical" else 0.0 for r in RELIGION_IDS},
+            delta_bins_religion={r: "mild_pos" if r == "evangelical" else "neutral" for r in RELIGION_IDS},
+            deltas_gender={g: -0.070 if g == "women" else 0.0 for g in GENDER_IDS},
+            delta_bins_gender={g: "mod_neg" if g == "women" else "neutral" for g in GENDER_IDS},
+        ))
 
     def test_all_sources_valid(self):
         for src in ("llm_unified", "roberta_news_only", "roberta_social_only"):
             assert_roundtrip(self._make(source=src))
 
     def test_delta_out_of_range_raises(self):
-        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
+        bad = {r: 0.0 for r in RACE_IDS}
         bad["white"] = -0.50  # outside [-0.15, 0.15]
         with pytest.raises(ValueError, match=r"\[-0.15"):
-            self._make(deltas=bad).validate()
+            self._make(deltas_race=bad).validate()
 
     def test_delta_non_finite_raises(self):
-        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
+        bad = {r: 0.0 for r in RACE_IDS}
         bad["white"] = math.nan
         with pytest.raises(ValueError, match="finite"):
-            self._make(deltas=bad).validate()
+            self._make(deltas_race=bad).validate()
 
     def test_covariance_wrong_row_count_raises(self):
-        short_cov = [[0.0] * _N_BLOCS for _ in range(_N_BLOCS - 1)]
-        with pytest.raises(ValueError, match=r"\d+×\d+"):
+        short_cov = [[0.0] * 5 for _ in range(4)]  # 4 rows instead of 5
+        with pytest.raises(ValueError, match=r"5×5"):
             self._make(covariance=short_cov).validate()
 
     def test_covariance_ragged_row_raises(self):
-        ragged = [row[:] for row in COV_NXNX]
+        ragged = [row[:] for row in COV_5X5]
         ragged[0] = ragged[0][:-1]  # row 0 one element short
         with pytest.raises(ValueError, match="elements"):
             self._make(covariance=ragged).validate()
@@ -584,17 +595,27 @@ class TestShockResponseData:
         with pytest.raises(ValueError, match="source"):
             self._make(source="").validate()
 
-    def test_non_canonical_bloc_in_deltas_raises(self):
-        bad = {bloc: 0.0 for bloc in ALL_BLOCS}
-        bad["hispanic"] = 0.01  # not a canonical bloc ID
+    def test_invalid_bin_token_raises(self):
+        bad = {r: "neutral" for r in RACE_IDS}
+        bad["white"] = "very_negative"  # not a valid bin token
+        with pytest.raises(ValueError, match="delta bin token"):
+            self._make(delta_bins_race=bad).validate()
+
+    def test_non_canonical_race_in_deltas_raises(self):
+        bad = {r: 0.0 for r in RACE_IDS}
+        bad["hispanic"] = 0.01  # not a canonical race bloc ID
         with pytest.raises(ValueError, match="canonical bloc"):
-            self._make(deltas=bad).validate()
+            self._make(deltas_race=bad).validate()
 
     def test_covariance_asymmetric_raises(self):
-        asym = [row[:] for row in COV_NXNX]
+        asym = [row[:] for row in COV_5X5]
         asym[0][1] = 0.05  # cov[0][1] != cov[1][0]
         with pytest.raises(ValueError, match="symmetric"):
             self._make(covariance=asym).validate()
+
+    def test_invalid_party_raises(self):
+        with pytest.raises(ValueError, match="party"):
+            self._make(party="libertarian").validate()
 
 
 MU_SHIFTED_RACE = {r: 0.50 for r in RACE_IDS}

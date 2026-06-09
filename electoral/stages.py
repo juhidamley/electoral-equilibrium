@@ -27,7 +27,6 @@ from pathlib import Path
 
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
-from electoral.core.rng import make_rng
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.kernels.baseline import build_baseline_portfolio as _build_baseline_kernel
 from electoral.kernels.data import build_voter_panel as _build_voter_panel_kernel
@@ -141,13 +140,18 @@ def build_shock_response(
     intensity: float,
 ) -> ShockResponseData:
     """Week 4/5: LLM constrained decoding → per-bloc Δμ estimates."""
-    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
-    n = len(all_blocs)
     payload = ShockResponseData(
         shock=event,
         cycle=2020,
-        deltas={bloc: 0.0 for bloc in all_blocs},
-        covariance=[[0.0] * n for _ in range(n)],
+        party=config.party,
+        delta_bins_race={r: "neutral" for r in CANONICAL_RACES},
+        delta_bins_religion={r: "neutral" for r in CANONICAL_RELIGIONS},
+        delta_bins_gender={g: "neutral" for g in CANONICAL_GENDERS},
+        deltas_race={r: 0.0 for r in CANONICAL_RACES},
+        deltas_religion={r: 0.0 for r in CANONICAL_RELIGIONS},
+        deltas_gender={g: 0.0 for g in CANONICAL_GENDERS},
+        delta_eff=0.0,
+        covariance=[[0.0] * 5 for _ in range(5)],
         source="llm_unified",
     )
     payload.validate()
@@ -198,14 +202,9 @@ def run_simulations(
     n_simulations: int = 10_000,
 ) -> SimulationData:
     """Week 5: Logistic-Normal ILR Monte Carlo → 90% CI on win probability."""
-    rng = make_rng(config.derive_seed("monte_carlo"))
-    _ = rng  # seeded but not yet used in stub
-    payload = SimulationData(
-        n_simulations=n_simulations,
-        seed=config.derive_seed("monte_carlo"),
-        win_probability=0.50,
-        percentiles={r: [0.1, 0.3, 0.5, 0.7, 0.9] for r in config.races},
-    )
+    from electoral.simulation.montecarlo import run_ilr_montecarlo
+
+    payload = run_ilr_montecarlo(equilibrium, config, n_simulations=n_simulations)
     payload.validate()
     envelope = StageArtifact(
         stage="simulation",
