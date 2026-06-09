@@ -56,7 +56,8 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting clean_with_llm.py"
 
 python "$REPO_DIR/scripts/clean_with_llm.py" \
     --input-dir  "$INPUT_DIR"  \
-    --output-dir "$OUTPUT_DIR"
+    --output-dir "$OUTPUT_DIR" \
+    --resume
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning complete"
 echo "Cleaned files: $(find "$OUTPUT_DIR" -name '*.jsonl' 2>/dev/null | wc -l)"
