@@ -900,7 +900,7 @@ def main() -> None:
         "truth_social_2025": archive_root / "truthsocial" / "notmooodoo9",
         # 3dlnews: pre-parsed JSONL output from scripts/parse_3dlnews_html.py.
         # Source is 3DLNews-2.0-HTML.zip; state used as geographic demographic proxy.
-        "3dlnews": Path("/Volumes/JUHIDRIVE/electoralData/archives/news/3dlnews_parsed"),
+        "3dlnews": archive_root / "news" / "3dlnews_parsed",
     }
 
     archive_dir: Path | None = None
