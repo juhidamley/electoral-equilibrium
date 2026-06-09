@@ -40,6 +40,7 @@ One shock (dry-run, steps 2-4 only):
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import logging
@@ -122,10 +123,13 @@ except (ImportError, AttributeError):
     _GENAI_SERVER_ERROR = None
 
 
-def _call_with_backoff(client, prompt: str) -> str:
+async def _call_with_backoff_async(client, prompt: str) -> str:
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
-            return client.models.generate_content(model=GEMINI_MODEL, contents=prompt).text
+            response = await client.aio.models.generate_content(
+                model=GEMINI_MODEL, contents=prompt
+            )
+            return response.text
         except Exception as exc:
             err = str(exc)
             retryable = (
@@ -144,7 +148,7 @@ def _call_with_backoff(client, prompt: str) -> str:
                     attempt + 1,
                     GEMINI_MAX_RETRIES,
                 )
-                time.sleep(wait)
+                await asyncio.sleep(wait)
             else:
                 raise
     raise RuntimeError(f"Gemini call failed after {GEMINI_MAX_RETRIES} retries")
@@ -165,40 +169,63 @@ def _parse_yes_no(response_text: str, n: int) -> list[bool]:
     return keep
 
 
-def filter_off_topic(
+async def _filter_off_topic_async(
     posts: list[dict],
     shock_description: str,
     client,
-    dry_run: bool,
+    concurrency: int,
 ) -> tuple[list[dict], int]:
-    """Return (kept_posts, n_dropped). Skips Gemini call when dry_run=True."""
-    if dry_run or not posts:
-        return posts, 0
+    batches = [posts[i : i + GEMINI_BATCH] for i in range(0, len(posts), GEMINI_BATCH)]
+    semaphore = asyncio.Semaphore(concurrency)
 
-    kept: list[dict] = []
-    dropped = 0
-
-    for batch_start in range(0, len(posts), GEMINI_BATCH):
-        batch = posts[batch_start : batch_start + GEMINI_BATCH]
-        numbered = "\n".join(f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch))
+    async def process_batch(batch: list[dict]) -> tuple[list[dict], list[bool]]:
+        numbered = "\n".join(
+            f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch)
+        )
         prompt = (
             f"For each numbered post below, reply with just the number and yes or no — "
             f"is this post about {shock_description}? "
             f"Posts that mention the topic only incidentally count as no.\n\n"
             f"{numbered}"
         )
-        response = _call_with_backoff(client, prompt)
-        keep_flags = _parse_yes_no(response, len(batch))
+        async with semaphore:
+            response = await _call_with_backoff_async(client, prompt)
+        await asyncio.sleep(GEMINI_SLEEP)
+        return batch, _parse_yes_no(response, len(batch))
 
-        for post, keep in zip(batch, keep_flags):
-            if keep:
-                kept.append(post)
-            else:
-                dropped += 1
+    results = await asyncio.gather(*[process_batch(b) for b in batches], return_exceptions=True)
 
-        time.sleep(GEMINI_SLEEP)
+    kept: list[dict] = []
+    dropped = 0
+    for i, result in enumerate(results):
+        if isinstance(result, BaseException):
+            logger.warning(
+                "Batch %d/%d failed after retries (%s) — keeping all %d posts in batch",
+                i + 1, len(batches), result, len(batches[i]),
+            )
+            kept.extend(batches[i])
+        else:
+            batch, keep_flags = result
+            for post, keep in zip(batch, keep_flags):
+                if keep:
+                    kept.append(post)
+                else:
+                    dropped += 1
 
     return kept, dropped
+
+
+def filter_off_topic(
+    posts: list[dict],
+    shock_description: str,
+    client,
+    dry_run: bool,
+    concurrency: int = 50,
+) -> tuple[list[dict], int]:
+    """Return (kept_posts, n_dropped). Skips Gemini call when dry_run=True."""
+    if dry_run or not posts:
+        return posts, 0
+    return asyncio.run(_filter_off_topic_async(posts, shock_description, client, concurrency))
 
 
 # ── Step 2: Spam filter (deterministic) ───────────────────────────────────────
@@ -326,6 +353,12 @@ def parse_args() -> argparse.Namespace:
         "--max-posts", type=int, default=None, help="Cap total posts processed (for testing)"
     )
     p.add_argument(
+        "--concurrency",
+        type=int,
+        default=50,
+        help="Max simultaneous Gemini requests (default: 50)",
+    )
+    p.add_argument(
         "--resume",
         action="store_true",
         help="Skip shock/archive pairs whose output JSONL already exists",
@@ -365,7 +398,7 @@ def main() -> None:
     client = None
     if not args.dry_run:
         client = _gemini_client()
-        logger.info("Gemini client ready (model=%s, %.0f s/request)", GEMINI_MODEL, GEMINI_SLEEP)
+        logger.info("Gemini client ready (model=%s, concurrency=%d)", GEMINI_MODEL, args.concurrency)
     else:
         logger.info("--dry-run: Gemini off-topic filter skipped")
 
@@ -403,7 +436,7 @@ def main() -> None:
         logger.info("[%s / %s] %d posts loaded", shock_id, archive_id, n_input)
 
         # Step 1 — off-topic (Gemini)
-        posts, off_topic_dropped = filter_off_topic(posts, shock_desc, client, args.dry_run)
+        posts, off_topic_dropped = filter_off_topic(posts, shock_desc, client, args.dry_run, concurrency=args.concurrency)
         logger.info("  step 1 off-topic : -%d → %d kept", off_topic_dropped, len(posts))
 
         # Step 2 — spam
