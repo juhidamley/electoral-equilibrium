@@ -26,7 +26,8 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task $SLURM_ARRAY_TASK_ID / array $SLURM_AR
 echo "Input:  $INPUT_DIR"
 echo "Output: $OUTPUT_DIR"
 
-source /home1/JDamley28@cmc.edu/miniconda3/etc/profile.d/conda.sh
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
 pip install --quiet -r "$REPO_DIR/requirements.txt"
 
