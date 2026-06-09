@@ -617,10 +617,17 @@ def iter_archive(
 # ── Three-strata sampler ──────────────────────────────────────────────────────
 
 
-def temporal_day_key(created_at: datetime | None, shock_date: datetime) -> int | None:
+def temporal_day_key(created_at: datetime | str | None, shock_date: datetime) -> int | None:
     """Return integer day offset from shock_date, or None if outside window or missing."""
     if created_at is None:
         return None
+    if isinstance(created_at, str):
+        try:
+            created_at = datetime.fromisoformat(created_at)
+        except ValueError:
+            return None
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
     return (created_at.date() - shock_date.date()).days
 
 
