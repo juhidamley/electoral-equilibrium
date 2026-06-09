@@ -2,7 +2,7 @@
 """clean_with_llm.py — four-step cleaning pipeline for sampled social media posts.
 
 Step 1 — Off-topic detection (Gemini 2.0 Flash, skipped in --dry-run):
-    Batch 50 posts per prompt. Drops posts not about the shock event.
+    Batch 200 posts per prompt. Drops posts not about the shock event.
     Rate-limited to 15 RPM (4 s sleep between requests). Exponential
     backoff on 429 errors.
 
@@ -65,7 +65,7 @@ ARCHIVES_README = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
 
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_SLEEP = 4.0  # seconds between requests (60 / 15 RPM = 4 s)
-GEMINI_BATCH = 50  # posts per prompt
+GEMINI_BATCH = 200  # posts per prompt
 GEMINI_MAX_RETRIES = 5
 GEMINI_BACKOFF_BASE = 2.0  # wait = base ** attempt (seconds)
 
