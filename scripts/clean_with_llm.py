@@ -3,8 +3,8 @@
 
 Step 1 — Off-topic detection (Gemini 2.0 Flash, skipped in --dry-run):
     Batch 200 posts per prompt. Drops posts not about the shock event.
-    Rate-limited to 15 RPM (4 s sleep between requests). Exponential
-    backoff on 429 errors.
+    Rate-limited to 1000 RPM on the paid tier (0.1 s courtesy sleep).
+    Exponential backoff on 429 / 5xx errors.
 
 Step 2 — Spam filter (deterministic):
     Drops pure retweets (RT @...), emoji-only posts, bare URLs, and
@@ -65,7 +65,7 @@ ARCHIVES_README = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
 # ── Gemini config ──────────────────────────────────────────────────────────────
 
 GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_SLEEP = 4.0  # seconds between requests (60 / 15 RPM = 4 s)
+GEMINI_SLEEP = 0.1  # seconds between requests (paid tier: 1000 RPM)
 GEMINI_BATCH = 200  # posts per prompt
 GEMINI_MAX_RETRIES = 5
 GEMINI_BACKOFF_BASE = 10.0  # wait = base * 2^attempt → 10, 20, 40, 80, 160 s
@@ -325,6 +325,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--max-posts", type=int, default=None, help="Cap total posts processed (for testing)"
     )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip shock/archive pairs whose output JSONL already exists",
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
@@ -368,6 +373,11 @@ def main() -> None:
     total_processed = 0
 
     for (shock_id, archive_id), paths in sorted(groups.items()):
+        output_path = args.output_dir / shock_id / f"{archive_id}.jsonl"
+        if args.resume and output_path.exists():
+            logger.info("[%s / %s] already cleaned — skipping (--resume)", shock_id, archive_id)
+            continue
+
         shock = shocks_by_id.get(shock_id, {})
         shock_desc = shock.get("description", shock_id)
 
@@ -407,7 +417,6 @@ def main() -> None:
         posts, dedup_dropped = deduplicate(posts)
         logger.info("  step 4 dedup     : -%d → %d kept", dedup_dropped, len(posts))
 
-        output_path = args.output_dir / shock_id / f"{archive_id}.jsonl"
         write_cleaned(posts, output_path)
         logger.info("  → %s", output_path)
 
