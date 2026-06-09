@@ -47,6 +47,7 @@ import os
 import re
 import time
 from collections import defaultdict
+import httpx
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -67,7 +68,7 @@ GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_SLEEP = 4.0  # seconds between requests (60 / 15 RPM = 4 s)
 GEMINI_BATCH = 200  # posts per prompt
 GEMINI_MAX_RETRIES = 5
-GEMINI_BACKOFF_BASE = 2.0  # wait = base ** attempt (seconds)
+GEMINI_BACKOFF_BASE = 10.0  # wait = base * 2^attempt → 10, 20, 40, 80, 160 s
 
 # ── Abbreviation map (Step 3) ─────────────────────────────────────────────────
 
@@ -114,16 +115,31 @@ def _gemini_client():
     return genai.Client(api_key=api_key)
 
 
+try:
+    from google.genai import errors as _genai_errors
+    _GENAI_SERVER_ERROR: type | None = _genai_errors.ServerError
+except (ImportError, AttributeError):
+    _GENAI_SERVER_ERROR = None
+
+
 def _call_with_backoff(client, prompt: str) -> str:
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
             return client.models.generate_content(model=GEMINI_MODEL, contents=prompt).text
         except Exception as exc:
             err = str(exc)
-            if "429" in err or "quota" in err.lower() or "rate" in err.lower():
-                wait = GEMINI_BACKOFF_BASE ** (attempt + 1)
+            retryable = (
+                isinstance(exc, (httpx.RemoteProtocolError, httpx.ReadError))
+                or (_GENAI_SERVER_ERROR is not None and isinstance(exc, _GENAI_SERVER_ERROR))
+                or "429" in err
+                or "quota" in err.lower()
+                or "rate" in err.lower()
+            )
+            if retryable:
+                wait = GEMINI_BACKOFF_BASE * (2 ** attempt)
                 logger.warning(
-                    "Gemini 429 — waiting %.0f s (attempt %d/%d)",
+                    "Gemini transient error (%s) — waiting %.0f s (attempt %d/%d)",
+                    type(exc).__name__,
                     wait,
                     attempt + 1,
                     GEMINI_MAX_RETRIES,
