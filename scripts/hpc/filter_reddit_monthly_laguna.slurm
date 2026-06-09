@@ -32,7 +32,7 @@ conda activate base
 pip install --quiet -r "$REPO_DIR/requirements.txt"
 
 # Map SLURM_ARRAY_TASK_ID to the sorted list of bz2 files in INPUT_DIR
-INPUT_FILE=$(python3 -c "from pathlib import Path; files=sorted(Path('${INPUT_DIR}').glob('*.bz2')); print(files[${SLURM_ARRAY_TASK_ID}])")
+INPUT_FILE=$(python3 -c "from pathlib import Path; files=sorted(Path('${INPUT_DIR}').rglob('*.bz2')); print(files[${SLURM_ARRAY_TASK_ID}])")
 
 echo "Processing: $INPUT_FILE"
 
