@@ -18,8 +18,6 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discord sampling pass"
 module load conda
 source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
-pip install ijson --quiet
-
 python - "$DISCORD_DIR" <<'EOF'
 import sys
 import json
@@ -59,9 +57,16 @@ for json_path in json_files:
 
     print(f"[{guild_id}] Loading {json_path.name}...")
     try:
-        with open(json_path, "rb") as f:
-            import ijson
-            raw = list(ijson.items(f, 'item'))
+        with open(json_path, "r", errors="replace") as f:
+            raw = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     except (json.JSONDecodeError, OSError) as e:
         print(f"[{guild_id}] ERROR reading file: {e}")
         continue
