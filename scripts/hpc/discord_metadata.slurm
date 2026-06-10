@@ -23,7 +23,7 @@ conda activate base
 
 # Decompress first 100MB to inspect schema
 echo "Decompressing first 100MB..."
-/usr/bin/pzstd -d -c "$DATASET" 2>/dev/null | head -c 104857600 > "$TMPFILE"
+~/.conda/envs/electoral/bin/zstd -d -c "$DATASET" 2>/dev/null | head -c 104857600 > "$TMPFILE"
 
 echo "First 3 lines of decompressed data:"
 head -n 3 "$TMPFILE"
