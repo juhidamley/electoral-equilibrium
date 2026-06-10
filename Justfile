@@ -11,6 +11,7 @@
 #   sample      Submit stratified archive sampling SLURM array on CMC Hopper HPC
 #   sample-laguna Submit same array on USC Laguna HPC
 #   clean       Run LLM cleaning on sampled social/news data (M5, local open-weight model)
+#   scrape      Scrape news articles for a shock event via Google News RSS (Intel Mac)
 #   continuous  Run nightly incremental pipeline (post-SRP mode, launchd @ 2am)
 
 # ── Local development ────────────────────────────────────────────────────────
@@ -69,6 +70,26 @@ clean:
     python scripts/clean_with_llm.py \
         --input-dir /Volumes/JUHIDRIVE/electoralData/sampled/ \
         --output-dir /Volumes/JUHIDRIVE/electoralData/cleaned/
+
+# Scrape news articles for a shock event via Google News RSS (runs on Intel Mac).
+# Override sources with: just scrape SHOCK=dobbs_2022 SOURCES="nyt wapo reuters"
+# Quick test (5 articles/source): just scrape-test SHOCK=ayatollah_assassination
+SHOCK := "ayatollah_assassination"
+SOURCES := ""
+DATE_START := "2026-02-25"
+DATE_END := "2026-03-15"
+
+scrape:
+    python -m electoral.nlp.scraper \
+        --shock-id {{SHOCK}} \
+        $([ -n "{{SOURCES}}" ] && echo "--sources {{SOURCES}}") \
+        --date-range {{DATE_START}} {{DATE_END}}
+
+scrape-test:
+    python -m electoral.nlp.scraper \
+        --shock-id {{SHOCK}} \
+        --date-range {{DATE_START}} {{DATE_END}} \
+        --test
 
 # ── Deployment ────────────────────────────────────────────────────────────────
 
