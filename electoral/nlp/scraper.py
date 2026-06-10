@@ -1,7 +1,9 @@
 """News article scraper for shock events — runs on the Intel Mac.
 
-Uses Google News RSS to discover relevant articles within a date window for
-each source, then fetches and parses full article text with BeautifulSoup.
+Fetches articles via direct site RSS feeds, parsed with feedparser.
+Entries are filtered by keyword match and date range, then full article
+text is retrieved with BeautifulSoup.
+
 Results saved to JUHIDRIVE and synced to the M5 via Syncthing.
 
 Output path per article batch:
@@ -18,7 +20,7 @@ All sources, full date range:
 
 Specific sources:
     python -m electoral.nlp.scraper --shock-id ayatollah_assassination \\
-        --sources nyt wapo reuters --date-range 2026-02-25 2026-03-15
+        --sources bbc guardian npr --date-range 2026-02-25 2026-03-15
 
 Quick validation — 5 articles per source:
     python -m electoral.nlp.scraper --shock-id ayatollah_assassination \\
@@ -36,12 +38,11 @@ import logging
 import os
 import sys
 import time
-import urllib.parse
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import feedparser
 import requests
 from bs4 import BeautifulSoup
 
@@ -65,35 +66,56 @@ REQUEST_TIMEOUT = 20
 REQUEST_SLEEP = 2.0    # seconds between every article fetch (avoids rate-limiting)
 TEST_MAX = 5           # articles per source in --test mode
 
-GNEWS_RSS_BASE = "https://news.google.com/rss/search"
-
 # ── Source registry ───────────────────────────────────────────────────────────
 
+# rss_url: direct site RSS feed. Sources without rss_url are skipped.
 # content_selectors: tried in order; first match yielding ≥30 words wins.
 # A generic <p>-tag fallback is always attempted last.
 SOURCES: dict[str, dict[str, Any]] = {
+    "bbc": {
+        "display": "BBC News",
+        "domain": "bbc.com",
+        "rss_url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "content_selectors": [
+            "div[data-component='text-block']",
+            "article[class*='ssrcss']",
+            "article",
+        ],
+    },
+    "guardian": {
+        "display": "The Guardian",
+        "domain": "theguardian.com",
+        "rss_url": "https://www.theguardian.com/world/iran/rss",
+        "content_selectors": [
+            "div.article-body-commercial-selector",
+            "div[data-gu-name='body']",
+            "article",
+        ],
+    },
+    "npr": {
+        "display": "NPR",
+        "domain": "npr.org",
+        "rss_url": "https://feeds.npr.org/1001/rss.xml",
+        "content_selectors": ["div#storytext", "div.storytext", "article"],
+    },
     "christianity_today": {
         "display": "Christianity Today",
         "domain": "christianitytoday.com",
+        "rss_url": "https://www.christianitytoday.com/rss/",
         "content_selectors": ["div.article-body", "div.entry-content", "main article"],
     },
     "cbn": {
         "display": "CBN News",
         "domain": "cbn.com",
+        "rss_url": "https://www1.cbn.com/rss/news",
+        "rss_fallback_url": "https://www.cbn.com/content/cbn/us/en/cbnnews.rss.xml",
         "content_selectors": ["div.article-body", "div.field-item", "main article"],
-    },
-    "univision": {
-        "display": "Univision",
-        "domain": "univision.com",
-        "content_selectors": [
-            "div[class*='article-body']",
-            "div[class*='body-content']",
-            "article",
-        ],
     },
     "fox_news": {
         "display": "Fox News",
         "domain": "foxnews.com",
+        "rss_url": "https://moxie.foxnews.com/google-publisher/world.xml",
+        "rss_fallback_url": "https://feeds.foxnews.com/foxnews/politics",
         "content_selectors": ["div.article-body", "div.page-content", "article"],
     },
     "nyt": {
@@ -110,19 +132,23 @@ SOURCES: dict[str, dict[str, Any]] = {
         "domain": "washingtonpost.com",
         "content_selectors": ["div.article-body", "div[data-pb-type='art']", "article"],
     },
-    "reuters": {
-        "display": "Reuters",
-        "domain": "reuters.com",
+    "univision": {
+        "display": "Univision",
+        "domain": "univision.com",
         "content_selectors": [
             "div[class*='article-body']",
-            "div.StandardArticleBody_body",
+            "div[class*='body-content']",
             "article",
         ],
     },
-    "ap": {
-        "display": "Associated Press",
-        "domain": "apnews.com",
-        "content_selectors": ["div.RichTextStoryBody", "div.Article", "article"],
+    "politico": {
+        "display": "Politico",
+        "domain": "politico.com",
+        "content_selectors": [
+            "div.story-text",
+            "div[class*='story-text']",
+            "article",
+        ],
     },
 }
 
@@ -163,70 +189,34 @@ def _fetch(url: str) -> requests.Response | None:
         return None
 
 
-# ── Google News RSS ───────────────────────────────────────────────────────────
+# ── Feed helpers ──────────────────────────────────────────────────────────────
 
 
-def _gnews_url(keywords: list[str], domain: str, start: str, end: str) -> str:
-    """Build a Google News RSS URL for a site-scoped keyword search.
+def _entry_in_date_range(entry: Any, start: str, end: str) -> bool:
+    """Return True if a feedparser entry's publish time falls within [start, end].
 
-    Uses the first 5 keywords to keep the query short. Date operators:
-      after:YYYY-MM-DD  before:YYYY-MM-DD
+    Uses feedparser's pre-parsed time.struct_time fields; returns True for
+    entries with no parseable date so they are included rather than silently
+    dropped.
     """
-    kw_str = " ".join(keywords[:5])
-    query = f"{kw_str} site:{domain} after:{start} before:{end}"
-    params = urllib.parse.urlencode({
-        "q": query,
-        "hl": "en-US",
-        "gl": "US",
-        "ceid": "US:en",
-    })
-    return f"{GNEWS_RSS_BASE}?{params}"
-
-
-# ── Feed parsing ──────────────────────────────────────────────────────────────
-
-_ATOM_NS = "http://www.w3.org/2005/Atom"
-
-
-def _parse_feed(xml_bytes: bytes) -> list[dict[str, str]]:
-    """Parse RSS 2.0 or Atom bytes → list of {url, headline, published_date}."""
-    items: list[dict[str, str]] = []
+    import time as _time
+    parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+    if parsed is None:
+        return True
     try:
-        root = ET.fromstring(xml_bytes)
-    except ET.ParseError as exc:
-        log.warning("feed parse error: %s", exc)
-        return items
+        dt = datetime.fromtimestamp(_time.mktime(parsed), tz=timezone.utc)
+        start_dt = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+        end_dt = datetime.fromisoformat(end).replace(tzinfo=timezone.utc)
+        return start_dt <= dt <= end_dt
+    except (OSError, OverflowError, ValueError):
+        return True
 
-    for item in root.iter("item"):
-        url = (item.findtext("link") or "").strip()
-        if url:
-            items.append({
-                "url": url,
-                "headline": (item.findtext("title") or "").strip(),
-                "published_date": (item.findtext("pubDate") or "").strip(),
-            })
 
-    if not items:
-        for entry in root.iter(f"{{{_ATOM_NS}}}entry"):
-            link_el = (
-                entry.find(f"{{{_ATOM_NS}}}link[@rel='alternate']")
-                or entry.find(f"{{{_ATOM_NS}}}link")
-            )
-            url = (link_el.get("href", "") if link_el is not None else "").strip()
-            if not url:
-                continue
-            title_el = entry.find(f"{{{_ATOM_NS}}}title")
-            pub_el = (
-                entry.find(f"{{{_ATOM_NS}}}published")
-                or entry.find(f"{{{_ATOM_NS}}}updated")
-            )
-            items.append({
-                "url": url,
-                "headline": (title_el.text or "").strip() if title_el is not None else "",
-                "published_date": (pub_el.text or "").strip() if pub_el is not None else "",
-            })
-
-    return items
+def _entry_matches_keywords(entry: Any, kw_lower: list[str]) -> bool:
+    """Return True if any keyword appears in the entry title or summary."""
+    title = (entry.get("title") or "").lower()
+    summary = (entry.get("summary") or "").lower()
+    return any(kw in title or kw in summary for kw in kw_lower)
 
 
 # ── Text extraction ───────────────────────────────────────────────────────────
@@ -311,7 +301,7 @@ def scrape_articles(
     *,
     max_articles: int | None = None,
 ) -> dict[str, Any]:
-    """Scrape news articles about a shock event via Google News RSS.
+    """Scrape news articles about a shock event via direct site RSS feeds.
 
     Parameters
     ----------
@@ -319,11 +309,10 @@ def scrape_articles(
         Shock slug (e.g. ``ayatollah_assassination``). Keys the output
         subdirectory and used to look up keywords from shocks.json.
     sources:
-        Subset of SOURCES slugs to scrape. None = all eight sources.
+        Subset of SOURCES slugs to scrape. None = all sources with rss_url.
     date_range:
-        ``(start, end)`` ISO date strings YYYY-MM-DD. Passed as
-        Google News ``after:``/``before:`` operators. If None, no date
-        filter is applied.
+        ``(start, end)`` ISO date strings YYYY-MM-DD. Entries outside this
+        window are filtered out. If None, no date filter is applied.
     max_articles:
         Cap per source (e.g. TEST_MAX=5 for quick validation).
 
@@ -345,6 +334,7 @@ def scrape_articles(
         end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     keywords = _load_keywords(shock_id)
+    kw_lower = [k.lower() for k in keywords]
     scraped_at = datetime.now(timezone.utc).isoformat()
 
     log.info(
@@ -363,30 +353,55 @@ def scrape_articles(
             time.sleep(REQUEST_SLEEP)
 
         display = cfg["display"]
+        rss_url = cfg.get("rss_url")
+        if not rss_url:
+            log.warning("[%s] no rss_url configured — skipping", display)
+            result["sources"][slug] = {"attempted": 0, "discarded": 0, "written": 0}
+            continue
+
         out_path = DATA_ROOT / shock_id / f"{slug}.jsonl"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         seen_ids = _load_seen_ids(out_path)
         counts: dict[str, int] = {"attempted": 0, "discarded": 0, "written": 0}
 
-        rss_url = _gnews_url(keywords, cfg["domain"], start, end)
-        log.info("[%s] Google News RSS query", display)
-        log.debug("[%s] %s", display, rss_url)
+        log.info("[%s] fetching RSS feed: %s", display, rss_url)
+        feed = feedparser.parse(rss_url)
+        if feed.bozo and not feed.entries:
+            fallback_url = cfg.get("rss_fallback_url")
+            if fallback_url:
+                log.warning(
+                    "[%s] primary feed error (%s) — trying fallback: %s",
+                    display, feed.get("bozo_exception", "unknown"), fallback_url,
+                )
+                feed = feedparser.parse(fallback_url)
+            if feed.bozo and not feed.entries:
+                log.error("[%s] feed error (%s) — skipping", display, feed.get("bozo_exception", "unknown"))
+                result["sources"][slug] = counts
+                continue
 
-        feed_resp = _fetch(rss_url)
-        if feed_resp is None:
-            log.error("[%s] Google News RSS unreachable — skipping source", display)
-            result["sources"][slug] = counts
-            continue
+        log.info("[%s] %d entries in feed", display, len(feed.entries))
 
-        items = _parse_feed(feed_resp.content)
-        log.info("[%s] %d articles in RSS", display, len(items))
+        # Filter by keyword match in title or summary
+        keyword_matched = [e for e in feed.entries if _entry_matches_keywords(e, kw_lower)]
+        log.info("[%s] %d entries after keyword filter", display, len(keyword_matched))
 
-        for item in items:
+        # Filter by date range
+        if date_range is not None:
+            date_filtered = [e for e in keyword_matched if _entry_in_date_range(e, start, end)]
+            log.info("[%s] %d entries after date filter", display, len(date_filtered))
+        else:
+            date_filtered = keyword_matched
+
+        for entry in date_filtered:
             if max_articles is not None and counts["written"] >= max_articles:
                 log.info("[%s] max=%d reached — stopping", display, max_articles)
                 break
 
-            url = item["url"]
+            url = entry.get("link", "")
+            if not url:
+                counts["discarded"] += 1
+                continue
+
             article_id = _url_hash(url)
             counts["attempted"] += 1
 
@@ -409,6 +424,8 @@ def scrape_articles(
                 counts["discarded"] += 1
                 continue
 
+            published_date = entry.get("published") or entry.get("updated") or ""
+
             record = {
                 "schema_version": SCHEMA_VERSION,
                 "stage": "collect",
@@ -418,9 +435,9 @@ def scrape_articles(
                     "shock_id": shock_id,
                     "source": slug,
                     "url": url,
-                    "headline": item["headline"],
+                    "headline": (entry.get("title") or "").strip(),
                     "text": text,
-                    "published_date": item["published_date"],
+                    "published_date": published_date,
                     "word_count": wc,
                     "scraped_at": scraped_at,
                     "lang": "en",
@@ -453,7 +470,7 @@ def scrape_articles(
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Scrape news articles for a shock event via Google News RSS."
+        description="Scrape news articles for a shock event via direct site RSS feeds."
     )
     p.add_argument(
         "--shock-id",
@@ -467,7 +484,7 @@ def _parse_args() -> argparse.Namespace:
         metavar="SOURCE",
         choices=list(SOURCES),
         default=None,
-        help=f"Sources to scrape (default: all). Choices: {list(SOURCES)}",
+        help=f"Sources to scrape (default: all with rss_url). Choices: {list(SOURCES)}",
     )
     p.add_argument(
         "--date-range",

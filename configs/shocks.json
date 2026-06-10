@@ -41,6 +41,39 @@
     }
   },
   {
+    "id": "iran_war_2026",
+    "date": "2026-02-28",
+    "category": "Geopolitical",
+    "description": "Following assassination of Supreme Leader Khamenei, Iran enters open conflict with Israel and US forces in the region",
+    "keywords": [
+      "Iran war",
+      "Iran conflict",
+      "Iran Israel war",
+      "Iran US war",
+      "Middle East war 2026",
+      "Iran attack",
+      "Israel Iran",
+      "Persian Gulf war",
+      "Iran military",
+      "Iran nuclear"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "muslim",
+      "jewish",
+      "evangelical",
+      "secular"
+    ],
+    "shock_window_days": 30,
+    "active": true,
+    "pilot": false,
+    "date_window": {
+      "start": "2026-02-25",
+      "shock_date": "2026-02-28",
+      "end": "2026-03-30"
+    }
+  },
+  {
     "id": "sept_11_2001",
     "date": "2001-09-11",
     "category": "Security",

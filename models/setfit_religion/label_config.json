@@ -1,0 +1,22 @@
+{
+  "id2label": {
+    "0": "catholic",
+    "1": "evangelical",
+    "2": "jewish",
+    "3": "muslim",
+    "4": "other_rel",
+    "5": "protestant",
+    "6": "secular"
+  },
+  "label2id": {
+    "catholic": 0,
+    "evangelical": 1,
+    "jewish": 2,
+    "muslim": 3,
+    "other_rel": 4,
+    "protestant": 5,
+    "secular": 6
+  },
+  "stratum": "religion",
+  "backbone": "sentence-transformers/all-MiniLM-L6-v2"
+}

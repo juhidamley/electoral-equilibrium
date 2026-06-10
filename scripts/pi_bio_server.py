@@ -45,6 +45,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel
+
+
+class ClassifyRequest(BaseModel):
+    bio: str = ""
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -345,10 +350,9 @@ def _classify_npu(bio: str, state: dict) -> tuple[str | None, list[float]]:
 def _build_app(state: dict):
     try:
         from fastapi import FastAPI
-        from pydantic import BaseModel
     except ImportError as exc:
         raise RuntimeError(
-            "fastapi and pydantic are not installed.\n" "Run:  pip install fastapi uvicorn pydantic"
+            "fastapi is not installed.\n" "Run:  pip install fastapi uvicorn"
         ) from exc
 
     mode: str = state["mode"]
@@ -358,9 +362,6 @@ def _build_app(state: dict):
         title="Electoral Equilibrium — Bio Classifier",
         version="2.0.0",
     )
-
-    class ClassifyRequest(BaseModel):
-        bio: str = ""
 
     @app.get("/health")
     def health():

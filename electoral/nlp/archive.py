@@ -568,6 +568,78 @@ class HistoricalArchiveLoader:
             logger.warning("Twitter CSV read error %s: %s", path, exc)
         return records
 
+    # Event code → shock_id for LIWC SAV archives (metoo / kavanaugh dataset)
+    _SAV_EVENT_TO_SHOCK: dict[int, str] = {
+        1: "metoo_2017",
+        2: "kavanaugh_2018",
+        3: "kavanaugh_2018",
+        4: "kavanaugh_2018",
+    }
+
+    def _load_sav_file(self, path: Path, archive_id: str) -> list[dict]:
+        """Load a SPSS SAV file using pyreadstat and return canonical payloads.
+
+        Expects a ``Tweet`` column (text) and an ``Event`` column (integer code).
+        No timestamp is available; created_at is set to the shock's known date
+        from shocks.json. author_description is always None (no bio field).
+        """
+        try:
+            import pyreadstat
+        except ImportError:
+            logger.warning("pyreadstat not installed; skipping SAV file %s", path)
+            return []
+
+        try:
+            df, _meta = pyreadstat.read_sav(str(path))
+        except Exception as exc:
+            logger.warning("SAV read error %s: %s", path, exc)
+            return []
+
+        # Build shock_id → date string map from shocks.json
+        shock_dates: dict[str, str] = {}
+        if self._shocks_path.exists():
+            try:
+                for shock in load_shocks(self._shocks_path):
+                    if shock.get("date"):
+                        shock_dates[shock["id"]] = shock["date"]
+            except Exception:
+                pass
+
+        records: list[dict] = []
+        for _, row in df.iterrows():
+            text = str(row.get("Tweet") or "").strip()
+            if not text:
+                continue
+
+            try:
+                event_code = int(row.get("Event") or 0)
+            except (ValueError, TypeError):
+                event_code = 0
+            shock_id = self._SAV_EVENT_TO_SHOCK.get(event_code)
+
+            created_at = normalize_timestamp(shock_dates.get(shock_id or ""))
+
+            post_id = f"liwc_{archive_id}_{abs(hash(text)):016x}"
+            records.append(
+                build_post_payload(
+                    post_id=post_id,
+                    text=text,
+                    created_at=created_at,
+                    lang="en",
+                    source="archive",
+                    archive_id=archive_id,
+                    platform="twitter_liwc",
+                    shock_id=shock_id,
+                    author_did=None,
+                    author_handle=None,
+                    author_description=None,
+                    inference_method=None,
+                )
+            )
+
+        logger.info("SAV %s: %d records loaded", path.name, len(records))
+        return records
+
     def _normalize_twitter_row(self, raw: dict[str, Any], archive_id: str) -> dict | None:
         text = self._pick(raw, self._TEXT_CANDIDATES)
         if not text:
@@ -684,6 +756,8 @@ def _load_from_dir(
             posts.extend(loader._load_twitter_jsonl(path, archive_id))
         elif path.suffix in (".csv", ".tsv"):
             posts.extend(loader._load_twitter_csv_file(path, archive_id))
+        elif path.suffix == ".sav":
+            posts.extend(loader._load_sav_file(path, archive_id))
     return posts
 
 
@@ -771,8 +845,13 @@ class TelegramLoader:
             return []
 
         posts: list[dict] = []
-        for path in sorted(archive_dir.rglob("*.json")):
-            posts.extend(self._load_file(path, archive_id))
+        for path in sorted(archive_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.suffix == ".json":
+                posts.extend(self._load_file(path, archive_id))
+            elif path.suffix == ".csv":
+                posts.extend(self._load_csv_file(path, archive_id))
 
         shock_dt = _shock_date(shock_id, self._shocks_path)
         if shock_dt:
@@ -824,6 +903,103 @@ class TelegramLoader:
                         logger.debug("%s line %d: JSON error", path.name, lineno)
         except OSError as exc:
             logger.warning("TelegramLoader read error %s: %s", path, exc)
+        return records
+
+    _TOXICITY_FIELDS = ("toxicity", "severe_toxicity", "identity_attack")
+
+    def _load_csv_file(self, path: Path, archive_id: str) -> list[dict]:
+        """Load a Telegram CSV export (telegram_2024 schema) using pandas.
+
+        Column mapping:
+          content       → text  (rows where content is NaN or empty are skipped)
+          message_id    → post_id  (telegram: prefix)
+          date          → created_at  (ISO 8601)
+          language      → lang
+          from_id       → author_did  (telegram: prefix)
+          post_author   → author_handle
+        No bio field; inference_method = "platform_proxy".
+        toxicity, severe_toxicity, identity_attack stored in metadata if present.
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.warning("pandas not installed; skipping CSV %s", path)
+            return []
+
+        csv.field_size_limit(10_000_000)
+        try:
+            df = pd.read_csv(path, dtype=str, keep_default_na=True)
+        except Exception as exc:
+            logger.warning("TelegramLoader CSV read error %s: %s", path, exc)
+            return []
+
+        records: list[dict] = []
+        for _, row in df.iterrows():
+            text = row.get("content")
+            if pd.isna(text) or not str(text).strip():
+                continue
+            text = str(text).strip()
+
+            raw_id = row.get("message_id")
+            post_id = (
+                f"telegram:{str(raw_id).strip()}"
+                if not pd.isna(raw_id) and str(raw_id).strip()
+                else f"telegram:tg_{abs(hash(text)):016x}"
+            )
+
+            raw_date = row.get("date")
+            created_at = normalize_timestamp(
+                str(raw_date).strip() if not pd.isna(raw_date) else None
+            )
+
+            raw_lang = row.get("language")
+            lang = str(raw_lang).strip() if not pd.isna(raw_lang) and str(raw_lang).strip() else "en"
+
+            raw_from = row.get("from_id")
+            author_did = (
+                f"telegram:{str(raw_from).strip()}"
+                if not pd.isna(raw_from) and str(raw_from).strip()
+                else None
+            )
+
+            raw_handle = row.get("post_author")
+            author_handle = (
+                str(raw_handle).strip()
+                if not pd.isna(raw_handle) and str(raw_handle).strip()
+                else None
+            )
+
+            shock_id = self._route_shock(text)
+
+            rec = build_post_payload(
+                post_id=post_id,
+                text=text,
+                created_at=created_at,
+                lang=lang,
+                source="archive",
+                archive_id=archive_id,
+                platform=self.PLATFORM,
+                shock_id=shock_id,
+                author_did=author_did,
+                author_handle=author_handle,
+                author_description=None,
+                inference_method="platform_proxy",
+            )
+
+            metadata: dict[str, float] = {}
+            for field in self._TOXICITY_FIELDS:
+                val = row.get(field)
+                if val is not None and not pd.isna(val):
+                    try:
+                        metadata[field] = float(val)
+                    except (ValueError, TypeError):
+                        pass
+            if metadata:
+                rec["metadata"] = metadata
+
+            records.append(rec)
+
+        logger.info("TelegramLoader CSV %s: %d records loaded", path.name, len(records))
         return records
 
     def _normalize(self, msg: dict[str, Any], archive_id: str) -> dict | None:

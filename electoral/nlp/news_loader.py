@@ -848,3 +848,128 @@ def save_articles(
             f.write(json.dumps(envelope, ensure_ascii=False) + "\n")
     logger.info("Wrote %d articles → %s", len(records), out_path)
     return out_path
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    _DEFAULT_DATA_ROOT = "/Volumes/JUHIDRIVE/electoralData"
+    _DEFAULT_OUTPUT_DIR = "/Volumes/JUHIDRIVE/electoralData/rawdata/articles"
+
+    p = argparse.ArgumentParser(
+        description=(
+            "Test news_loader.py loaders from the command line.\n\n"
+            "Examples:\n"
+            "  python -m electoral.nlp.news_loader --loader 3dlnews "
+            "--shock-id metoo_2017 --since 2017-10-01 --until 2017-11-30 "
+            "--states PA GA TX\n"
+            "  python -m electoral.nlp.news_loader --loader webhose "
+            "--shock-id roe_v_wade_2022 --since 2022-06-24 --until 2022-07-15 "
+            "--max-articles 500"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument(
+        "--loader",
+        required=True,
+        choices=["scraped", "3dlnews", "webhose"],
+        help="Which loader to instantiate.",
+    )
+    p.add_argument(
+        "--shock-id",
+        required=True,
+        metavar="SLUG",
+        help="Shock event slug (e.g. metoo_2017). Used for output path and payload tagging.",
+    )
+    p.add_argument("--since", metavar="YYYY-MM-DD", help="Start date inclusive.")
+    p.add_argument("--until", metavar="YYYY-MM-DD", help="End date inclusive.")
+    p.add_argument(
+        "--states",
+        nargs="+",
+        metavar="STATE",
+        help="2-letter state codes for 3dlnews state filter (e.g. --states PA GA TX).",
+    )
+    p.add_argument(
+        "--output-dir",
+        metavar="DIR",
+        default=None,
+        help=(
+            f"Save output via save_articles() to this root directory. "
+            f"Default: {_DEFAULT_OUTPUT_DIR}"
+        ),
+    )
+    p.add_argument(
+        "--max-articles",
+        type=int,
+        metavar="N",
+        help="Cap on articles loaded (for quick testing).",
+    )
+    p.add_argument("--verbose", action="store_true", help="Enable DEBUG logging.")
+    args = p.parse_args()
+
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%SZ",
+        force=True,
+    )
+
+    data_root = Path(_DEFAULT_DATA_ROOT)
+
+    if args.loader == "scraped":
+        loader_obj: ScrapedNewsLoader | ThreeDLNewsLoader | WebhoseLoader = ScrapedNewsLoader(
+            data_root / "rawdata" / "news"
+        )
+        records = loader_obj.load(since=args.since, until=args.until)  # type: ignore[call-arg]
+        if args.max_articles is not None:
+            records = records[: args.max_articles]
+
+    elif args.loader == "3dlnews":
+        loader_obj = ThreeDLNewsLoader(data_root / "archives" / "news" / "3dlnews_parsed")
+        records = loader_obj.load(  # type: ignore[call-arg]
+            since=args.since,
+            until=args.until,
+            states=set(args.states) if args.states else None,
+            shock_id=args.shock_id,
+            max_articles=args.max_articles,
+        )
+
+    else:  # webhose
+        loader_obj = WebhoseLoader(data_root / "archives" / "news" / "webhose")
+        records = loader_obj.load(  # type: ignore[call-arg]
+            since=args.since,
+            until=args.until,
+            shock_id=args.shock_id,
+            max_articles=args.max_articles,
+        )
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    print(f"\nloader:    {args.loader}")
+    print(f"shock_id:  {args.shock_id}")
+    print(f"since:     {args.since or '(none)'}")
+    print(f"until:     {args.until or '(none)'}")
+    if args.states:
+        print(f"states:    {' '.join(args.states)}")
+    print(f"loaded:    {len(records)} articles")
+
+    if records:
+        sample = records[0]
+        snippet = sample.get("text", "")[:80].replace("\n", " ")
+        print(f"sample:    shock={sample.get('shock_id')} | {snippet!r}")
+
+    # ── Save ──────────────────────────────────────────────────────────────────
+    output_dir = args.output_dir or _DEFAULT_OUTPUT_DIR
+    if records:
+        out_path = save_articles(
+            records,
+            output_root=output_dir,
+            shock_id=args.shock_id,
+            source=args.loader,
+        )
+        print(f"saved →    {out_path}")
+    else:
+        print("(no articles to save)")

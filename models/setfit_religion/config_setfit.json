@@ -1,0 +1,12 @@
+{
+  "normalize_embeddings": false,
+  "labels": [
+    "catholic",
+    "evangelical",
+    "jewish",
+    "muslim",
+    "other_rel",
+    "protestant",
+    "secular"
+  ]
+}
