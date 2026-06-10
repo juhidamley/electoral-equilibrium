@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH --time=4:00:00
 #SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/discord_sample_%j.log
 #SBATCH --dependency=afterok:$DISCORD_EXTRACT_ARRAY_JID
@@ -58,8 +58,9 @@ for json_path in json_files:
 
     print(f"[{guild_id}] Loading {json_path.name}...")
     try:
-        with open(json_path, "r", errors="replace") as f:
-            raw = json.load(f)
+        with open(json_path, "rb") as f:
+            import ijson
+            raw = list(ijson.items(f, 'item'))
     except (json.JSONDecodeError, OSError) as e:
         print(f"[{guild_id}] ERROR reading file: {e}")
         continue
