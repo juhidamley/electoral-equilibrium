@@ -42,7 +42,7 @@ conda activate base
 
 echo "Extracting guild $GUILD_ID from $DATASET..."
 
-/usr/bin/pzstd -d -c "$DATASET" 2>/dev/null | python - "$GUILD_ID" "$OUTPUT" <<'EOF'
+~/.conda/envs/electoral/bin/zstd -d -c "$DATASET" 2>/dev/null | python - "$GUILD_ID" "$OUTPUT" <<'EOF'
 import sys
 import json
 

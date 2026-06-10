@@ -13,71 +13,49 @@ set -euo pipefail
 
 DISCORD_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/discord
 DATASET=$DISCORD_DIR/dataset.zst
-TMPFILE=$(mktemp /tmp/discord_head_XXXXXX.json)
+ZSTD=~/.conda/envs/electoral/bin/zstd
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Inspecting dataset structure"
+mkdir -p "$DISCORD_DIR"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Listing archive members"
 
 module load conda
 source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
-conda activate base
+conda activate electoral
 
-# Decompress first 100MB to inspect schema
-echo "Decompressing first 100MB..."
-~/.conda/envs/electoral/bin/zstd -d -c "$DATASET" 2>/dev/null | head -c 104857600 > "$TMPFILE"
+# Stream the tar index — no full decompression needed.
+# Format: ./GUILD_ID.json  (one file per server)
+$ZSTD -d -c "$DATASET" | tar -t | grep "\.json$" > "$DISCORD_DIR/all_servers.txt"
+echo "Total servers: $(wc -l < "$DISCORD_DIR/all_servers.txt")"
 
-echo "First 3 lines of decompressed data:"
-head -n 3 "$TMPFILE"
-
-echo ""
-echo "Extracting server names and guild IDs..."
-
-python - "$TMPFILE" "$DISCORD_DIR/server_list.txt" <<'EOF'
+# Extract guild IDs from filenames (./GUILD_ID.json → GUILD_ID) and write server_list.txt.
+# Individual server extraction command for reference:
+#   $ZSTD -d -c dataset.zst | tar -x --to-stdout ./GUILD_ID.json
+python - "$DISCORD_DIR/all_servers.txt" "$DISCORD_DIR/server_list.txt" <<'EOF'
 import sys
-import json
-import re
+from pathlib import Path
 
 input_path = sys.argv[1]
 output_path = sys.argv[2]
 
-servers = {}  # guild_id -> server_name
-
-# Try newline-delimited JSON first, then wrapped JSON array
-with open(input_path, "r", errors="replace") as f:
-    raw = f.read()
-
-# Attempt NDJSON parse
-found = 0
-for line in raw.splitlines():
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        obj = json.loads(line)
-        guild_id = str(obj.get("guild_id") or obj.get("server_id") or obj.get("guildId", ""))
-        name = obj.get("guild_name") or obj.get("server_name") or obj.get("guildName", "")
+guild_ids = []
+with open(input_path) as f:
+    for line in f:
+        name = line.strip()
+        if not name:
+            continue
+        guild_id = Path(name).stem   # "./123456789.json" -> "123456789"
         if guild_id:
-            servers[guild_id] = name
-            found += 1
-    except json.JSONDecodeError:
-        pass
+            guild_ids.append(guild_id)
 
-# If no hits, try to find guild_id / guild_name via regex (partial/corrupt JSON)
-if not servers:
-    guild_ids = re.findall(r'"guild_id"\s*:\s*"?(\d+)"?', raw)
-    guild_names = re.findall(r'"guild_name"\s*:\s*"([^"]*)"', raw)
-    for gid, gname in zip(guild_ids, guild_names):
-        servers[gid] = gname
-
+guild_ids.sort()
 with open(output_path, "w") as f:
-    for guild_id, name in sorted(servers.items()):
-        f.write(f"{guild_id}\t{name}\n")
+    for gid in guild_ids:
+        f.write(gid + "\n")
 
-print(f"Total distinct servers found: {len(servers)}")
-print(f"Wrote server list to: {output_path}")
+print(f"Total distinct guild IDs: {len(guild_ids)}")
+print(f"Wrote guild ID list to: {output_path}")
 EOF
 
-rm -f "$TMPFILE"
-
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Metadata extraction complete"
-echo "Total servers: $(wc -l < "$DISCORD_DIR/server_list.txt")"
 echo "Review $DISCORD_DIR/server_list.txt and populate $DISCORD_DIR/target_servers.txt"
