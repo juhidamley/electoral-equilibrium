@@ -270,7 +270,7 @@ class RoBERTaScorer:
             model=model_name,
             tokenizer=model_name,
             device=device,
-            return_all_scores=True,
+            top_k=None,
             truncation=True,
             max_length=512,
         )
@@ -345,7 +345,12 @@ class RoBERTaScorer:
             batch = truncated[batch_start : batch_start + self.batch_size]
             raw = self._pipeline(batch)
             for item in raw:
-                score_map = {d["label"]: d["score"] for d in item}
+                if isinstance(item, list):
+                    score_map = {d["label"]: d["score"] for d in item}
+                elif isinstance(item, dict):
+                    score_map = {item["label"]: item["score"]}
+                else:
+                    score_map = {}
                 # cardiffnlp labels: LABEL_0=neg, LABEL_1=neu, LABEL_2=pos
                 neg = float(score_map.get("LABEL_0", score_map.get("negative", 0.0)))
                 neu = float(score_map.get("LABEL_1", score_map.get("neutral", 0.0)))
