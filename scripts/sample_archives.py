@@ -908,6 +908,7 @@ def main() -> None:
         # 3dlnews: pre-parsed JSONL output from scripts/parse_3dlnews_html.py.
         # Source is 3DLNews-2.0-HTML.zip; state used as geographic demographic proxy.
         "3dlnews": archive_root / "news" / "3dlnews_parsed",
+        "discord": archive_root / "discord" / "sampled",
     }
 
     archive_dir: Path | None = None

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import sys
 from pathlib import Path
+
+from electoral.core.rng import derive_seed, make_rng
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -41,7 +42,7 @@ def stratified_split(
     seed: int,
 ) -> tuple[list[dict], list[dict]]:
     """Return (train, eval) with stratification by 'party' field."""
-    rng = random.Random(seed)
+    rng = make_rng(derive_seed(seed, "prep_finetune"))
     by_party: dict[str, list[dict]] = {}
     for rec in records:
         party = rec.get("party", "unknown")

@@ -29,6 +29,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from electoral.core.rng import derive_seed
+
 log = logging.getLogger(__name__)
 
 # ── Prompt template ───────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str)
                 **inputs,
                 max_new_tokens=256,
                 do_sample=False,
-                temperature=1.0,
+                temperature=0.0,
                 pad_token_id=tokenizer.eos_token_id,
             )
             generated = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
@@ -247,7 +249,7 @@ def train(
         logging_steps=10,
         save_strategy="epoch",
         evaluation_strategy="no",  # manual eval below
-        seed=seed,
+        seed=derive_seed(seed, "llm_finetune"),
         report_to="none",
         dataloader_drop_last=False,
     )

@@ -151,8 +151,15 @@ def _predict_constrained(
 
     prompt = f"<s>{format_prompt(shock_text, party)}\n"
     generator = outlines.generate.json(model, DeltaBinsModel)
-    result = generator(prompt)
-    return dict(result)
+    result = dict(generator(prompt))
+    invalid = {k: v for k, v in result.items() if v not in DELTA_BINS}
+    if invalid:
+        log.warning(
+            "_predict_constrained: outlines returned %d invalid bin token(s): %s",
+            len(invalid),
+            invalid,
+        )
+    return result
 
 
 def _predict_greedy(

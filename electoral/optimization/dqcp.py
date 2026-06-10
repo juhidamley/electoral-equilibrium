@@ -31,6 +31,7 @@ import cvxpy as cp
 import numpy as np
 
 from electoral.core.types import CANONICAL_RACES
+from electoral.models.ml_baseline import psd_repair
 from electoral.portfolios.constraints import ConstraintSpec
 
 log = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ def solve_dqcp(
         )
 
     mu_vec = np.array([float(mu_race[b]) for b in blocs])
-    sym_cov = (cov_mat + cov_mat.T) / 2.0 + 1e-6 * np.eye(k)  # regularise + symmetrise
+    sym_cov = psd_repair((cov_mat + cov_mat.T) / 2.0)
 
     # ── Pre-flight: can we achieve target in principle? ────────────────────────
     max_race_loyalty = float(mu_vec.max())
@@ -165,9 +166,13 @@ def solve_dqcp(
         s >= 1e-6,
     ]
 
-    # Per-bloc weight bounds (applied directly on z since w* = z*/s*, so
-    # w*_i ∈ [lo_i, hi_i] ⟺ z*_i ∈ [lo_i·s*, hi_i·s*] — bilinear; we
-    # approximate by enforcing the bounds post-solve via clipping and renorm).
+    # Per-bloc weight bounds: w*_i ∈ [lo_i, hi_i] ⟺ z*_i ∈ [lo_i·s*, hi_i·s*],
+    # which is bilinear in (z, s) and cannot be added as a SOCP constraint directly.
+    # KNOWN APPROXIMATION: bounds are enforced post-solve via clipping + renorm
+    # (see lines below).  This can shift the solution outside the true feasible set;
+    # the paper acknowledges this as a first-order approximation.  A tighter
+    # formulation would introduce a second-order cone constraint per bloc at the cost
+    # of a larger problem.  Pre-check feasibility with ConstraintSpec before calling.
     problem = cp.Problem(objective, constraints)
 
     if not problem.is_dcp():
