@@ -18,6 +18,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discord sampling pass"
 module load conda
 source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
+pip install ijson --quiet
 
 python - "$DISCORD_DIR" <<'EOF'
 import sys
