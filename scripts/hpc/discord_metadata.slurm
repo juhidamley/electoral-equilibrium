@@ -1,22 +1,24 @@
 #!/bin/bash
 #SBATCH --job-name=discord_metadata
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=4:00:00
-#SBATCH --output=/hopper/home/jdamley28/discord/logs/metadata_%j.log
+#SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/discord_metadata_%j.log
 #SBATCH --dependency=afterok:$DISCORD_DOWNLOAD_JID
 
 set -euo pipefail
 
-DISCORD_DIR=/hopper/home/jdamley28/discord
+DISCORD_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/discord
 DATASET=$DISCORD_DIR/dataset.zst
 TMPFILE=$(mktemp /tmp/discord_head_XXXXXX.json)
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Inspecting dataset structure"
 
-source /hopper/home/jdamley28/miniconda3/etc/profile.d/conda.sh
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
 
 # Decompress first 100MB to inspect schema

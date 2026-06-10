@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=discord_extract
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=8:00:00
-#SBATCH --output=/hopper/home/jdamley28/discord/logs/extract_%A_%a.log
+#SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/discord_extract_%A_%a.log
 
 # Array bounds are set at submission time:
 #   sbatch --array=0-$(( $(wc -l < target_servers.txt) - 1 )) discord_extract.slurm
@@ -13,7 +14,7 @@
 
 set -euo pipefail
 
-DISCORD_DIR=/hopper/home/jdamley28/discord
+DISCORD_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/discord
 DATASET=$DISCORD_DIR/dataset.zst
 TARGET_FILE=$DISCORD_DIR/target_servers.txt
 
@@ -35,7 +36,8 @@ if [[ -f "$OUTPUT" ]]; then
     exit 0
 fi
 
-source /hopper/home/jdamley28/miniconda3/etc/profile.d/conda.sh
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
 
 echo "Extracting guild $GUILD_ID from $DATASET..."
