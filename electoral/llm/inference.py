@@ -290,6 +290,10 @@ class ShockEstimator:
     ) -> None:
         self.adapter_path = adapter_path
         self.model, self.tokenizer = load_model(adapter_path, base_model)
+        # Disable KV cache reuse — outlines tries to reorder the cache across
+        # PEFT model layers, which hits a NoneType error when past_key_values
+        # is None on the first forward pass through the adapter.
+        self.model.config.use_cache = False
         try:
             import outlines
             self._outlines_model = outlines.models.Transformers(self.model, self.tokenizer)
