@@ -13,7 +13,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict
 
 from electoral.core.schema import (
     assert_required_keys,
@@ -597,6 +599,47 @@ class ShockResponseData:
                 f"ShockResponseData.source must be one of {sorted(VALID_SOURCES)}, "
                 f"got {self.source!r}"
             )
+
+
+# ── LLM output schema (Pydantic — used by outlines constrained decoding) ─────
+
+DeltaBin = Literal[
+    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
+    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+]
+
+
+class _RaceBins(BaseModel):
+    african_american: DeltaBin
+    latino: DeltaBin
+    asian: DeltaBin
+    white: DeltaBin
+    other_race: DeltaBin
+
+
+class _ReligionBins(BaseModel):
+    evangelical: DeltaBin
+    catholic: DeltaBin
+    protestant: DeltaBin
+    secular: DeltaBin
+    jewish: DeltaBin
+    muslim: DeltaBin
+    other_rel: DeltaBin
+
+
+class _GenderBins(BaseModel):
+    women: DeltaBin
+    men: DeltaBin
+    other_gender: DeltaBin
+
+
+class ShockResponseSchema(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    delta_bins_race: _RaceBins
+    delta_bins_religion: _ReligionBins
+    delta_bins_gender: _GenderBins
+    delta_eff: float
 
 
 # ── Stage 5: Equilibrium (post-shock optimizer output) ───────────────────────

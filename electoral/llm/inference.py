@@ -26,7 +26,13 @@ import json
 import logging
 from typing import Any
 
-from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS, DELTA_BINS
+from electoral.core.types import (
+    BIN_MIDPOINTS,
+    CANONICAL_GENDERS,
+    CANONICAL_RACES,
+    CANONICAL_RELIGIONS,
+    DELTA_BINS,
+)
 from electoral.llm.trainer import format_prompt
 
 log = logging.getLogger(__name__)
@@ -94,7 +100,7 @@ def load_model(
         device = "cuda" if _torch.cuda.is_available() else "cpu"
 
     tokenizer = AutoTokenizer.from_pretrained(
-        adapter_path or base_model,
+        base_model,
         use_fast=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
@@ -114,12 +120,12 @@ def load_model(
         quant_config = None
 
     model = AutoModelForCausalLM.from_pretrained(
-        adapter_path or base_model,
+        base_model,
         quantization_config=quant_config,
         device_map="auto" if device == "cuda" else None,
     )
 
-    if adapter_path and quant_config is None:
+    if adapter_path:
         try:
             from peft import PeftModel
 
@@ -263,3 +269,103 @@ def predict_delta_bins(
             log.warning("constrained generation failed (%s); falling back to greedy decode", exc)
 
     return _predict_greedy(shock_text, party, model, tokenizer, max_tokens)
+
+
+# ── ShockEstimator ────────────────────────────────────────────────────────────
+
+
+class ShockEstimator:
+    """Stateful estimator: loads model once, exposes estimate() per event.
+
+    Uses outlines constrained decoding with ShockResponseSchema so every
+    generated token is guaranteed to be a canonical DELTA_BINS value with the
+    correct stratum key names. The same schema class is used as the FastAPI
+    response_model in shock_endpoint.py.
+    """
+
+    def __init__(
+        self,
+        adapter_path: str,
+        base_model: str = "mistralai/Mistral-7B-v0.3",
+    ) -> None:
+        self.adapter_path = adapter_path
+        self.model, self.tokenizer = load_model(adapter_path, base_model)
+        try:
+            import outlines
+            self._outlines_model = outlines.models.Transformers(self.model, self.tokenizer)
+        except ImportError:
+            self._outlines_model = None
+            log.warning("outlines not installed — ShockEstimator.estimate() will raise on call")
+
+    def estimate(self, event: dict[str, Any], intensity: float = 1.0) -> Any:
+        """Run constrained generation for one shock event.
+
+        Parameters
+        ----------
+        event:
+            Full finetune record dict with keys: shock_id (or shock), cycle
+            (or year), party, description, news_roberta_scores,
+            social_roberta_scores.
+        intensity:
+            Scalar multiplier applied to all numeric delta values after
+            conversion. 1.0 = full shock; 0.5 = half-strength.
+
+        Returns
+        -------
+        ShockResponseData — validated frozen dataclass.
+        """
+        from electoral.artifacts import ShockResponseData, ShockResponseSchema
+
+        if self._outlines_model is None:
+            raise ImportError("outlines is required for ShockEstimator.estimate()")
+
+        import outlines
+
+        # (i) Prompt
+        prompt = format_prompt(event)
+
+        # (ii)+(iii) Constrained generation — outlines guarantees valid bin tokens
+        generator = outlines.generate.json(self._outlines_model, ShockResponseSchema)
+        schema_out: ShockResponseSchema = generator(prompt)
+
+        # (iv) Nested Pydantic → plain str dicts
+        bins_race: dict[str, str] = schema_out.delta_bins_race.model_dump()
+        bins_religion: dict[str, str] = schema_out.delta_bins_religion.model_dump()
+        bins_gender: dict[str, str] = schema_out.delta_bins_gender.model_dump()
+
+        # (iv) Bin tokens → numeric midpoints
+        deltas_race = {k: BIN_MIDPOINTS[v] for k, v in bins_race.items()}
+        deltas_religion = {k: BIN_MIDPOINTS[v] for k, v in bins_religion.items()}
+        deltas_gender = {k: BIN_MIDPOINTS[v] for k, v in bins_gender.items()}
+
+        # (v) Scale by intensity
+        deltas_race = {k: v * intensity for k, v in deltas_race.items()}
+        deltas_religion = {k: v * intensity for k, v in deltas_religion.items()}
+        deltas_gender = {k: v * intensity for k, v in deltas_gender.items()}
+
+        # (vi) delta_eff: use LLM-predicted value scaled by intensity
+        delta_eff = schema_out.delta_eff * intensity
+
+        # (vi) 5×5 identity covariance — placeholder until real estimation
+        n = len(CANONICAL_RACES)
+        covariance = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+        shock = str(event.get("shock_id") or event.get("shock", ""))
+        cycle = int(event.get("cycle") or event.get("year") or 2024)
+        party = str(event.get("party", "democrat"))
+
+        # (vi)+(vii) Construct — __post_init__ validates on creation
+        return ShockResponseData(
+            shock=shock,
+            cycle=cycle,
+            party=party,
+            delta_bins_race=bins_race,
+            delta_bins_religion=bins_religion,
+            delta_bins_gender=bins_gender,
+            deltas_race=deltas_race,
+            deltas_religion=deltas_religion,
+            deltas_gender=deltas_gender,
+            delta_eff=delta_eff,
+            covariance=covariance,
+            source="llm_unified",
+        )
