@@ -23,9 +23,11 @@ Adapter saved to --output-dir along with trainer_state.json.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -33,15 +35,47 @@ from electoral.core.rng import derive_seed
 
 log = logging.getLogger(__name__)
 
+
+# ── TrainConfig ───────────────────────────────────────────────────────────────
+
+
+@dataclass
+class TrainConfig:
+    base_model: str = "mistralai/Mistral-7B-v0.3"
+    lora_rank: int = 16
+    lora_alpha: int = 32
+    learning_rate: float = 2e-4
+    epochs: int = 3
+    batch_size: int = 4
+    train_path: str = "data/finetune/train.jsonl"
+    eval_path: str = "data/finetune/eval.jsonl"
+    output_dir: str = "models/mistral-r16"
+    backend: str = "hpc"
+
+
+def load_config(path: str | Path) -> TrainConfig:
+    """Read a TrainConfig JSON file. Unknown keys are silently ignored."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    fields = {f.name for f in dataclasses.fields(TrainConfig)}
+    return TrainConfig(**{k: v for k, v in data.items() if k in fields})
+
+
+def save_config(config: TrainConfig, path: str | Path) -> None:
+    """Write a TrainConfig to JSON."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(
+        json.dumps(dataclasses.asdict(config), indent=2),
+        encoding="utf-8",
+    )
+
+
 # ── Prompt template ───────────────────────────────────────────────────────────
 
-_SYSTEM_PROMPT = (
-    "You are an expert political scientist specialising in US electoral demographics. "
-    "Given a political shock event and the party whose voters are being analysed, "
-    "predict the directional change in Democratic vote share for each demographic "
-    "group using exactly one of these magnitude tokens: "
-    "strong_neg, mod_neg, mild_neg, slight_neg, neutral, "
-    "slight_pos, mild_pos, mod_pos, strong_pos."
+_SYSTEM_PROMPT_TEMPLATE = (
+    "You are a political science model that predicts how shock events affect "
+    "demographic bloc support for the {party} candidate. Given RoBERTa sentiment "
+    "scores from news and social media, output delta bins for each demographic stratum."
 )
 
 _BLOCS_ORDERED = [
@@ -63,28 +97,124 @@ _BLOCS_ORDERED = [
 ]
 
 
-def format_prompt(description: str, party: str) -> str:
-    """Build the [INST]...[/INST] instruction prompt."""
+_RACE_BLOCS = _BLOCS_ORDERED[:5]
+_RELIGION_BLOCS = _BLOCS_ORDERED[5:12]
+_GENDER_BLOCS = _BLOCS_ORDERED[12:]
+
+
+def format_prompt(example: dict[str, Any]) -> str:
+    """Build the [INST]...[/INST] prompt from a finetune record.
+
+    Six required elements:
+      (i)   System context establishing political science framing and party.
+      (ii)  Event description, year, and source.
+      (iii) News RoBERTa scores as a labeled JSON block.
+      (iv)  Social bio-weighted scores as a labeled JSON block.
+      (v)   Year and source (included in the event block).
+      (vi)  Closing instruction with exact canonical keys for all three strata,
+            the nine bin labels, delta_eff definition, and party substituted from
+            example["party"] — never hardcoded.
+
+    Accepts both new schema (news_roberta_scores, social_roberta_scores keys)
+    and legacy schema (missing score fields → empty dicts).
+    """
+    party = example.get("party", "democrat")
+    description = example.get("description", "")
+    year = str(example.get("year", ""))
+    source = example.get("source", "")
+    news_scores = example.get("news_roberta_scores", {})
+    social_scores = example.get("social_roberta_scores", {})
+
+    # (i) System context — party name substituted, never hardcoded
+    system = _SYSTEM_PROMPT_TEMPLATE.format(party=party)
+
+    # (ii) + (v) Event description, year, source
+    event_lines = [f"## Event\n{description}"]
+    if year:
+        event_lines.append(f"Year: {year}")
+    if source:
+        event_lines.append(f"Source: {source}")
+    event_block = "\n".join(event_lines)
+
+    # (iii) News RoBERTa scores
+    news_block = (
+        "## News RoBERTa Scores (per bloc)\n"
+        + json.dumps(news_scores, indent=2, ensure_ascii=False)
+    )
+
+    # (iv) Social bio-weighted scores
+    social_block = (
+        "## Social Bio-Weighted Scores (per bloc)\n"
+        + json.dumps(social_scores, indent=2, ensure_ascii=False)
+    )
+
+    # (vi) Closing instruction — exact canonical keys, nine bin labels, party substituted
+    _BIN_VALUES = (
+        "strong_neg, mod_neg, mild_neg, slight_neg, neutral, "
+        "slight_pos, mild_pos, mod_pos, strong_pos"
+    )
+    closing = (
+        f'You are analyzing the impact on the {party} candidate\'s coalition.\n'
+        "Output only a JSON object with the following keys:\n"
+        '  "delta_bins_race": keys african_american, latino, asian, white, other_race\n'
+        '  "delta_bins_religion": keys evangelical, catholic, protestant, secular, '
+        'jewish, muslim, other_rel\n'
+        '  "delta_bins_gender": keys women, men, other_gender\n'
+        '  "delta_eff": float scalar\n'
+        f"Values for bin fields must be one of: {_BIN_VALUES}.\n"
+        "delta_eff is a float: the pipeline verifies it matches "
+        "λ₁·Σ(w_i·Δμ_i^race) + λ₂·Σ(v_R·Δμ_R^rel) + λ₃·Σ(g_G·Δμ_G^gen).\n"
+        "For non-gendered shocks, gender bins may be identical across women/men."
+    )
+
     return (
-        f"[INST] {_SYSTEM_PROMPT}\n\n"
-        f"Shock event: {description}\n"
-        f"Party perspective: {party}\n\n"
-        "Output a JSON object with keys for each demographic group and a delta bin token "
-        "as the value. [/INST]"
+        f"[INST] {system}\n\n"
+        f"{event_block}\n\n"
+        f"{news_block}\n\n"
+        f"{social_block}\n\n"
+        f"{closing} [/INST]"
     )
 
 
-def format_completion(delta_bins: dict[str, str]) -> str:
-    """Build the expected JSON completion string."""
-    ordered = {k: delta_bins[k] for k in _BLOCS_ORDERED if k in delta_bins}
-    return json.dumps(ordered, ensure_ascii=False)
+def format_completion(record: dict[str, Any]) -> str:
+    """Build the JSON completion target from a finetune record.
+
+    Supports both new schema (delta_bins_race/religion/gender + delta_eff)
+    and legacy flat schema (delta_bins flat dict).
+    """
+    if "delta_bins_race" in record:
+        output = {
+            "delta_bins_race": {
+                k: record["delta_bins_race"][k]
+                for k in _RACE_BLOCS
+                if k in record["delta_bins_race"]
+            },
+            "delta_bins_religion": {
+                k: record["delta_bins_religion"][k]
+                for k in _RELIGION_BLOCS
+                if k in record.get("delta_bins_religion", {})
+            },
+            "delta_bins_gender": {
+                k: record["delta_bins_gender"][k]
+                for k in _GENDER_BLOCS
+                if k in record.get("delta_bins_gender", {})
+            },
+            "delta_eff": float(record.get("delta_eff", 0.0)),
+        }
+    else:
+        flat = record.get("delta_bins", {})
+        output = {
+            "delta_bins_race": {k: flat[k] for k in _RACE_BLOCS if k in flat},
+            "delta_bins_religion": {k: flat[k] for k in _RELIGION_BLOCS if k in flat},
+            "delta_bins_gender": {k: flat[k] for k in _GENDER_BLOCS if k in flat},
+            "delta_eff": 0.0,
+        }
+    return json.dumps(output, ensure_ascii=False)
 
 
 def format_training_text(record: dict[str, Any]) -> str:
-    """Format a synthetic JSONL record as a full training string."""
-    prompt = format_prompt(record["description"], record["party"])
-    completion = format_completion(record["delta_bins"])
-    return f"<s>{prompt}\n{completion}</s>"
+    """Format a finetune JSONL record as a full <s>prompt\ncompletion</s> string."""
+    return f"<s>{format_prompt(record)}\n{format_completion(record)}</s>"
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -116,7 +246,7 @@ def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str)
 
     with torch.no_grad():
         for rec in eval_records:
-            prompt = format_prompt(rec["description"], rec["party"])
+            prompt = format_prompt(rec)
             inputs = tokenizer(f"<s>{prompt}\n", return_tensors="pt").to(device)
             out = model.generate(
                 **inputs,
@@ -127,14 +257,30 @@ def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str)
             )
             generated = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
             try:
-                pred_bins = json.loads(generated.strip())
-                if not isinstance(pred_bins, dict):
+                pred = json.loads(generated.strip())
+                if not isinstance(pred, dict):
                     continue
-                # Validate tokens
-                pred_bins = {k: v for k, v in pred_bins.items() if v in DELTA_BINS}
-                true_bins = rec.get("delta_bins", {})
-                if pred_bins and true_bins:
-                    total_mae += mae_in_delta_units(pred_bins, true_bins)
+                # Flatten nested stratum dicts to {bloc: bin} for MAE comparison
+                if "delta_bins_race" in pred:
+                    flat_pred = {
+                        **pred.get("delta_bins_race", {}),
+                        **pred.get("delta_bins_religion", {}),
+                        **pred.get("delta_bins_gender", {}),
+                    }
+                else:
+                    flat_pred = pred
+                flat_pred = {k: v for k, v in flat_pred.items() if v in DELTA_BINS}
+                # Build flat true bins from whichever schema the record uses
+                if "delta_bins_race" in rec:
+                    flat_true = {
+                        **rec.get("delta_bins_race", {}),
+                        **rec.get("delta_bins_religion", {}),
+                        **rec.get("delta_bins_gender", {}),
+                    }
+                else:
+                    flat_true = rec.get("delta_bins", {})
+                if flat_pred and flat_true:
+                    total_mae += mae_in_delta_units(flat_pred, flat_true)
                     n += 1
             except (json.JSONDecodeError, ValueError, KeyError):
                 continue
@@ -295,6 +441,110 @@ def train(
     return trainer_state
 
 
+def train_hpc(config: TrainConfig, grad_accum: int = 4, seed: int = 42) -> dict[str, Any]:
+    """USC Laguna / HPC backend: wraps train() with TrainConfig fields.
+
+    grad_accum and seed are not stored in TrainConfig (they are infrastructure
+    concerns, not model hyperparameters). Pass them explicitly or accept defaults.
+    """
+    log.info(
+        "train_hpc: starting  model=%s  rank=%d  output=%s",
+        config.base_model,
+        config.lora_rank,
+        config.output_dir,
+    )
+    state = train(
+        train_path=Path(config.train_path),
+        eval_path=Path(config.eval_path),
+        output_dir=Path(config.output_dir),
+        base_model=config.base_model,
+        lora_rank=config.lora_rank,
+        lora_alpha=config.lora_alpha,
+        epochs=config.epochs,
+        batch_size=config.batch_size,
+        grad_accum=grad_accum,
+        lr=config.learning_rate,
+        seed=seed,
+    )
+    log.info(
+        "train_hpc: complete  output=%s  loss=%.4f  eval_mae=%.4f",
+        config.output_dir,
+        state.get("training_loss", float("nan")),
+        state.get("eval_mae", float("nan")),
+    )
+    return state
+
+
+def train_mlx(config: TrainConfig) -> dict[str, Any]:
+    """M5 MacBook backend: runs mlx_lm.lora via subprocess.
+
+    Data directory: data/finetune/mlx/ (must contain train.jsonl and valid.jsonl
+    in the flat text format expected by mlx_lm — one training string per line).
+    Adapter saved to config.output_dir.
+
+    mlx_lm takes --iters (not --epochs). Iteration count is derived from the
+    training file line count: iters = epochs * max(1, n_lines // batch_size).
+    """
+    import subprocess
+
+    mlx_data_dir = "data/finetune/mlx"
+    train_file = Path(mlx_data_dir) / "train.jsonl"
+
+    # Estimate iterations from training file size
+    try:
+        n_lines = sum(1 for ln in open(train_file, encoding="utf-8") if ln.strip())
+        steps_per_epoch = max(1, n_lines // config.batch_size)
+    except OSError:
+        log.warning("train_mlx: could not read %s — defaulting to 100 iters/epoch", train_file)
+        steps_per_epoch = 100
+    iters = config.epochs * steps_per_epoch
+
+    adapter_path = Path(config.output_dir)
+    adapter_path.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        sys.executable, "-m", "mlx_lm.lora",
+        "--model", config.base_model,
+        "--train",
+        "--data", mlx_data_dir,
+        "--batch-size", str(config.batch_size),
+        "--iters", str(iters),
+        "--learning-rate", str(config.learning_rate),
+        "--lora-layers", str(config.lora_rank),
+        "--adapter-path", str(adapter_path),
+    ]
+
+    log.info(
+        "train_mlx: starting  model=%s  rank=%d  iters=%d  output=%s",
+        config.base_model,
+        config.lora_rank,
+        iters,
+        adapter_path,
+    )
+    log.info("train_mlx: command: %s", " ".join(cmd))
+
+    result = subprocess.run(cmd, check=False)
+
+    state: dict[str, Any] = {
+        "base_model": config.base_model,
+        "lora_rank": config.lora_rank,
+        "lora_alpha": config.lora_alpha,
+        "epochs": config.epochs,
+        "iters": iters,
+        "returncode": result.returncode,
+        "output_dir": str(adapter_path),
+    }
+
+    if result.returncode != 0:
+        log.error("train_mlx: mlx_lm.lora exited with code %d", result.returncode)
+    else:
+        log.info("train_mlx: complete  output=%s", adapter_path)
+
+    state_path = adapter_path / "trainer_state.json"
+    state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return state
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
@@ -306,52 +556,80 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="QLoRA fine-tuning of Mistral 7B for shock→delta-bin prediction."
     )
-    parser.add_argument("--config", required=True, help="Path to configs/base.json")
-    parser.add_argument("--train-data", required=True, help="JSONL training set")
-    parser.add_argument("--eval-data", required=True, help="JSONL evaluation set")
-    parser.add_argument("--output-dir", required=True, help="Directory for adapter weights")
-    parser.add_argument("--lora-rank", type=int, default=16, help="LoRA rank (default 16)")
-    parser.add_argument("--lora-alpha", type=int, default=32, help="LoRA alpha (default 32)")
-    parser.add_argument("--epochs", type=int, default=3, help="Training epochs (default 3)")
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--config", required=True,
+                        help="Path to a TrainConfig JSON (train_r16.json) or pipeline base.json.")
+    parser.add_argument("--backend", default=None,
+                        help="Override TrainConfig.backend (mlx | hpc).")
+    parser.add_argument("--train-data", default=None, help="Override train_path from config.")
+    parser.add_argument("--eval-data", default=None, help="Override eval_path from config.")
+    parser.add_argument("--output-dir", default=None, help="Override output_dir from config.")
+    parser.add_argument("--lora-rank", type=int, default=None)
+    parser.add_argument("--lora-alpha", type=int, default=None)
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--grad-accum", type=int, default=4)
-    parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument(
-        "--base-model",
-        default="mistralai/Mistral-7B-v0.3",
-        help="HuggingFace model ID for the base model",
-    )
+    parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--base-model", default=None,
+                        help="Override base_model from config.")
     args = parser.parse_args(argv)
 
-    # Load seed from config (or use 42)
+    # Load config — TrainConfig JSON (has lora_rank) or pipeline base.json (has seed only).
     seed = 42
     try:
         with open(args.config, encoding="utf-8") as f:
-            cfg = json.load(f)
-        seed = cfg.get("seed", 42)
+            raw_cfg = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
-        log.warning("Could not load config %s: %s — using seed=42", args.config, exc)
+        log.warning("Could not read %s: %s — using defaults", args.config, exc)
+        raw_cfg = {}
+
+    if "lora_rank" in raw_cfg:
+        tcfg = load_config(args.config)
+    else:
+        seed = raw_cfg.get("seed", 42)
+        tcfg = TrainConfig()
+
+    # CLI flags override config values when explicitly provided.
+    if args.backend is not None:
+        tcfg.backend = args.backend
+    if args.train_data is not None:
+        tcfg.train_path = args.train_data
+    if args.eval_data is not None:
+        tcfg.eval_path = args.eval_data
+    if args.output_dir is not None:
+        tcfg.output_dir = args.output_dir
+    if args.lora_rank is not None:
+        tcfg.lora_rank = args.lora_rank
+    if args.lora_alpha is not None:
+        tcfg.lora_alpha = args.lora_alpha
+    if args.epochs is not None:
+        tcfg.epochs = args.epochs
+    if args.batch_size is not None:
+        tcfg.batch_size = args.batch_size
+    if args.lr is not None:
+        tcfg.learning_rate = args.lr
+    if args.base_model is not None:
+        tcfg.base_model = args.base_model
+
+    log.info(
+        "TrainConfig: model=%s rank=%d alpha=%d lr=%g epochs=%d batch=%d backend=%s",
+        tcfg.base_model, tcfg.lora_rank, tcfg.lora_alpha,
+        tcfg.learning_rate, tcfg.epochs, tcfg.batch_size, tcfg.backend,
+    )
 
     try:
-        state = train(
-            train_path=Path(args.train_data),
-            eval_path=Path(args.eval_data),
-            output_dir=Path(args.output_dir),
-            base_model=args.base_model,
-            lora_rank=args.lora_rank,
-            lora_alpha=args.lora_alpha,
-            epochs=args.epochs,
-            batch_size=args.batch_size,
-            grad_accum=args.grad_accum,
-            lr=args.lr,
-            seed=seed,
-        )
+        if tcfg.backend == "mlx":
+            state = train_mlx(tcfg)
+        else:
+            # "hpc" or any unrecognised value — default to HPC/transformers path
+            if tcfg.backend not in ("hpc", "mlx"):
+                log.warning("Unknown backend '%s' — falling back to hpc", tcfg.backend)
+            state = train_hpc(tcfg, grad_accum=args.grad_accum, seed=seed)
     except ImportError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
     mae = state.get("eval_mae", float("inf"))
-    if mae > 0.04:
+    if mae != float("inf") and mae > 0.04:
         log.warning("Held-out MAE %.4f > 0.04 — consider submitting rank-32 job", mae)
         return 2
 
