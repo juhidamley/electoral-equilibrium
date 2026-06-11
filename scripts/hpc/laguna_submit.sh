@@ -34,6 +34,15 @@ conda activate electoral
 export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 
 cd "${REPO_DIR}"
-python -m electoral.llm.trainer --backend hpc --config configs/train_r16.json
+python -m electoral.llm.trainer \
+      --config $REPO_DIR/configs/train_r16.json \
+      --train-data $SCRATCH/finetune/train.jsonl \
+      --eval-data $SCRATCH/finetune/eval.jsonl \
+      --output-dir $SCRATCH/models/mistral-r16 \
+      --lora-rank 16 \
+      --lora-alpha 32 \
+      --epochs 3 \
+      --batch-size 4 \
+      --grad-accum 4
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Job ${SLURM_JOB_ID} complete"
