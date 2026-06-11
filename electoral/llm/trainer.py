@@ -394,7 +394,7 @@ def train(
         fp16=(device == "cuda"),
         logging_steps=10,
         save_strategy="epoch",
-        evaluation_strategy="no",  # manual eval below
+        eval_strategy="no",  # manual eval below
         seed=derive_seed(seed, "llm_finetune"),
         report_to="none",
         dataloader_drop_last=False,
