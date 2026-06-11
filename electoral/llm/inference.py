@@ -69,6 +69,7 @@ def load_model(
     base_model: str = "mistralai/Mistral-7B-v0.3",
     *,
     device: str | None = None,
+    use_quantization: bool = False,
 ) -> tuple[Any, Any]:
     """Load the base model + optional QLoRA adapter.
 
@@ -80,6 +81,10 @@ def load_model(
         HuggingFace model ID for the base Mistral checkpoint.
     device:
         "cuda", "cpu", or None (auto-detect).
+    use_quantization:
+        When True, load in 4-bit NF4 (BitsAndBytes) for training. Default False
+        loads in float16 for inference — quantization causes NoneType errors when
+        outlines tries to reorder the KV cache across PEFT adapter layers.
 
     Returns
     -------
@@ -94,36 +99,37 @@ def load_model(
             "Install with: pip install transformers torch"
         ) from exc
 
-    if device is None:
-        import torch as _torch
-
-        device = "cuda" if _torch.cuda.is_available() else "cpu"
-
     tokenizer = AutoTokenizer.from_pretrained(
         base_model,
         use_fast=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
 
-    try:
-        from transformers import BitsAndBytesConfig
-        import bitsandbytes  # noqa: F401
-        import torch as _torch
+    if use_quantization:
+        try:
+            from transformers import BitsAndBytesConfig
+            import bitsandbytes  # noqa: F401
 
-        quant_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=_torch.float16,
-            bnb_4bit_use_double_quant=True,
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+            )
+        except ImportError:
+            log.warning("bitsandbytes not available — falling back to float16")
+            quant_config = None
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            quantization_config=quant_config,
+            device_map="auto",
         )
-    except ImportError:
-        quant_config = None
-
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        quantization_config=quant_config,
-        device_map="auto" if device == "cuda" else None,
-    )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            torch_dtype=torch.float16,
+            device_map="auto",
+        )
 
     if adapter_path:
         try:
