@@ -13,9 +13,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 from electoral.core.schema import (
     assert_required_keys,
@@ -608,29 +608,37 @@ DeltaBin = Literal[
     "slight_pos", "mild_pos", "mod_pos", "strong_pos",
 ]
 
+# outlines FSM can emit space-separated character tokens (e.g. 'sl i g h t _ ne g')
+# when the tokenizer maps bin labels as subword pieces. Strip spaces before the
+# Literal check so validation succeeds and the correct bin string is stored.
+_NormalizedDeltaBin = Annotated[
+    DeltaBin,
+    BeforeValidator(lambda v: v.replace(" ", "") if isinstance(v, str) else v),
+]
+
 
 class _RaceBins(BaseModel):
-    african_american: DeltaBin
-    latino: DeltaBin
-    asian: DeltaBin
-    white: DeltaBin
-    other_race: DeltaBin
+    african_american: _NormalizedDeltaBin
+    latino: _NormalizedDeltaBin
+    asian: _NormalizedDeltaBin
+    white: _NormalizedDeltaBin
+    other_race: _NormalizedDeltaBin
 
 
 class _ReligionBins(BaseModel):
-    evangelical: DeltaBin
-    catholic: DeltaBin
-    protestant: DeltaBin
-    secular: DeltaBin
-    jewish: DeltaBin
-    muslim: DeltaBin
-    other_rel: DeltaBin
+    evangelical: _NormalizedDeltaBin
+    catholic: _NormalizedDeltaBin
+    protestant: _NormalizedDeltaBin
+    secular: _NormalizedDeltaBin
+    jewish: _NormalizedDeltaBin
+    muslim: _NormalizedDeltaBin
+    other_rel: _NormalizedDeltaBin
 
 
 class _GenderBins(BaseModel):
-    women: DeltaBin
-    men: DeltaBin
-    other_gender: DeltaBin
+    women: _NormalizedDeltaBin
+    men: _NormalizedDeltaBin
+    other_gender: _NormalizedDeltaBin
 
 
 class ShockResponseSchema(BaseModel):
