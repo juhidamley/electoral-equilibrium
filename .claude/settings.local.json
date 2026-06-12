@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python -m electoral.nlp.scraper --help)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git stash *)",
+      "Bash(ruff check *)",
+      "Bash(just fmt *)",
+      "Bash(black *)",
+      "Bash(pdflatex -interaction=nonstopmode tasks.tex)",
+      "Bash(latexmk -pdf -interaction=nonstopmode tasks.tex)",
+      "Bash(latexmk -pdf -interaction=nonstopmode research.tex)",
+      "Bash(xargs -I{} sh -c 'echo \"FILE: {}\"; python3 -c \"import csv; f=open\\(\\\\\"{}\\\\\" \\); r=csv.DictReader\\(f\\); row=next\\(r\\); print\\(list\\(row.keys\\(\\)\\)[:10]\\); print\\(list\\(row.values\\(\\)\\)[:3]\\)\"')",
+      "Bash(latexmk -pdf -interaction=nonstopmode -quiet tasks.tex)",
+      "Bash(git -C /Users/juhidamley/PycharmProjects/electoral-equilibrium branch)",
+      "Bash(git -C /Users/juhidamley/PycharmProjects/electoral-equilibrium status --short)",
+      "Bash(git -C /Users/juhidamley/PycharmProjects/electoral-equilibrium log --oneline -5)",
+      "Bash(grep *)"
+    ]
+  }
+}
