@@ -13,7 +13,9 @@ guaranteeing the two schemas are always identical.
 
 from __future__ import annotations
 
+import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
@@ -25,6 +27,8 @@ from pydantic import BaseModel
 from electoral.artifacts import ShockResponseData, ShockResponseSchema
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.llm.inference import ShockEstimator
+
+log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -78,13 +82,24 @@ def estimate(request: EstimateRequest) -> Any:
     by outlines for constrained decoding — so the API contract and the
     generation constraint are always identical.
     """
+    event_text = (
+        request.event.get("description", "")
+        if isinstance(request.event, dict)
+        else str(request.event)
+    )
+    if not event_text or len(event_text.strip()) < 10:
+        raise HTTPException(status_code=422, detail="Event description too short")
+    if not (0.1 <= request.intensity <= 3.0):
+        raise HTTPException(status_code=422, detail="Intensity out of range")
+
     estimator: ShockEstimator = app.state.estimator
     try:
         result: ShockResponseData = estimator.estimate(
             request.event, intensity=request.intensity
         )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception:
+        log.exception("Unhandled error in /estimate")
+        raise HTTPException(status_code=500, detail="Internal inference error")
 
     # Convert frozen dataclass → nested dict matching ShockResponseSchema shape.
     return {
