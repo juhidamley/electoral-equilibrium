@@ -115,14 +115,10 @@ def build_llm_finetune(
     config: PipelineConfig,
     sentiment: SentimentData,
 ) -> LLMFineTuneData:
-    """Week 4: QLoRA fine-tuning of Mistral 7B on the unified dataset."""
-    payload = LLMFineTuneData(
-        base_model="mistralai/Mistral-7B-v0.3",
-        lora_rank=16,
-        n_examples=1,
-        cycles_used=[2020],
-        adapter_path=None,
-    )
+    """Week 5: QLoRA fine-tuning of Mistral 7B — idempotent, skips if adapter exists."""
+    from electoral.kernels.finetune import build_llm_finetune as _build_finetune_kernel
+
+    payload = _build_finetune_kernel(config)
     payload.validate()
     envelope = StageArtifact(
         stage="llm_finetune",
@@ -139,29 +135,11 @@ def build_shock_response(
     event: str,
     intensity: float,
 ) -> ShockResponseData:
-    """Week 4/5: LLM constrained decoding → per-bloc Δμ estimates."""
-    payload = ShockResponseData(
-        shock=event,
-        cycle=2020,
-        party=config.party,
-        delta_bins_race={r: "neutral" for r in CANONICAL_RACES},
-        delta_bins_religion={r: "neutral" for r in CANONICAL_RELIGIONS},
-        delta_bins_gender={g: "neutral" for g in CANONICAL_GENDERS},
-        deltas_race={r: 0.0 for r in CANONICAL_RACES},
-        deltas_religion={r: 0.0 for r in CANONICAL_RELIGIONS},
-        deltas_gender={g: 0.0 for g in CANONICAL_GENDERS},
-        delta_eff=0.0,
-        covariance=[[0.0] * 5 for _ in range(5)],
-        source="llm_unified",
-    )
+    """Week 5: LLM constrained decoding → covariance bootstrap → CVXPY optimizer."""
+    from electoral.kernels.shock import build_shock_response as _build_shock_kernel
+
+    payload, _equilibrium = _build_shock_kernel(config, event, intensity)
     payload.validate()
-    envelope = StageArtifact(
-        stage="shock_response",
-        run_key=config.run_key,
-        metadata={"event": event, "intensity": intensity},
-        data=payload.to_dict(),
-    )
-    write_artifact(f"{config.output_dir}/shock_response.json", envelope.to_dict())
     return payload
 
 

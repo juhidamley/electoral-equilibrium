@@ -1,0 +1,12 @@
+adapter: mistral-r16
+base_model: mistralai/Mistral-7B-v0.3
+laguna_job_id: 62415
+config: configs/train_r16.json
+lora_rank: 16
+lora_alpha: 32
+epochs: 3
+batch_size: 4
+train_loss: 0.2331
+eval_mae: 0.0362
+trained: 2026-06-11
+notes: Winning adapter. r=32 (MAE=0.0372) did not meet 5% improvement threshold. Trained on USC Laguna L40S.

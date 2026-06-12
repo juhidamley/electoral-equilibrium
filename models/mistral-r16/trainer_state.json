@@ -1,0 +1,11 @@
+{
+  "base_model": "mistralai/Mistral-7B-v0.3",
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "epochs": 3,
+  "n_train": 446,
+  "n_eval": 111,
+  "training_loss": 0.23313199267500923,
+  "eval_mae": Infinity,
+  "seed": 42
+}
