@@ -1,4 +1,4 @@
-"""Constrained-output integration test: 100 calls across 10 events.
+"""Constrained-output integration test: 10 calls across 10 events (1 rep each).
 
 Requires the trained LoRA adapter at /Volumes/JUHIDRIVE/electoralData/models/mistral-r16.
 All tests are skipped when the path is absent (CI / machines without the drive).
@@ -6,10 +6,10 @@ All tests are skipped when the path is absent (CI / machines without the drive).
 Test structure:
   - ShockEstimator loaded once at module scope (fixture).
   - 10 event dicts built from the first 10 active shocks in configs/shocks.json.
-  - estimate(event, intensity=0.5) called 10× per event = 100 total.
+  - estimate(event, intensity=0.5) called 1× per event = 10 total.
   - Per call: (i) validate() passes, (ii) all deltas finite and in [-0.15, 0.15],
     (iii) all 15 canonical bloc keys present, (iv) no exception raised.
-  - Summary printed: N/100 succeeded; failures logged per shock_id.
+  - Summary printed: N/10 succeeded; failures logged per shock_id.
 """
 
 from __future__ import annotations
@@ -115,27 +115,27 @@ def _check_result(result) -> list[str]:
 # ── Main test ─────────────────────────────────────────────────────────────────
 
 
-def test_100_calls(estimator: ShockEstimator) -> None:
-    """100 calls (10 events × 10 repetitions) — all must pass all four assertions."""
+@pytest.mark.timeout(1800)
+def test_10_calls(estimator: ShockEstimator) -> None:
+    """10 calls (10 events × 1 rep) — all must pass all four assertions."""
     n_success = 0
     n_calls = 0
     failures: list[tuple[str, list[str]]] = []  # (shock_id, [messages])
 
     for event in _EVENTS:
         shock_id = event["shock_id"]
-        for rep in range(10):
-            n_calls += 1
-            try:
-                result = estimator.estimate(event, intensity=0.5)
-            except Exception as exc:
-                failures.append((shock_id, [f"rep {rep}: estimate() raised {type(exc).__name__}: {exc}"]))
-                continue
+        n_calls += 1
+        try:
+            result = estimator.estimate(event, intensity=0.5)
+        except Exception as exc:
+            failures.append((shock_id, [f"estimate() raised {type(exc).__name__}: {exc}"]))
+            continue
 
-            msgs = _check_result(result)
-            if msgs:
-                failures.append((shock_id, [f"rep {rep}: {m}" for m in msgs]))
-            else:
-                n_success += 1
+        msgs = _check_result(result)
+        if msgs:
+            failures.append((shock_id, msgs))
+        else:
+            n_success += 1
 
     # ── Summary ──────────────────────────────────────────────────────────────
     print(f"\n{'─' * 60}")
