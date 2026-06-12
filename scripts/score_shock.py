@@ -56,9 +56,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="RoBERTa per-post scorer for a single shock.")
     p.add_argument("--shock-id", required=True, help="Shock identifier (e.g. metoo_2017).")
-    p.add_argument("--merged-dir", required=True, help="Root dir containing {shock_id}/posts.jsonl.")
-    p.add_argument("--output-dir", required=True, help="Root dir for {shock_id}/scored.jsonl output.")
-    p.add_argument("--cache-dir", required=True, help="Root dir for embedding cache (partitioned per shock).")
+    p.add_argument(
+        "--merged-dir", required=True, help="Root dir containing {shock_id}/posts.jsonl."
+    )
+    p.add_argument(
+        "--output-dir", required=True, help="Root dir for {shock_id}/scored.jsonl output."
+    )
+    p.add_argument(
+        "--cache-dir", required=True, help="Root dir for embedding cache (partitioned per shock)."
+    )
     p.add_argument("--batch-size", type=int, default=64, help="Inference batch size.")
     p.add_argument("--resume", action="store_true", help="Skip if output already exists.")
     p.add_argument("--device", default=None, help="Force device: cpu | cuda | mps.")
@@ -107,7 +113,13 @@ def main() -> None:
                 log.warning("Skipping malformed JSON at line %d: %s", lineno, exc)
 
     n_total = len(records)
-    log.info("shock=%s  loaded %d posts from %s  (%.1fs)", shock_id, n_total, input_path, time.perf_counter() - t_load)
+    log.info(
+        "shock=%s  loaded %d posts from %s  (%.1fs)",
+        shock_id,
+        n_total,
+        input_path,
+        time.perf_counter() - t_load,
+    )
 
     if n_total == 0:
         log.warning("No posts to score for shock=%s — writing empty output.", shock_id)

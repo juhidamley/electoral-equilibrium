@@ -11,18 +11,13 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import math
-from typing import TYPE_CHECKING
 
 import numpy as np
 
 from electoral.artifacts import EquilibriumData, ShockResponseData
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
-from electoral.core.types import CANONICAL_RACES, BIN_MIDPOINTS
-
-if TYPE_CHECKING:
-    pass
+from electoral.core.types import CANONICAL_RACES
 
 log = logging.getLogger(__name__)
 
@@ -131,8 +126,7 @@ def _solve_rebalanced(
 
     # Post-shock within-bloc vote shares: neutral baseline 0.5 + Δ
     mu_shifted = {
-        r: float(np.clip(0.5 + shock.deltas_race[r], 0.01, 0.99))
-        for r in CANONICAL_RACES
+        r: float(np.clip(0.5 + shock.deltas_race[r], 0.01, 0.99)) for r in CANONICAL_RACES
     }
     cov_arr = np.array(shock.covariance, dtype=float)
 
@@ -144,7 +138,9 @@ def _solve_rebalanced(
         method = "cvxpy_dqcp"
         log.info(
             "solver: feasible=True  mu_eff=%.4f  target=%.4f  target_met=%s",
-            mu_eff, config.target, target_met,
+            mu_eff,
+            config.target,
+            target_met,
         )
     except Exception as exc:
         log.warning("solver failed (%s) — falling back to equal weights", exc)
@@ -185,9 +181,7 @@ def _write_artifacts(
         metadata={"shock": shock.shock, "delta_eff": shock.delta_eff},
         data=shock.to_dict(),
     )
-    write_artifact(
-        f"{config.output_dir}/shock_response.json", shock_envelope.to_dict()
-    )
+    write_artifact(f"{config.output_dir}/shock_response.json", shock_envelope.to_dict())
 
     eq_envelope = StageArtifact(
         stage="equilibrium",
@@ -195,9 +189,5 @@ def _write_artifacts(
         metadata={"feasible": equilibrium.feasible, "target_met": equilibrium.target_met},
         data=equilibrium.to_dict(),
     )
-    write_artifact(
-        f"{config.output_dir}/equilibrium.json", eq_envelope.to_dict()
-    )
-    log.info(
-        "wrote shock_response.json and equilibrium.json to %s", config.output_dir
-    )
+    write_artifact(f"{config.output_dir}/equilibrium.json", eq_envelope.to_dict())
+    log.info("wrote shock_response.json and equilibrium.json to %s", config.output_dir)

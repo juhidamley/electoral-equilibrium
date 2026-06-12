@@ -545,20 +545,30 @@ class TestShockResponseData:
         assert_roundtrip(self._make())
 
     def test_non_zero_deltas(self):
-        assert_roundtrip(self._make(
-            deltas_race={
-                "african_american": -0.012, "latino": 0.0, "asian": 0.0,
-                "white": 0.0, "other_race": 0.0,
-            },
-            delta_bins_race={
-                "african_american": "slight_neg", "latino": "neutral", "asian": "neutral",
-                "white": "neutral", "other_race": "neutral",
-            },
-            deltas_religion={r: 0.035 if r == "evangelical" else 0.0 for r in RELIGION_IDS},
-            delta_bins_religion={r: "mild_pos" if r == "evangelical" else "neutral" for r in RELIGION_IDS},
-            deltas_gender={g: -0.070 if g == "women" else 0.0 for g in GENDER_IDS},
-            delta_bins_gender={g: "mod_neg" if g == "women" else "neutral" for g in GENDER_IDS},
-        ))
+        assert_roundtrip(
+            self._make(
+                deltas_race={
+                    "african_american": -0.012,
+                    "latino": 0.0,
+                    "asian": 0.0,
+                    "white": 0.0,
+                    "other_race": 0.0,
+                },
+                delta_bins_race={
+                    "african_american": "slight_neg",
+                    "latino": "neutral",
+                    "asian": "neutral",
+                    "white": "neutral",
+                    "other_race": "neutral",
+                },
+                deltas_religion={r: 0.035 if r == "evangelical" else 0.0 for r in RELIGION_IDS},
+                delta_bins_religion={
+                    r: "mild_pos" if r == "evangelical" else "neutral" for r in RELIGION_IDS
+                },
+                deltas_gender={g: -0.070 if g == "women" else 0.0 for g in GENDER_IDS},
+                delta_bins_gender={g: "mod_neg" if g == "women" else "neutral" for g in GENDER_IDS},
+            )
+        )
 
     def test_all_sources_valid(self):
         for src in ("llm_unified", "roberta_news_only", "roberta_social_only"):

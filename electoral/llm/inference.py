@@ -199,7 +199,9 @@ def _predict_greedy(
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    generated = tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    generated = tokenizer.decode(
+        output[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
+    )
     log.debug("Raw generation: %s", generated[:200])
 
     # Try JSON parse first
@@ -302,6 +304,7 @@ class ShockEstimator:
         self.model.config.use_cache = False
         try:
             import outlines
+
             self._outlines_model = outlines.models.Transformers(self.model, self.tokenizer)
         except ImportError:
             self._outlines_model = None

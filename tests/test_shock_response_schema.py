@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from electoral.artifacts import DeltaBin, ShockResponseSchema
+from electoral.artifacts import ShockResponseSchema
 
 _VALID_PAYLOAD = {
     "delta_bins_race": {

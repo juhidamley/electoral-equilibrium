@@ -34,12 +34,29 @@ from pathlib import Path
 
 # ── Political / identity keyword filter ───────────────────────────────────────
 
-KEYWORDS: frozenset[str] = frozenset([
-    "politics", "conservative", "liberal", "christian", "catholic",
-    "muslim", "jewish", "black", "latino", "asian", "election",
-    "trump", "biden", "maga", "progressive", "religion", "faith",
-    "evangelical", "baptist",
-])
+KEYWORDS: frozenset[str] = frozenset(
+    [
+        "politics",
+        "conservative",
+        "liberal",
+        "christian",
+        "catholic",
+        "muslim",
+        "jewish",
+        "black",
+        "latino",
+        "asian",
+        "election",
+        "trump",
+        "biden",
+        "maga",
+        "progressive",
+        "religion",
+        "faith",
+        "evangelical",
+        "baptist",
+    ]
+)
 
 # Read this many bytes from each server file — enough for the first message
 # without buffering an entire large file into memory.
@@ -170,9 +187,7 @@ def find_servers(dataset: Path, output: Path, zstd_bin: str = "zstd") -> None:
                     scanned += 1
 
                     if scanned % 5_000 == 0:
-                        log.info(
-                            "scanned=%d  matched=%d", scanned, matched
-                        )
+                        log.info("scanned=%d  matched=%d", scanned, matched)
 
                     fobj = tf.extractfile(member)
                     if fobj is None:

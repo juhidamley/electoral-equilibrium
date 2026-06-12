@@ -26,10 +26,12 @@ from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_R
 
 # ── Skip guard ────────────────────────────────────────────────────────────────
 
-_ADAPTER_PATH = Path(os.environ.get(
-    "ADAPTER_PATH",
-    "/Volumes/JUHIDRIVE/electoralData/models/mistral-r16",
-))
+_ADAPTER_PATH = Path(
+    os.environ.get(
+        "ADAPTER_PATH",
+        "/Volumes/JUHIDRIVE/electoralData/models/mistral-r16",
+    )
+)
 
 if not _ADAPTER_PATH.exists():
     pytest.skip(
@@ -50,14 +52,16 @@ def _build_events() -> list[dict]:
     active = [s for s in shocks if s.get("active", False)]
     events = []
     for shock in active[:10]:
-        events.append({
-            "shock_id": shock["id"],
-            "cycle": int(shock["date"][:4]),
-            "party": "democrat",
-            "description": shock["description"],
-            "news_roberta_scores": {},
-            "social_roberta_scores": {},
-        })
+        events.append(
+            {
+                "shock_id": shock["id"],
+                "cycle": int(shock["date"][:4]),
+                "party": "democrat",
+                "description": shock["description"],
+                "news_roberta_scores": {},
+                "social_roberta_scores": {},
+            }
+        )
     return events
 
 
@@ -95,9 +99,7 @@ def _check_result(result) -> list[str]:
             if not math.isfinite(v):
                 failures.append(f"deltas_{stratum}[{bloc!r}] = {v!r} is not finite")
             elif not (-0.15 <= v <= 0.15):
-                failures.append(
-                    f"deltas_{stratum}[{bloc!r}] = {v:.4f} outside [-0.15, 0.15]"
-                )
+                failures.append(f"deltas_{stratum}[{bloc!r}] = {v:.4f} outside [-0.15, 0.15]")
 
     # (iii) all canonical bloc keys present
     for canon, bins_dict, label in (
@@ -150,6 +152,5 @@ def test_10_calls(estimator: ShockEstimator) -> None:
     print(f"{'─' * 60}")
 
     assert not failures, (
-        f"{len(failures)} failure group(s) out of {n_calls} calls. "
-        f"First: {failures[0]}"
+        f"{len(failures)} failure group(s) out of {n_calls} calls. " f"First: {failures[0]}"
     )

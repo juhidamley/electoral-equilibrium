@@ -137,15 +137,13 @@ def format_prompt(example: dict[str, Any]) -> str:
     event_block = "\n".join(event_lines)
 
     # (iii) News RoBERTa scores
-    news_block = (
-        "## News RoBERTa Scores (per bloc)\n"
-        + json.dumps(news_scores, indent=2, ensure_ascii=False)
+    news_block = "## News RoBERTa Scores (per bloc)\n" + json.dumps(
+        news_scores, indent=2, ensure_ascii=False
     )
 
     # (iv) Social bio-weighted scores
-    social_block = (
-        "## Social Bio-Weighted Scores (per bloc)\n"
-        + json.dumps(social_scores, indent=2, ensure_ascii=False)
+    social_block = "## Social Bio-Weighted Scores (per bloc)\n" + json.dumps(
+        social_scores, indent=2, ensure_ascii=False
     )
 
     # (vi) Closing instruction — exact canonical keys, nine bin labels, party substituted
@@ -154,11 +152,11 @@ def format_prompt(example: dict[str, Any]) -> str:
         "slight_pos, mild_pos, mod_pos, strong_pos"
     )
     closing = (
-        f'You are analyzing the impact on the {party} candidate\'s coalition.\n'
+        f"You are analyzing the impact on the {party} candidate's coalition.\n"
         "Output only a JSON object with the following keys:\n"
         '  "delta_bins_race": keys african_american, latino, asian, white, other_race\n'
         '  "delta_bins_religion": keys evangelical, catholic, protestant, secular, '
-        'jewish, muslim, other_rel\n'
+        "jewish, muslim, other_rel\n"
         '  "delta_bins_gender": keys women, men, other_gender\n'
         '  "delta_eff": float scalar\n'
         f"Values for bin fields must be one of: {_BIN_VALUES}.\n"
@@ -255,7 +253,9 @@ def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str)
                 temperature=0.0,
                 pad_token_id=tokenizer.eos_token_id,
             )
-            generated = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+            generated = tokenizer.decode(
+                out[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
+            )
             try:
                 pred = json.loads(generated.strip())
                 if not isinstance(pred, dict):
@@ -320,6 +320,7 @@ def train(
     try:
         from transformers import BitsAndBytesConfig
         import bitsandbytes  # noqa: F401
+
         use_4bit = True
         log.info("bitsandbytes available — using 4-bit NF4 quantization")
     except ImportError:
@@ -357,6 +358,7 @@ def train(
     quant_config = None
     if use_4bit:
         from transformers import BitsAndBytesConfig
+
         quant_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -503,15 +505,24 @@ def train_mlx(config: TrainConfig) -> dict[str, Any]:
     adapter_path.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        sys.executable, "-m", "mlx_lm.lora",
-        "--model", config.base_model,
+        sys.executable,
+        "-m",
+        "mlx_lm.lora",
+        "--model",
+        config.base_model,
         "--train",
-        "--data", mlx_data_dir,
-        "--batch-size", str(config.batch_size),
-        "--iters", str(iters),
-        "--learning-rate", str(config.learning_rate),
-        "--lora-layers", str(config.lora_rank),
-        "--adapter-path", str(adapter_path),
+        "--data",
+        mlx_data_dir,
+        "--batch-size",
+        str(config.batch_size),
+        "--iters",
+        str(iters),
+        "--learning-rate",
+        str(config.learning_rate),
+        "--lora-layers",
+        str(config.lora_rank),
+        "--adapter-path",
+        str(adapter_path),
     ]
 
     log.info(
@@ -556,10 +567,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="QLoRA fine-tuning of Mistral 7B for shock→delta-bin prediction."
     )
-    parser.add_argument("--config", required=True,
-                        help="Path to a TrainConfig JSON (train_r16.json) or pipeline base.json.")
-    parser.add_argument("--backend", default=None,
-                        help="Override TrainConfig.backend (mlx | hpc).")
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a TrainConfig JSON (train_r16.json) or pipeline base.json.",
+    )
+    parser.add_argument("--backend", default=None, help="Override TrainConfig.backend (mlx | hpc).")
     parser.add_argument("--train-data", default=None, help="Override train_path from config.")
     parser.add_argument("--eval-data", default=None, help="Override eval_path from config.")
     parser.add_argument("--output-dir", default=None, help="Override output_dir from config.")
@@ -569,8 +582,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--grad-accum", type=int, default=4)
     parser.add_argument("--lr", type=float, default=None)
-    parser.add_argument("--base-model", default=None,
-                        help="Override base_model from config.")
+    parser.add_argument("--base-model", default=None, help="Override base_model from config.")
     args = parser.parse_args(argv)
 
     # Load config — TrainConfig JSON (has lora_rank) or pipeline base.json (has seed only).
@@ -612,8 +624,13 @@ def main(argv: list[str] | None = None) -> int:
 
     log.info(
         "TrainConfig: model=%s rank=%d alpha=%d lr=%g epochs=%d batch=%d backend=%s",
-        tcfg.base_model, tcfg.lora_rank, tcfg.lora_alpha,
-        tcfg.learning_rate, tcfg.epochs, tcfg.batch_size, tcfg.backend,
+        tcfg.base_model,
+        tcfg.lora_rank,
+        tcfg.lora_alpha,
+        tcfg.learning_rate,
+        tcfg.epochs,
+        tcfg.batch_size,
+        tcfg.backend,
     )
 
     try:

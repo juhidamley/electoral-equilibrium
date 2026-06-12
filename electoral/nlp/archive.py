@@ -953,7 +953,9 @@ class TelegramLoader:
             )
 
             raw_lang = row.get("language")
-            lang = str(raw_lang).strip() if not pd.isna(raw_lang) and str(raw_lang).strip() else "en"
+            lang = (
+                str(raw_lang).strip() if not pd.isna(raw_lang) and str(raw_lang).strip() else "en"
+            )
 
             raw_from = row.get("from_id")
             author_did = (

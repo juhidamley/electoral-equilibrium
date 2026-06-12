@@ -51,6 +51,7 @@ from pydantic import BaseModel
 class ClassifyRequest(BaseModel):
     bio: str = ""
 
+
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.INFO,

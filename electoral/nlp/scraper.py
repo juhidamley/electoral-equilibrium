@@ -63,8 +63,8 @@ DATA_ROOT: Path = (
 SCHEMA_VERSION = "1.0"
 MIN_WORD_COUNT = 100
 REQUEST_TIMEOUT = 20
-REQUEST_SLEEP = 2.0    # seconds between every article fetch (avoids rate-limiting)
-TEST_MAX = 5           # articles per source in --test mode
+REQUEST_SLEEP = 2.0  # seconds between every article fetch (avoids rate-limiting)
+TEST_MAX = 5  # articles per source in --test mode
 
 # ── Source registry ───────────────────────────────────────────────────────────
 
@@ -167,8 +167,7 @@ log = logging.getLogger("electoral.scraper")
 
 _HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; "
-        "research project, non-commercial)"
+        "Mozilla/5.0 (compatible; ElectoralEquilibriumBot/1.0; " "research project, non-commercial)"
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
@@ -200,6 +199,7 @@ def _entry_in_date_range(entry: Any, start: str, end: str) -> bool:
     dropped.
     """
     import time as _time
+
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if parsed is None:
         return True
@@ -221,10 +221,21 @@ def _entry_matches_keywords(entry: Any, kw_lower: list[str]) -> bool:
 
 # ── Text extraction ───────────────────────────────────────────────────────────
 
-_NOISE_TAGS = frozenset([
-    "script", "style", "nav", "header", "footer", "aside",
-    "figure", "figcaption", "iframe", "noscript", "form",
-])
+_NOISE_TAGS = frozenset(
+    [
+        "script",
+        "style",
+        "nav",
+        "header",
+        "footer",
+        "aside",
+        "figure",
+        "figcaption",
+        "iframe",
+        "noscript",
+        "form",
+    ]
+)
 
 
 def _extract_text(html: str, selectors: list[str]) -> str:
@@ -323,9 +334,7 @@ def scrape_articles(
     """
     active = {s: SOURCES[s] for s in (sources or list(SOURCES)) if s in SOURCES}
     if not active:
-        raise ValueError(
-            f"No matching sources for {sources!r}. Valid slugs: {list(SOURCES)}"
-        )
+        raise ValueError(f"No matching sources for {sources!r}. Valid slugs: {list(SOURCES)}")
 
     if date_range is not None:
         start, end = date_range
@@ -339,7 +348,11 @@ def scrape_articles(
 
     log.info(
         "shock=%s  sources=%s  window=%s→%s  keywords=%s",
-        shock_id, list(active), start, end, keywords[:3],
+        shock_id,
+        list(active),
+        start,
+        end,
+        keywords[:3],
     )
 
     result: dict[str, Any] = {
@@ -371,11 +384,17 @@ def scrape_articles(
             if fallback_url:
                 log.warning(
                     "[%s] primary feed error (%s) — trying fallback: %s",
-                    display, feed.get("bozo_exception", "unknown"), fallback_url,
+                    display,
+                    feed.get("bozo_exception", "unknown"),
+                    fallback_url,
                 )
                 feed = feedparser.parse(fallback_url)
             if feed.bozo and not feed.entries:
-                log.error("[%s] feed error (%s) — skipping", display, feed.get("bozo_exception", "unknown"))
+                log.error(
+                    "[%s] feed error (%s) — skipping",
+                    display,
+                    feed.get("bozo_exception", "unknown"),
+                )
                 result["sources"][slug] = counts
                 continue
 
@@ -451,12 +470,15 @@ def scrape_articles(
             log.info("[%s] wrote wc=%d: %s", display, wc, url)
 
         discard_pct = (
-            counts["discarded"] / counts["attempted"] * 100
-            if counts["attempted"] else 0.0
+            counts["discarded"] / counts["attempted"] * 100 if counts["attempted"] else 0.0
         )
         log.info(
             "[%s] done — attempted=%d  discarded=%d (%.0f%%)  written=%d",
-            display, counts["attempted"], counts["discarded"], discard_pct, counts["written"],
+            display,
+            counts["attempted"],
+            counts["discarded"],
+            discard_pct,
+            counts["written"],
         )
         result["sources"][slug] = counts
         for k in result["total"]:
@@ -521,7 +543,10 @@ def main() -> None:
     t = result["total"]
     log.info(
         "DONE — shock=%s  attempted=%d  discarded=%d  written=%d",
-        args.shock_id, t["attempted"], t["discarded"], t["written"],
+        args.shock_id,
+        t["attempted"],
+        t["discarded"],
+        t["written"],
     )
 
 

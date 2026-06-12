@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-import traceback
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
@@ -94,9 +93,7 @@ def estimate(request: EstimateRequest) -> Any:
 
     estimator: ShockEstimator = app.state.estimator
     try:
-        result: ShockResponseData = estimator.estimate(
-            request.event, intensity=request.intensity
-        )
+        result: ShockResponseData = estimator.estimate(request.event, intensity=request.intensity)
     except Exception:
         log.exception("Unhandled error in /estimate")
         raise HTTPException(status_code=500, detail="Internal inference error")

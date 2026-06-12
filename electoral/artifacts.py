@@ -492,17 +492,17 @@ class ShockResponseData:
     """
 
     shock: str
-    cycle: int        # most-recent historical cycle used as context
-    party: str        # "democrat" or "republican"
-    delta_bins_race: dict[str, str]      # race_id → 9-token bin label
+    cycle: int  # most-recent historical cycle used as context
+    party: str  # "democrat" or "republican"
+    delta_bins_race: dict[str, str]  # race_id → 9-token bin label
     delta_bins_religion: dict[str, str]  # religion_id → 9-token bin label
-    delta_bins_gender: dict[str, str]    # gender_id → 9-token bin label
-    deltas_race: dict[str, float]        # race_id → Δμ converted from bin midpoint
-    deltas_religion: dict[str, float]    # religion_id → Δμ converted from bin midpoint
-    deltas_gender: dict[str, float]      # gender_id → Δμ converted from bin midpoint
-    delta_eff: float                     # λ₁Σw_iΔμ_race + λ₂Σv_RΔμ_rel + λ₃Σg_GΔμ_gen
-    covariance: list[list[float]]        # 5×5 race-bloc covariance (Ledoit-Wolf)
-    source: str                          # "llm_unified"|"roberta_news_only"|"roberta_social_only"
+    delta_bins_gender: dict[str, str]  # gender_id → 9-token bin label
+    deltas_race: dict[str, float]  # race_id → Δμ converted from bin midpoint
+    deltas_religion: dict[str, float]  # religion_id → Δμ converted from bin midpoint
+    deltas_gender: dict[str, float]  # gender_id → Δμ converted from bin midpoint
+    delta_eff: float  # λ₁Σw_iΔμ_race + λ₂Σv_RΔμ_rel + λ₃Σg_GΔμ_gen
+    covariance: list[list[float]]  # 5×5 race-bloc covariance (Ledoit-Wolf)
+    source: str  # "llm_unified"|"roberta_news_only"|"roberta_social_only"
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -574,9 +574,7 @@ class ShockResponseData:
                         f"is outside [-0.15, 0.15]"
                     )
         if not math.isfinite(self.delta_eff):
-            raise ValueError(
-                f"ShockResponseData.delta_eff = {self.delta_eff} must be finite"
-            )
+            raise ValueError(f"ShockResponseData.delta_eff = {self.delta_eff} must be finite")
         if len(self.covariance) != 5:
             raise ValueError(
                 f"ShockResponseData.covariance must be 5×5, got {len(self.covariance)} rows"
@@ -584,8 +582,7 @@ class ShockResponseData:
         for i, row in enumerate(self.covariance):
             if len(row) != 5:
                 raise ValueError(
-                    f"ShockResponseData.covariance row {i} must have 5 elements, "
-                    f"got {len(row)}"
+                    f"ShockResponseData.covariance row {i} must have 5 elements, " f"got {len(row)}"
                 )
         for i in range(5):
             for j in range(i + 1, 5):
@@ -604,8 +601,15 @@ class ShockResponseData:
 # ── LLM output schema (Pydantic — used by outlines constrained decoding) ─────
 
 DeltaBin = Literal[
-    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+    "strong_neg",
+    "mod_neg",
+    "mild_neg",
+    "slight_neg",
+    "neutral",
+    "slight_pos",
+    "mild_pos",
+    "mod_pos",
+    "strong_pos",
 ]
 
 # outlines FSM can emit space-separated character tokens (e.g. 'sl i g h t _ ne g')

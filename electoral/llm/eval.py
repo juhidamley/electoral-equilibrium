@@ -115,8 +115,8 @@ def compute_eval_report(
 class EvalResult:
     shock_id: str
     mae_per_bloc: dict[str, float]  # bloc → absolute error in delta units
-    mean_mae: float                 # mean of mae_per_bloc; nan if output was invalid JSON
-    output_json: str                # raw model output string
+    mean_mae: float  # mean of mae_per_bloc; nan if output was invalid JSON
+    output_json: str  # raw model output string
 
 
 def _flatten_pred(pred: dict) -> dict[str, str]:
@@ -172,8 +172,7 @@ def evaluate_model(
         import mlx_lm
     except ImportError as exc:
         raise ImportError(
-            "mlx_lm is required for evaluate_model on M5. "
-            "Install with: pip install mlx-lm"
+            "mlx_lm is required for evaluate_model on M5. " "Install with: pip install mlx-lm"
         ) from exc
 
     # Lazy import to avoid circular dependency (trainer imports mae_in_delta_units from here).
@@ -204,12 +203,14 @@ def evaluate_model(
             mae_blocs = {}
             mean_mae = float("nan")
 
-        results.append(EvalResult(
-            shock_id=shock_id,
-            mae_per_bloc=mae_blocs,
-            mean_mae=mean_mae,
-            output_json=output_str,
-        ))
+        results.append(
+            EvalResult(
+                shock_id=shock_id,
+                mae_per_bloc=mae_blocs,
+                mean_mae=mean_mae,
+                output_json=output_str,
+            )
+        )
 
     return results
 

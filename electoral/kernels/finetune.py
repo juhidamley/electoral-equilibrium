@@ -27,9 +27,7 @@ def build_llm_finetune(config: PipelineConfig) -> LLMFineTuneData:
     Idempotent: if ``adapter_path/adapter_config.json`` already exists, training
     is skipped and the existing adapter is returned as-is.
     """
-    adapter_path = Path(
-        getattr(config, "adapter_path", None) or _DEFAULT_ADAPTER
-    )
+    adapter_path = Path(getattr(config, "adapter_path", None) or _DEFAULT_ADAPTER)
     base_model: str = getattr(config, "base_model", None) or _DEFAULT_BASE_MODEL
     lora_rank: int = int(getattr(config, "lora_rank", _DEFAULT_LORA_RANK))
 

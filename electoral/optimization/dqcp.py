@@ -102,8 +102,7 @@ def solve_dqcp(
     for b in blocs:
         if math.isnan(float(mu_race.get(b, float("nan")))):
             raise ValueError(
-                f"solve_dqcp: mu_race[{b!r}] is NaN. "
-                "Impute or exclude this bloc before calling."
+                f"solve_dqcp: mu_race[{b!r}] is NaN. " "Impute or exclude this bloc before calling."
             )
 
     cov_mat = np.asarray(cov_race, dtype=float)
@@ -153,7 +152,7 @@ def solve_dqcp(
     # The constraint set is compact (z bounded by the SOC), so the problem is bounded.
     # Reference: Lobo et al. (1998) "Applications of SOCP", Ch. 5.
     b = float(fixed_loyalty - target)  # constant term in the Sharpe numerator
-    a = lambda_1 * mu_vec              # linear race-loyalty coefficients
+    a = lambda_1 * mu_vec  # linear race-loyalty coefficients
 
     z = cp.Variable(k, nonneg=True)
     s = cp.Variable(nonneg=True)

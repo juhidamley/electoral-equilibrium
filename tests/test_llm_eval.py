@@ -152,7 +152,8 @@ def test_per_stratum_mae_returns_three_keys():
     pred = _all_neutral()
     true = _all_neutral()
     result = per_stratum_mae(
-        pred, true,
+        pred,
+        true,
         races=list(CANONICAL_RACES),
         religions=list(CANONICAL_RELIGIONS),
         genders=list(CANONICAL_GENDERS),
@@ -164,7 +165,8 @@ def test_per_stratum_mae_perfect_is_zero():
     pred = _all_mod_pos()
     true = _all_mod_pos()
     result = per_stratum_mae(
-        pred, true,
+        pred,
+        true,
         races=list(CANONICAL_RACES),
         religions=list(CANONICAL_RELIGIONS),
         genders=list(CANONICAL_GENDERS),
@@ -179,7 +181,8 @@ def test_per_stratum_mae_race_nonzero_others_zero():
     for b in CANONICAL_RACES:
         pred[b] = "mod_pos"
     result = per_stratum_mae(
-        pred, true,
+        pred,
+        true,
         races=list(CANONICAL_RACES),
         religions=list(CANONICAL_RELIGIONS),
         genders=list(CANONICAL_GENDERS),

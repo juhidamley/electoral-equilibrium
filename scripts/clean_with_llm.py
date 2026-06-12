@@ -46,7 +46,6 @@ import json
 import logging
 import os
 import re
-import time
 from collections import defaultdict
 import httpx
 from datetime import datetime, timezone
@@ -118,6 +117,7 @@ def _gemini_client():
 
 try:
     from google.genai import errors as _genai_errors
+
     _GENAI_SERVER_ERROR: type | None = _genai_errors.ServerError
 except (ImportError, AttributeError):
     _GENAI_SERVER_ERROR = None
@@ -126,9 +126,7 @@ except (ImportError, AttributeError):
 async def _call_with_backoff_async(client, prompt: str) -> str:
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL, contents=prompt
-            )
+            response = await client.aio.models.generate_content(model=GEMINI_MODEL, contents=prompt)
             return response.text
         except Exception as exc:
             err = str(exc)
@@ -140,7 +138,7 @@ async def _call_with_backoff_async(client, prompt: str) -> str:
                 or "rate" in err.lower()
             )
             if retryable:
-                wait = GEMINI_BACKOFF_BASE * (2 ** attempt)
+                wait = GEMINI_BACKOFF_BASE * (2**attempt)
                 logger.warning(
                     "Gemini transient error (%s) — waiting %.0f s (attempt %d/%d)",
                     type(exc).__name__,
@@ -179,9 +177,7 @@ async def _filter_off_topic_async(
     semaphore = asyncio.Semaphore(concurrency)
 
     async def process_batch(batch: list[dict]) -> tuple[list[dict], list[bool]]:
-        numbered = "\n".join(
-            f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch)
-        )
+        numbered = "\n".join(f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch))
         prompt = (
             f"For each numbered post below, reply with just the number and yes or no — "
             f"is this post about {shock_description}? "
@@ -201,7 +197,10 @@ async def _filter_off_topic_async(
         if isinstance(result, BaseException):
             logger.warning(
                 "Batch %d/%d failed after retries (%s) — keeping all %d posts in batch",
-                i + 1, len(batches), result, len(batches[i]),
+                i + 1,
+                len(batches),
+                result,
+                len(batches[i]),
             )
             kept.extend(batches[i])
         else:
@@ -398,7 +397,9 @@ def main() -> None:
     client = None
     if not args.dry_run:
         client = _gemini_client()
-        logger.info("Gemini client ready (model=%s, concurrency=%d)", GEMINI_MODEL, args.concurrency)
+        logger.info(
+            "Gemini client ready (model=%s, concurrency=%d)", GEMINI_MODEL, args.concurrency
+        )
     else:
         logger.info("--dry-run: Gemini off-topic filter skipped")
 
@@ -436,7 +437,9 @@ def main() -> None:
         logger.info("[%s / %s] %d posts loaded", shock_id, archive_id, n_input)
 
         # Step 1 — off-topic (Gemini)
-        posts, off_topic_dropped = filter_off_topic(posts, shock_desc, client, args.dry_run, concurrency=args.concurrency)
+        posts, off_topic_dropped = filter_off_topic(
+            posts, shock_desc, client, args.dry_run, concurrency=args.concurrency
+        )
         logger.info("  step 1 off-topic : -%d → %d kept", off_topic_dropped, len(posts))
 
         # Step 2 — spam

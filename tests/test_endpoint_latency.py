@@ -42,10 +42,7 @@ _REQUEST_BODY = {
 
 _N_CALLS = 5
 _N_RACE = len(CANONICAL_RACES)
-_IDENTITY_COV = [
-    [1.0 if i == j else 0.0 for j in range(_N_RACE)]
-    for i in range(_N_RACE)
-]
+_IDENTITY_COV = [[1.0 if i == j else 0.0 for j in range(_N_RACE)] for i in range(_N_RACE)]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -99,24 +96,19 @@ def test_endpoint_latency() -> None:
     )
     try:
         if not _await_health(BASE_URL, timeout=120.0):
-            pytest.fail(
-                f"Server at {BASE_URL} did not respond to GET /health within 120s"
-            )
+            pytest.fail(f"Server at {BASE_URL} did not respond to GET /health within 120s")
 
         latencies: list[float] = []
 
         for i in range(_N_CALLS):
             t0 = time.perf_counter()
-            response = requests.post(
-                f"{BASE_URL}/estimate", json=_REQUEST_BODY, timeout=120
-            )
+            response = requests.post(f"{BASE_URL}/estimate", json=_REQUEST_BODY, timeout=120)
             elapsed = time.perf_counter() - t0
             latencies.append(elapsed)
 
             # (i) HTTP 200
             assert response.status_code == 200, (
-                f"Call {i + 1}: expected 200, got {response.status_code}: "
-                f"{response.text[:300]}"
+                f"Call {i + 1}: expected 200, got {response.status_code}: " f"{response.text[:300]}"
             )
 
             # (ii) valid JSON

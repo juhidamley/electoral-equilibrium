@@ -23,8 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from electoral.llm.eval import mae_in_delta_units
-from electoral.nlp.elasticity import score_to_bin
+from electoral.llm.eval import mae_in_delta_units  # noqa: E402
+from electoral.nlp.elasticity import score_to_bin  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -83,6 +83,7 @@ def run_news_only(records: list[dict]) -> tuple[list[float], dict[str, list[floa
         maes.append(mae)
         for b in common:
             from electoral.core.types import BIN_MIDPOINTS
+
             err = abs(BIN_MIDPOINTS[pred_sub[b]] - BIN_MIDPOINTS[true_sub[b]])
             bloc_errors.setdefault(b, []).append(err)
 
@@ -113,6 +114,7 @@ def run_social_only(records: list[dict]) -> tuple[list[float], dict[str, list[fl
         maes.append(mae)
         for b in common:
             from electoral.core.types import BIN_MIDPOINTS
+
             err = abs(BIN_MIDPOINTS[pred_sub[b]] - BIN_MIDPOINTS[true_sub[b]])
             bloc_errors.setdefault(b, []).append(err)
 
@@ -191,10 +193,7 @@ def aggregate(maes: list[float], bloc_errors: dict[str, list[float]]) -> dict:
     if not maes:
         return {"overall_mae": None, "n_records": 0, "per_bloc_mae": {}, "note": _NO_DATA_NOTE}
     overall = sum(maes) / len(maes)
-    per_bloc = {
-        b: sum(errs) / len(errs)
-        for b, errs in sorted(bloc_errors.items())
-    }
+    per_bloc = {b: sum(errs) / len(errs) for b, errs in sorted(bloc_errors.items())}
     return {"overall_mae": overall, "n_records": len(maes), "per_bloc_mae": per_bloc}
 
 
@@ -258,11 +257,10 @@ def write_markdown(results: dict, path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Three-way baseline comparison")
     parser.add_argument("--eval", default=str(_EVAL_PATH), help="Path to eval.jsonl")
+    parser.add_argument("--adapter", default=_DEFAULT_ADAPTER, help="Path to LoRA adapter")
     parser.add_argument(
-        "--adapter", default=_DEFAULT_ADAPTER, help="Path to LoRA adapter"
-    )
-    parser.add_argument(
-        "--skip-llm", action="store_true",
+        "--skip-llm",
+        action="store_true",
         help="Skip unified_llm method (no adapter needed)",
     )
     args = parser.parse_args()

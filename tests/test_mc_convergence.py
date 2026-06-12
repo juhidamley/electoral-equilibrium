@@ -11,14 +11,16 @@ from electoral.simulation.montecarlo import (
     ilr_inv,
     run_ilr_montecarlo,
 )
-from electoral.artifacts import EquilibriumData, SimulationData
+from electoral.artifacts import EquilibriumData
 from electoral.core.types import CANONICAL_RACES
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _make_equilibrium(weights: dict | None = None, mu_shifted: dict | None = None,
-                      target: float = 0.535) -> EquilibriumData:
+
+def _make_equilibrium(
+    weights: dict | None = None, mu_shifted: dict | None = None, target: float = 0.535
+) -> EquilibriumData:
     blocs = list(CANONICAL_RACES)
     if weights is None:
         weights = {b: 1.0 / len(blocs) for b in blocs}
@@ -42,6 +44,7 @@ class _FakeConfig:
 
     def derive_seed(self, stage_name: str) -> int:
         from electoral.core.rng import derive_seed
+
         return derive_seed(self.seed, stage_name)
 
 
@@ -58,16 +61,14 @@ def test_helmert_matrix_is_orthonormal():
     for k in [2, 3, 5]:
         V = helmert_matrix(k)
         product = V.T @ V
-        assert np.allclose(product, np.eye(k - 1), atol=1e-10), \
-            f"V^T V is not identity for k={k}"
+        assert np.allclose(product, np.eye(k - 1), atol=1e-10), f"V^T V is not identity for k={k}"
 
 
 def test_helmert_columns_sum_to_zero():
     for k in [2, 3, 5]:
         V = helmert_matrix(k)
         col_sums = V.sum(axis=0)
-        assert np.allclose(col_sums, 0.0, atol=1e-10), \
-            f"Column sums not zero for k={k}: {col_sums}"
+        assert np.allclose(col_sums, 0.0, atol=1e-10), f"Column sums not zero for k={k}: {col_sums}"
 
 
 def test_helmert_matrix_k_lt_2_raises():
@@ -136,10 +137,10 @@ def test_win_probability_in_unit_interval():
 def test_win_probability_converges_with_n_simulations():
     # Higher loyalty → higher win prob; both estimates must be finite
     eq_high = _make_equilibrium(mu_shifted={b: 0.80 for b in CANONICAL_RACES}, target=0.535)
-    eq_low  = _make_equilibrium(mu_shifted={b: 0.40 for b in CANONICAL_RACES}, target=0.535)
+    eq_low = _make_equilibrium(mu_shifted={b: 0.40 for b in CANONICAL_RACES}, target=0.535)
     cfg = _FakeConfig()
     p_high = run_ilr_montecarlo(eq_high, cfg, n_simulations=2000).win_probability
-    p_low  = run_ilr_montecarlo(eq_low,  cfg, n_simulations=2000).win_probability
+    p_low = run_ilr_montecarlo(eq_low, cfg, n_simulations=2000).win_probability
     assert p_high > p_low
 
 
@@ -179,8 +180,7 @@ def test_percentiles_have_five_values_per_bloc():
     cfg = _FakeConfig()
     result = run_ilr_montecarlo(eq, cfg, n_simulations=200)
     for bloc in CANONICAL_RACES:
-        assert len(result.percentiles[bloc]) == 5, \
-            f"Expected 5 percentile values for {bloc}"
+        assert len(result.percentiles[bloc]) == 5, f"Expected 5 percentile values for {bloc}"
 
 
 def test_percentiles_are_non_decreasing():
@@ -189,8 +189,9 @@ def test_percentiles_are_non_decreasing():
     result = run_ilr_montecarlo(eq, cfg, n_simulations=500)
     for bloc, pcts in result.percentiles.items():
         for i in range(len(pcts) - 1):
-            assert pcts[i] <= pcts[i + 1] + 1e-10, \
-                f"Percentiles not non-decreasing for {bloc}: {pcts}"
+            assert (
+                pcts[i] <= pcts[i + 1] + 1e-10
+            ), f"Percentiles not non-decreasing for {bloc}: {pcts}"
 
 
 def test_percentiles_in_unit_interval():

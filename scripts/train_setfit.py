@@ -148,7 +148,11 @@ def train_stratum(
 ) -> float | None:
     """Train one SetFit model. Returns macro-F1 on eval set, or None if skipped."""
     try:
-        from setfit import SetFitModel, Trainer as SetFitTrainer, TrainingArguments as SetFitTrainingArguments
+        from setfit import (
+            SetFitModel,
+            Trainer as SetFitTrainer,
+            TrainingArguments as SetFitTrainingArguments,
+        )
     except ImportError:
         raise RuntimeError("setfit is not installed. Run:  pip install 'setfit>=1.0'")
     try:
@@ -244,8 +248,8 @@ def train_stratum(
             except (ValueError, TypeError):
                 y_pred_str.append(str(p))
     else:
-        # fallback: use label encoder classes
-        y_pred_str = label_encoder.inverse_transform(preds)
+        # fallback: stringify predictions directly
+        y_pred_str = [str(p) for p in preds]  # type: ignore[assignment]
     y_true = [label_names[int(y)] for y in y_ev]
     y_pred = [str(p) for p in y_pred_str]
 

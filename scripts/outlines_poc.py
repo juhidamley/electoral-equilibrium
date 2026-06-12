@@ -1,4 +1,5 @@
 """Proof-of-concept: outlines constrained JSON generation with gpt2."""
+
 import outlines
 from pydantic import BaseModel
 

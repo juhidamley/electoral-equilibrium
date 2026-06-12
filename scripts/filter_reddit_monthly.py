@@ -41,7 +41,7 @@ import sys
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterator
 
@@ -57,7 +57,7 @@ DEFAULT_OUTPUT_DIR = Path(
 
 # ── Tuning constants ───────────────────────────────────────────────────────────
 
-CHUNK_BYTES = 50 * 1024 * 1024       # 50 MB decompressed read chunks
+CHUNK_BYTES = 50 * 1024 * 1024  # 50 MB decompressed read chunks
 WRITE_BUFFER_BYTES = 64 * 1024 * 1024  # 64 MB write buffer per output file
 DEFAULT_WORKERS = 8
 PROGRESS_INTERVAL = 500_000
@@ -186,9 +186,7 @@ def list_input_files(
 # ── Chunk-based bz2 reader ─────────────────────────────────────────────────────
 
 
-def _iter_bz2_lines_chunked(
-    path: Path, chunk_bytes: int = CHUNK_BYTES
-) -> Iterator[list[str]]:
+def _iter_bz2_lines_chunked(path: Path, chunk_bytes: int = CHUNK_BYTES) -> Iterator[list[str]]:
     """Read a bz2 file in ~chunk_bytes decompressed byte chunks.
 
     Yields batches of complete line strings. Partial lines at chunk boundaries
