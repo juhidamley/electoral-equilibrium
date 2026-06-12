@@ -30,14 +30,14 @@ export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 
 cd "$REPO_DIR"
 python -m electoral.llm.trainer \
-  --config configs/train_r16.json \
+  --config configs/train_r32.json \
   --train-data data/finetune/train.jsonl \
   --eval-data data/finetune/eval.jsonl \
-  --output-dir models/mistral-r16-hopper \
-  --lora-rank 16 \
-  --lora-alpha 32 \
+  --output-dir models/mistral-r32-hopper \
+  --lora-rank 32 \
+  --lora-alpha 64 \
   --epochs 3 \
-  --batch-size 4 \
-  --grad-accum 4
+  --batch-size 2 \
+  --grad-accum 8
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Job ${SLURM_JOB_ID} complete"
