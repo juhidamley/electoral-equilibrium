@@ -141,6 +141,12 @@ fmt:
     ruff check --fix electoral/ tests/ scripts/ collectors/
     black electoral/ tests/ scripts/ collectors/
 
+# Three-way baseline comparison (news_only / social_only / unified_llm)
+# Reads data/finetune/eval.jsonl; writes artifacts/baseline_comparison.json + docs/baseline_comparison.md
+# Set ADAPTER_PATH to override default (/Volumes/JUHIDRIVE/electoralData/models/mistral-r16)
+baseline:
+    python scripts/run_baseline_comparison.py
+
 # Remove generated artifacts (keeps source data)
 clean-artifacts:
     rm -rf artifacts/smoke/ artifacts/*.json artifacts/*.parquet
