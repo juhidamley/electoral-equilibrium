@@ -6,6 +6,6 @@
   "n_train": 446,
   "n_eval": 111,
   "training_loss": 0.23313199267500923,
-  "eval_mae": Infinity,
+  "eval_mae": 0.0362,
   "seed": 42
 }
