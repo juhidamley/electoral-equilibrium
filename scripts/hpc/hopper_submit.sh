@@ -23,6 +23,9 @@ mkdir -p "$REPO_DIR/logs" "$REPO_DIR/.hf_cache"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Job ${SLURM_JOB_ID} starting on $(hostname)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || true
 
+module load cuda/13.2
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/hopper/software/cuda/13.2/lib64
+
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate electoral
 
