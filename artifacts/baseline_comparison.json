@@ -1,0 +1,35 @@
+{
+  "news_only": {
+    "overall_mae": null,
+    "n_records": 0,
+    "per_bloc_mae": {},
+    "note": "N/A \u2014 no real RoBERTa scores in eval set (all synthetic). Run scripts/score_shock.py on eval examples first, then re-run this script."
+  },
+  "social_only": {
+    "overall_mae": null,
+    "n_records": 0,
+    "per_bloc_mae": {},
+    "note": "N/A \u2014 no real RoBERTa scores in eval set (all synthetic). Run scripts/score_shock.py on eval examples first, then re-run this script."
+  },
+  "unified_llm": {
+    "overall_mae": 0.03623151515151514,
+    "n_records": 110,
+    "per_bloc_mae": {
+      "african_american": 0.042290909090909094,
+      "asian": 0.035300000000000005,
+      "catholic": 0.030918181818181824,
+      "evangelical": 0.044881818181818176,
+      "jewish": 0.03303636363636365,
+      "latino": 0.03600000000000001,
+      "men": 0.033400000000000006,
+      "muslim": 0.03268181818181819,
+      "other_gender": 0.048845454545454525,
+      "other_race": 0.0343,
+      "other_rel": 0.03178181818181819,
+      "protestant": 0.03280000000000001,
+      "secular": 0.0369,
+      "white": 0.03604545454545456,
+      "women": 0.034290909090909094
+    }
+  }
+}
