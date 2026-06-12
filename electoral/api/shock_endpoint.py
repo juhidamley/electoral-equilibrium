@@ -13,11 +13,11 @@ guaranteeing the two schemas are always identical.
 
 from __future__ import annotations
 
-import dataclasses
 import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -98,11 +98,7 @@ def estimate(request: EstimateRequest) -> Any:
 @app.get("/health")
 def health() -> dict[str, str]:
     """Liveness check — returns model path and active device."""
-    try:
-        import torch
-        device = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
-    except Exception:
-        device = "cpu"
+    device = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
     return {"status": "ok", "model": _ADAPTER_PATH, "device": device}
 
 
@@ -121,9 +117,4 @@ def blocs() -> dict[str, list[str]]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "electoral.api.shock_endpoint:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=False,
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
