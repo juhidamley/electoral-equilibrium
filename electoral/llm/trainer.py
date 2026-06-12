@@ -26,6 +26,7 @@ import argparse
 import dataclasses
 import json
 import logging
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -433,7 +434,7 @@ def train(
         "n_train": len(train_records),
         "n_eval": len(eval_records),
         "training_loss": float(train_result.training_loss),
-        "eval_mae": float(eval_mae),
+        "eval_mae": None if math.isinf(eval_mae) else float(eval_mae),
         "seed": seed,
     }
     state_path = output_dir / "trainer_state.json"
@@ -645,8 +646,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    mae = state.get("eval_mae", float("inf"))
-    if mae != float("inf") and mae > 0.04:
+    mae = state.get("eval_mae")
+    if mae is not None and mae > 0.04:
         log.warning("Held-out MAE %.4f > 0.04 — consider submitting rank-32 job", mae)
         return 2
 

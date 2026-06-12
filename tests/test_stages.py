@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import importlib
+
 import pytest
 
 from electoral.artifacts import (
@@ -65,6 +67,20 @@ def cfg(tmp_path) -> PipelineConfig:
     c = PipelineConfig.from_json(p)
     c.validate()
     return c
+
+
+def _torch_available() -> bool:
+    try:
+        importlib.import_module("torch")
+        return True
+    except ImportError:
+        return False
+
+
+_skip_no_torch = pytest.mark.skipif(
+    not _torch_available(),
+    reason="torch/transformers not installed — skip LLM-dependent stages",
+)
 
 
 def _envelope(path: Path) -> dict:
@@ -199,6 +215,7 @@ class TestBuildLLMFinetune:
 # ── Stage 5: build_shock_response ────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestBuildShockResponse:
     def test_returns_shock_response_data(self, cfg):
         result = build_shock_response(cfg, "roe_v_wade_2022", 0.8)
@@ -243,6 +260,7 @@ class TestBuildShockResponse:
 # ── Stage 6: build_optimization ──────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestBuildOptimization:
     @pytest.fixture
     def shock(self, cfg) -> ShockResponseData:
@@ -282,6 +300,7 @@ class TestBuildOptimization:
 # ── Stage 7: run_simulations ─────────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestRunSimulations:
     @pytest.fixture
     def equilibrium(self, cfg) -> EquilibriumData:
