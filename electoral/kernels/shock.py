@@ -98,6 +98,7 @@ def bootstrap_cov(
         dtype=float,
     )
     from electoral.core.rng import make_rng
+
     rng = make_rng(seed)
     samples = deltas[None, :] + rng.normal(0.0, noise_std, size=(n_bootstrap, len(deltas)))
     cov: np.ndarray = np.cov(samples.T)
