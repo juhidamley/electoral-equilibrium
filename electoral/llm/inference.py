@@ -125,11 +125,20 @@ def load_model(
             device_map="auto",
         )
     else:
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model,
-            torch_dtype=torch.float16,
-            device_map="auto",
-        )
+        # device_map="auto" on MPS (Apple Silicon) places some layers in meta tensors,
+        # which causes PEFT's _update_offload to fail with a double-nested key prefix.
+        # Load to a single device explicitly to avoid the offload code path.
+        if torch.backends.mps.is_available():
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                torch_dtype=torch.float16,
+            ).to("mps")
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                torch_dtype=torch.float16,
+                device_map="auto",
+            )
 
     if adapter_path:
         try:
