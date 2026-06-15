@@ -97,7 +97,8 @@ def bootstrap_cov(
         [shock_response.deltas_race[r] for r in CANONICAL_RACES],
         dtype=float,
     )
-    rng = np.random.default_rng(seed)
+    from electoral.core.rng import make_rng
+    rng = make_rng(seed)
     samples = deltas[None, :] + rng.normal(0.0, noise_std, size=(n_bootstrap, len(deltas)))
     cov: np.ndarray = np.cov(samples.T)
     return cov.tolist()
