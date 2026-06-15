@@ -247,3 +247,27 @@ def test_low_loyalty_win_prob_near_zero():
     cfg = _FakeConfig()
     result = run_ilr_montecarlo(eq, cfg, n_simulations=1000)
     assert result.win_probability < 0.10
+
+
+def test_ci_width_shrinks_with_more_simulations():
+    # Bootstrap CI width is O(1/sqrt(N)); more draws → tighter interval.
+    # mu=0.57, target=0.535, sigma_default=0.05 → win_prob ≈ 0.19 (non-trivial).
+    eq = _make_equilibrium(mu_shifted={b: 0.57 for b in CANONICAL_RACES}, target=0.535)
+    cfg = _FakeConfig()
+    r_small = run_ilr_montecarlo(eq, cfg, n_simulations=200, sigma_default=0.05)
+    r_large = run_ilr_montecarlo(eq, cfg, n_simulations=5000, sigma_default=0.05)
+    width_small = r_small.win_probability_high - r_small.win_probability_low
+    width_large = r_large.win_probability_high - r_large.win_probability_low
+    assert width_large < width_small, (
+        f"CI did not shrink: small={width_small:.4f}, large={width_large:.4f}"
+    )
+
+
+def test_ci_bounds_are_not_trivially_zero_and_one():
+    # Bootstrap CI must be strictly interior to [0, 1] at intermediate win prob.
+    # mu=0.57, target=0.535, sigma_default=0.05 → win_prob ≈ 0.19.
+    eq = _make_equilibrium(mu_shifted={b: 0.57 for b in CANONICAL_RACES}, target=0.535)
+    cfg = _FakeConfig()
+    result = run_ilr_montecarlo(eq, cfg, n_simulations=2000, sigma_default=0.05)
+    assert result.win_probability_low > 0.0, "CI lower bound is trivially 0"
+    assert result.win_probability_high < 1.0, "CI upper bound is trivially 1"

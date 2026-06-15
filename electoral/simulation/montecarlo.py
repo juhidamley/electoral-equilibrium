@@ -271,6 +271,18 @@ def run_ilr_montecarlo(
     win_flags = mu_eff_samples >= target
     win_probability = float(win_flags.mean())
 
+    # Bootstrap 90% CI on the win-probability estimator (not on individual draws).
+    # Resampling win_flags B times gives B bootstrap estimates of win_probability;
+    # the 5th/95th percentiles of those means form a meaningful CI that narrows with N.
+    # Uses the seeded rng already in scope — no fresh generator.
+    _N_BOOT = 500
+    n_valid = len(win_flags)
+    win_flags_f = win_flags.astype(float)
+    boot_idx = rng.integers(0, n_valid, size=(_N_BOOT, n_valid))
+    boot_means = win_flags_f[boot_idx].mean(axis=1)
+    win_probability_low = float(np.percentile(boot_means, 5))
+    win_probability_high = float(np.percentile(boot_means, 95))
+
     # ── Compute per-bloc percentiles ──────────────────────────────────────────
     percentile_levels = [5, 25, 50, 75, 95]
     percentiles: dict[str, list[float]] = {}
@@ -282,5 +294,7 @@ def run_ilr_montecarlo(
         n_simulations=n_simulations,
         seed=seed,
         win_probability=win_probability,
+        win_probability_low=win_probability_low,
+        win_probability_high=win_probability_high,
         percentiles=percentiles,
     )

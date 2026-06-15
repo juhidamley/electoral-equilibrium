@@ -392,3 +392,61 @@ def test_target_exactly_one_raises():
     # max achievable = 0.90 < 1.0, so pre-flight catches this
     with pytest.raises(ValueError):
         solve_baseline(mu, cov, target=1.0, blocs=["a", "b"])
+
+
+# ── solve_rebalanced (DQCP max P(win)) ───────────────────────────────────────
+
+
+from electoral.core.types import CANONICAL_RACES as _RACES  # noqa: E402
+from electoral.optimization.cvx import solve_rebalanced  # noqa: E402
+
+
+def _uniform_mu(val: float) -> dict[str, float]:
+    return {b: val for b in _RACES}
+
+
+def _eye_cov() -> list[list[float]]:
+    n = len(_RACES)
+    return [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+
+def test_is_dqcp():
+    # Charnes-Cooper SOCP is DCP; every DCP problem is also DQCP.
+    n = len(_RACES)
+    mu = np.array([0.55] * n, dtype=float)
+    Sigma = np.eye(n)
+    L = np.linalg.cholesky(Sigma)
+    target = 0.50
+    y = cp.Variable(n)
+    tau = cp.Variable(nonneg=True)
+    constraints = [
+        cp.norm(L.T @ y, 2) <= 1,
+        cp.sum(y) == tau,
+        y >= 0.05 * tau,
+        y <= 0.60 * tau,
+        mu @ y >= target * tau,
+    ]
+    problem = cp.Problem(cp.Maximize(mu @ y - target * tau), constraints)
+    assert problem.is_dqcp() is True
+
+
+def test_feasible_solution():
+    result = solve_rebalanced(_uniform_mu(0.70), _eye_cov(), target=0.52)
+    assert result.feasible is True
+    assert abs(sum(result.weights.values()) - 1.0) < 1e-6
+
+
+def test_infeasible_returns_false():
+    # All mu below target → mu @ w < target for any w → mu @ y >= target*tau infeasible
+    result = solve_rebalanced(_uniform_mu(0.20), _eye_cov(), target=0.60)
+    assert result.feasible is False
+
+
+def test_weights_respect_bounds():
+    floor, ceiling = 0.05, 0.60
+    result = solve_rebalanced(_uniform_mu(0.65), _eye_cov(), target=0.52, floor=floor, ceiling=ceiling)
+    assert result.feasible is True
+    for w in result.weights.values():
+        assert w >= floor - 1e-6
+        assert w <= ceiling + 1e-6
+    assert abs(sum(result.weights.values()) - 1.0) < 1e-6
