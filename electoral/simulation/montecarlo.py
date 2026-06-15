@@ -298,3 +298,93 @@ def run_ilr_montecarlo(
         win_probability_high=win_probability_high,
         percentiles=percentiles,
     )
+
+
+# ── CLI entry point (python -m electoral.simulation.montecarlo) ───────────────
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    from electoral.artifacts import EquilibriumData, StageArtifact
+    from electoral.core.rng import derive_seed as _derive_seed
+
+    parser = argparse.ArgumentParser(
+        description="ILR Logistic-Normal Monte Carlo — win-probability estimation"
+    )
+    parser.add_argument(
+        "--shock-artifact",
+        required=True,
+        metavar="PATH",
+        help="Path to shock_response JSON artifact (loaded for metadata/logging)",
+    )
+    parser.add_argument(
+        "--equilibrium-artifact",
+        required=True,
+        metavar="PATH",
+        help="Path to equilibrium JSON artifact produced by solve_rebalanced",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        metavar="PATH",
+        help="Destination path for SimulationData JSON artifact",
+    )
+    parser.add_argument(
+        "--n-simulations",
+        type=int,
+        default=50_000,
+        metavar="N",
+        help="Number of ILR Monte Carlo draws (default: 50 000)",
+    )
+    args = parser.parse_args()
+
+    # Load equilibrium artifact (the only input run_ilr_montecarlo needs)
+    eq_path = Path(args.equilibrium_artifact)
+    if not eq_path.exists():
+        print(f"ERROR: equilibrium artifact not found: {eq_path}", file=sys.stderr)
+        sys.exit(1)
+    eq_raw = json.loads(eq_path.read_text(encoding="utf-8"))
+    equilibrium = EquilibriumData.from_dict(eq_raw.get("data", eq_raw))
+
+    # Load shock artifact for metadata/log context only
+    shock_path = Path(args.shock_artifact)
+    shock_id = equilibrium.shock or shock_path.stem.removeprefix("shock_")
+    if shock_path.exists():
+        shock_raw = json.loads(shock_path.read_text(encoding="utf-8"))
+        shock_id = shock_raw.get("data", {}).get("shock", shock_id)
+
+    # Minimal config: only derive_seed is consumed by run_ilr_montecarlo
+    class _CliConfig:
+        seed: int = 42
+
+        def derive_seed(self, stage_name: str) -> int:
+            return _derive_seed(self.seed, stage_name)
+
+    config = _CliConfig()
+
+    print(
+        f"running {args.n_simulations:,} ILR Monte Carlo draws "
+        f"for shock='{shock_id}' party={equilibrium.party}",
+        flush=True,
+    )
+    result = run_ilr_montecarlo(equilibrium, config, n_simulations=args.n_simulations)
+    result.validate()
+
+    print(
+        f"win_probability={result.win_probability:.4f} "
+        f"90%CI=[{result.win_probability_low:.4f}, {result.win_probability_high:.4f}]",
+        flush=True,
+    )
+
+    # Write SimulationData wrapped in a StageArtifact envelope
+    envelope = StageArtifact(
+        stage="simulation",
+        run_key=f"slurm_{shock_id}",
+        metadata={"n_simulations": args.n_simulations, "shock": shock_id},
+        data=result.to_dict(),
+    )
+    out_path = Path(args.output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(envelope.to_dict(), indent=2), encoding="utf-8")
+    print(f"wrote {out_path}", flush=True)

@@ -86,9 +86,11 @@ def bootstrap_cov_weighted(
 
     Args:
         panel_df: DataFrame with columns 'cycle', 'bloc', 'delta'.
-            Must contain only race blocs (CANONICAL_RACES). Passing
-            religion or gender blocs would silently widen Sigma_Delta
-            beyond 5×5 — a DECISIONS.md violation.
+            Must contain only race blocs (CANONICAL_RACES); non-race blocs
+            raise ValueError. Output dimension equals the number of distinct
+            blocs present in the DataFrame — callers must filter to all five
+            CANONICAL_RACES before calling to guarantee a 5×5 result.
+            Use _build_sigma_delta (shock.py) for the production 5×5 Σ_Δ.
         social_elasticities: Maps cycle → mean absolute elasticity from
             social media regression. Cycles absent from the dict receive
             weight 0 and are excluded from resampling.

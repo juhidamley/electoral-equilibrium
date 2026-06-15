@@ -7,7 +7,7 @@ Six-step chain:
   3. mu_tilde           — mu_baseline + deltas_race, clipped to [0.01, 0.99]
   4. _build_sigma_delta — Ledoit-Wolf Σ_Δ on historical panel first-differences
   5. solve_rebalanced   — CVXPY DQCP optimizer → EquilibriumData
-  6. _write_artifacts   — persist shock_response.json and equilibrium.json
+  6. _write_artifacts   — persist shock_{id}.json and equilibrium_{id}.json
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def build_shock_response(
       3. mu_tilde              — mu_baseline + deltas_race, clipped to [0.01, 0.99]
       4. _build_sigma_delta     — Ledoit-Wolf Σ_Δ on panel first-differences + validate
       5. solve_rebalanced      — CVXPY DQCP → EquilibriumData + validate
-      6. _write_artifacts      — persist shock_response.json and equilibrium.json
+      6. _write_artifacts      — persist shock_{id}.json and equilibrium_{id}.json
     """
     from electoral.optimization.cvx import solve_rebalanced
 
@@ -258,13 +258,17 @@ def _write_artifacts(
 ) -> None:
     from electoral.artifacts import StageArtifact
 
+    shock_id = shock.shock or "unknown"
+
     shock_envelope = StageArtifact(
         stage="shock_response",
         run_key=config.run_key,
-        metadata={"shock": shock.shock, "delta_eff": shock.delta_eff},
+        metadata={"shock": shock_id, "delta_eff": shock.delta_eff},
         data=shock.to_dict(),
     )
-    write_artifact(f"{config.output_dir}/shock_response.json", shock_envelope.to_dict())
+    write_artifact(
+        f"{config.output_dir}/shock_{shock_id}.json", shock_envelope.to_dict()
+    )
 
     eq_envelope = StageArtifact(
         stage="equilibrium",
@@ -272,5 +276,12 @@ def _write_artifacts(
         metadata={"feasible": equilibrium.feasible, "target_met": equilibrium.target_met},
         data=equilibrium.to_dict(),
     )
-    write_artifact(f"{config.output_dir}/equilibrium.json", eq_envelope.to_dict())
-    log.info("wrote shock_response.json and equilibrium.json to %s", config.output_dir)
+    write_artifact(
+        f"{config.output_dir}/equilibrium_{shock_id}.json", eq_envelope.to_dict()
+    )
+    log.info(
+        "wrote shock_%s.json and equilibrium_%s.json to %s",
+        shock_id,
+        shock_id,
+        config.output_dir,
+    )
