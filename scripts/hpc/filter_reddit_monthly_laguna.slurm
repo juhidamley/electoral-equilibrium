@@ -3,10 +3,11 @@
 #SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
 #SBATCH --time=8:00:00
-#SBATCH --output=/scratch/JDamley28@cmc.edu/logs/filter_reddit_%A_%a.log
+#SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/filter_reddit_%A_%a.out
+#SBATCH --error=/scratch/JDamley28@cmc.edu/electoralData/logs/filter_reddit_%A_%a.err
 
 # Array bounds are set at submission time:
 #   N=$(python scripts/filter_reddit_monthly.py --list-tasks --input-dir $INPUT_DIR | tail -1)
@@ -15,24 +16,30 @@
 
 set -euo pipefail
 
-REPO_DIR=/home/JDamley28@cmc.edu/electoral-equilibrium
+REPO_DIR=/home1/JDamley28@cmc.edu/electoral-equilibrium
 INPUT_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/reddit/reddit_monthly
 OUTPUT_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/reddit/reddit_monthly_filtered
 
-mkdir -p "$OUTPUT_DIR" "/scratch/JDamley28@cmc.edu/logs"
+mkdir -p "$OUTPUT_DIR" "/scratch/JDamley28@cmc.edu/electoralData/logs"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task $SLURM_ARRAY_TASK_ID / array $SLURM_ARRAY_JOB_ID starting"
 echo "Input:  $INPUT_DIR"
 echo "Output: $OUTPUT_DIR"
 
-source /home/JDamley28@cmc.edu/miniconda3/etc/profile.d/conda.sh
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
 pip install --quiet -r "$REPO_DIR/requirements.txt"
 
+# Map SLURM_ARRAY_TASK_ID to the sorted list of bz2 files in INPUT_DIR
+INPUT_FILE=$(python3 -c "from pathlib import Path; files=sorted(Path('${INPUT_DIR}').rglob('*.bz2')); print(files[${SLURM_ARRAY_TASK_ID}])")
+
+echo "Processing: $INPUT_FILE"
+
 python "$REPO_DIR/scripts/filter_reddit_monthly.py" \
-    --task-id "$SLURM_ARRAY_TASK_ID" \
-    --input-dir "$INPUT_DIR" \
+    --input-file "$INPUT_FILE" \
     --output-dir "$OUTPUT_DIR" \
+    --workers 8 \
     --verbose
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task $SLURM_ARRAY_TASK_ID complete"

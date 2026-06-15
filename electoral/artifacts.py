@@ -13,7 +13,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 from electoral.core.schema import (
     assert_required_keys,
@@ -26,6 +28,7 @@ from electoral.core.types import (
     CANONICAL_GENDERS,
     CANONICAL_RACES,
     CANONICAL_RELIGIONS,
+    DELTA_BINS,
     LAYER_WEIGHT_KEYS,
     VALID_SOURCES,
 )
@@ -481,16 +484,25 @@ class PredictionMarketData:
 class ShockResponseData:
     """LLM-estimated within-bloc Democratic vote share changes after a political shock.
 
-    deltas[bloc_id] = Δμ_i: the LLM-estimated change in within-bloc Democratic
-    vote share for any demographic stratum cell (race, religion, or gender).
-    Covariance is N×N where N = len(deltas), estimated via Ledoit-Wolf shrinkage.
+    Per-stratum layout separates raw bin tokens from converted numeric deltas:
+      delta_bins_*  — raw constrained-decoding tokens (one of DELTA_BINS per bloc).
+      deltas_*      — numeric Δμ midpoints derived from the bin tokens.
+      covariance    — always 5×5 for race blocs only; religion and gender do not
+                      enter Σ_Δ (see DECISIONS.md §Optimization).
     """
 
     shock: str
     cycle: int  # most-recent historical cycle used as context
-    deltas: dict[str, float]  # bloc_id → Δμ_i (change, not share) in [-0.15, 0.15]
-    covariance: list[list[float]]  # N×N, N = len(deltas)
-    source: str  # "llm_unified" | "roberta_news_only" | "roberta_social_only"
+    party: str  # "democrat" or "republican"
+    delta_bins_race: dict[str, str]  # race_id → 9-token bin label
+    delta_bins_religion: dict[str, str]  # religion_id → 9-token bin label
+    delta_bins_gender: dict[str, str]  # gender_id → 9-token bin label
+    deltas_race: dict[str, float]  # race_id → Δμ converted from bin midpoint
+    deltas_religion: dict[str, float]  # religion_id → Δμ converted from bin midpoint
+    deltas_gender: dict[str, float]  # gender_id → Δμ converted from bin midpoint
+    delta_eff: float  # λ₁Σw_iΔμ_race + λ₂Σv_RΔμ_rel + λ₃Σg_GΔμ_gen
+    covariance: list[list[float]]  # 5×5 race-bloc covariance (Ledoit-Wolf)
+    source: str  # "llm_unified"|"roberta_news_only"|"roberta_social_only"
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -500,7 +512,14 @@ class ShockResponseData:
         return cls(
             shock=str(payload["shock"]),
             cycle=int(payload["cycle"]),
-            deltas={k: float(v) for k, v in payload["deltas"].items()},
+            party=str(payload["party"]),
+            delta_bins_race=dict(payload["delta_bins_race"]),
+            delta_bins_religion=dict(payload["delta_bins_religion"]),
+            delta_bins_gender=dict(payload["delta_bins_gender"]),
+            deltas_race={k: float(v) for k, v in payload["deltas_race"].items()},
+            deltas_religion={k: float(v) for k, v in payload["deltas_religion"].items()},
+            deltas_gender={k: float(v) for k, v in payload["deltas_gender"].items()},
+            delta_eff=float(payload["delta_eff"]),
             covariance=[list(row) for row in payload["covariance"]],
             source=str(payload["source"]),
         )
@@ -512,30 +531,61 @@ class ShockResponseData:
             raise ValueError(
                 f"ShockResponseData.cycle must be a valid year (YYYY), got {self.cycle}"
             )
-        for bloc_id, v in self.deltas.items():
-            if bloc_id not in _ALL_CANONICAL_BLOCS:
-                raise ValueError(
-                    f"ShockResponseData.deltas[{bloc_id!r}] is not a canonical bloc ID"
-                )
-            if not math.isfinite(v):
-                raise ValueError(f"ShockResponseData.deltas[{bloc_id!r}] = {v} must be finite")
-            if not (-0.15 <= v <= 0.15):
-                raise ValueError(
-                    f"ShockResponseData.deltas[{bloc_id!r}] = {v} is outside [-0.15, 0.15]"
-                )
-        n = len(self.deltas)
-        if len(self.covariance) != n:
+        if self.party not in _VALID_PARTIES:
             raise ValueError(
-                f"ShockResponseData.covariance must be {n}×{n}, got {len(self.covariance)} rows"
+                f"ShockResponseData.party must be 'democrat' or 'republican', "
+                f"got {self.party!r}"
+            )
+        _valid_bin_tokens = frozenset(DELTA_BINS)
+        for field_name, bins_dict, canonical in (
+            ("delta_bins_race", self.delta_bins_race, CANONICAL_RACES),
+            ("delta_bins_religion", self.delta_bins_religion, CANONICAL_RELIGIONS),
+            ("delta_bins_gender", self.delta_bins_gender, CANONICAL_GENDERS),
+        ):
+            for bloc_id, token in bins_dict.items():
+                if bloc_id not in canonical:
+                    raise ValueError(
+                        f"ShockResponseData.{field_name}[{bloc_id!r}] is not a "
+                        f"canonical bloc ID for that stratum"
+                    )
+                if token not in _valid_bin_tokens:
+                    raise ValueError(
+                        f"ShockResponseData.{field_name}[{bloc_id!r}] = {token!r} "
+                        f"is not a valid delta bin token. Must be one of {DELTA_BINS}"
+                    )
+        for field_name, deltas_dict, canonical in (
+            ("deltas_race", self.deltas_race, CANONICAL_RACES),
+            ("deltas_religion", self.deltas_religion, CANONICAL_RELIGIONS),
+            ("deltas_gender", self.deltas_gender, CANONICAL_GENDERS),
+        ):
+            for bloc_id, v in deltas_dict.items():
+                if bloc_id not in canonical:
+                    raise ValueError(
+                        f"ShockResponseData.{field_name}[{bloc_id!r}] is not a "
+                        f"canonical bloc ID for that stratum"
+                    )
+                if not math.isfinite(v):
+                    raise ValueError(
+                        f"ShockResponseData.{field_name}[{bloc_id!r}] = {v} must be finite"
+                    )
+                if not (-0.15 <= v <= 0.15):
+                    raise ValueError(
+                        f"ShockResponseData.{field_name}[{bloc_id!r}] = {v} "
+                        f"is outside [-0.15, 0.15]"
+                    )
+        if not math.isfinite(self.delta_eff):
+            raise ValueError(f"ShockResponseData.delta_eff = {self.delta_eff} must be finite")
+        if len(self.covariance) != 5:
+            raise ValueError(
+                f"ShockResponseData.covariance must be 5×5, got {len(self.covariance)} rows"
             )
         for i, row in enumerate(self.covariance):
-            if len(row) != n:
+            if len(row) != 5:
                 raise ValueError(
-                    f"ShockResponseData.covariance row {i} must have {n} elements, "
-                    f"got {len(row)}"
+                    f"ShockResponseData.covariance row {i} must have 5 elements, " f"got {len(row)}"
                 )
-        for i in range(n):
-            for j in range(i + 1, n):
+        for i in range(5):
+            for j in range(i + 1, 5):
                 if abs(self.covariance[i][j] - self.covariance[j][i]) > 1e-9:
                     raise ValueError(
                         f"ShockResponseData.covariance is not symmetric at "
@@ -546,6 +596,62 @@ class ShockResponseData:
                 f"ShockResponseData.source must be one of {sorted(VALID_SOURCES)}, "
                 f"got {self.source!r}"
             )
+
+
+# ── LLM output schema (Pydantic — used by outlines constrained decoding) ─────
+
+DeltaBin = Literal[
+    "strong_neg",
+    "mod_neg",
+    "mild_neg",
+    "slight_neg",
+    "neutral",
+    "slight_pos",
+    "mild_pos",
+    "mod_pos",
+    "strong_pos",
+]
+
+# outlines FSM can emit space-separated character tokens (e.g. 'sl i g h t _ ne g')
+# when the tokenizer maps bin labels as subword pieces. Strip spaces before the
+# Literal check so validation succeeds and the correct bin string is stored.
+_NormalizedDeltaBin = Annotated[
+    DeltaBin,
+    BeforeValidator(lambda v: v.replace(" ", "") if isinstance(v, str) else v),
+]
+
+
+class _RaceBins(BaseModel):
+    african_american: _NormalizedDeltaBin
+    latino: _NormalizedDeltaBin
+    asian: _NormalizedDeltaBin
+    white: _NormalizedDeltaBin
+    other_race: _NormalizedDeltaBin
+
+
+class _ReligionBins(BaseModel):
+    evangelical: _NormalizedDeltaBin
+    catholic: _NormalizedDeltaBin
+    protestant: _NormalizedDeltaBin
+    secular: _NormalizedDeltaBin
+    jewish: _NormalizedDeltaBin
+    muslim: _NormalizedDeltaBin
+    other_rel: _NormalizedDeltaBin
+
+
+class _GenderBins(BaseModel):
+    women: _NormalizedDeltaBin
+    men: _NormalizedDeltaBin
+    other_gender: _NormalizedDeltaBin
+
+
+class ShockResponseSchema(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    delta_bins_race: _RaceBins
+    delta_bins_religion: _ReligionBins
+    delta_bins_gender: _GenderBins
+    delta_eff: float
 
 
 # ── Stage 5: Equilibrium (post-shock optimizer output) ───────────────────────

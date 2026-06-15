@@ -148,7 +148,11 @@ def train_stratum(
 ) -> float | None:
     """Train one SetFit model. Returns macro-F1 on eval set, or None if skipped."""
     try:
-        from setfit import SetFitModel, SetFitTrainer, TrainingArguments
+        from setfit import (
+            SetFitModel,
+            Trainer as SetFitTrainer,
+            TrainingArguments as SetFitTrainingArguments,
+        )
     except ImportError:
         raise RuntimeError("setfit is not installed. Run:  pip install 'setfit>=1.0'")
     try:
@@ -208,44 +212,59 @@ def train_stratum(
     model = SetFitModel.from_pretrained(
         BACKBONE,
         labels=label_names,
+        head_params={"max_iter": 1000, "C": 1.0},
     )
 
     def compute_metrics(y_pred, y_test):
         return {"macro_f1": float(f1_score(y_test, y_pred, average="macro", zero_division=0))}
 
-    training_args = TrainingArguments(
+    training_args = SetFitTrainingArguments(
         num_epochs=args.epochs,
-        batch_size=16,
         num_iterations=args.num_iterations,
-        seed=42,
-        output_dir=str(cfg["dir"] / "checkpoints"),
     )
 
     trainer = SetFitTrainer(
         model=model,
-        args=training_args,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        metric=compute_metrics,
+        metric="f1",
+        metric_kwargs={"average": "macro"},
         column_mapping={"text": "text", "label": "label"},
     )
 
     logger.info("Training stratum '%s' ...", stratum_name)
-    trainer.train()
-
-    metrics = trainer.evaluate()
-    macro_f1 = float(metrics.get("macro_f1", 0.0))
-    logger.info("Stratum '%s' eval macro-F1: %.4f", stratum_name, macro_f1)
+    trainer.train(args=training_args)
 
     # Full classification report for diagnostics
     preds = model.predict(X_ev.tolist())
+
+    # Convert numeric predictions back to string labels
+    if hasattr(trainer.model, "id2label"):
+        id2label = trainer.model.id2label
+        y_pred_str = []
+        for p in preds:
+            try:
+                y_pred_str.append(id2label.get(int(p), str(p)))
+            except (ValueError, TypeError):
+                y_pred_str.append(str(p))
+    else:
+        # fallback: stringify predictions directly
+        y_pred_str = [str(p) for p in preds]  # type: ignore[assignment]
+    y_true = [label_names[int(y)] for y in y_ev]
+    y_pred = [str(p) for p in y_pred_str]
+
     report = classification_report(
-        y_ev,
-        preds,
+        y_true,
+        y_pred,
         target_names=label_names,
         zero_division=0,
     )
     logger.info("Stratum '%s' classification report:\n%s", stratum_name, report)
+
+    # trainer.evaluate() produces 0.0 due to matmul overflow in the logistic
+    # regression head via HF evaluate — compute directly from sklearn predictions.
+    macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
+    logger.info("Stratum '%s' eval macro-F1: %.4f", stratum_name, macro_f1)
 
     out_dir: Path = cfg["dir"]
     out_dir.mkdir(parents=True, exist_ok=True)

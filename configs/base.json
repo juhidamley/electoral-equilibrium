@@ -1,10 +1,16 @@
 {
-  "run_key": "base_2026",
-  "seed": 42,
-  "party": "democrat",
-  "target": 0.5066,
   "data_path": "data/",
+  "data_root": "/Volumes/JUHIDRIVE/electoralData/archives/",
+  "genders": [
+    "women",
+    "men",
+    "other_gender"
+  ],
   "output_dir": "artifacts/",
+  "party": "democrat",
+  "pi_bio_server": "http://localhost:9000",
+  "pi_data_root": "/mnt/juhidrive/electoralData/archives/",
+  "pi_npu_enabled": false,
   "pipeline_mode": "historical",
   "races": [
     "african_american",
@@ -22,13 +28,7 @@
     "muslim",
     "other_rel"
   ],
-  "genders": [
-    "women",
-    "men",
-    "other_gender"
-  ],
-  "pi_bio_server": "http://100.x.x.x:9000",
-  "pi_npu_enabled": false,
-  "data_root": "data/archives/",
-  "pi_data_root": "data/archives/"
+  "run_key": "base_2026",
+  "seed": 42,
+  "target": 0.5066
 }

@@ -1,0 +1,10 @@
+{
+  "normalize_embeddings": false,
+  "labels": [
+    "african_american",
+    "asian",
+    "latino",
+    "other_race",
+    "white"
+  ]
+}

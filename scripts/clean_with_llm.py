@@ -2,9 +2,9 @@
 """clean_with_llm.py — four-step cleaning pipeline for sampled social media posts.
 
 Step 1 — Off-topic detection (Gemini 2.0 Flash, skipped in --dry-run):
-    Batch 50 posts per prompt. Drops posts not about the shock event.
-    Rate-limited to 15 RPM (4 s sleep between requests). Exponential
-    backoff on 429 errors.
+    Batch 200 posts per prompt. Drops posts not about the shock event.
+    Rate-limited to 1000 RPM on the paid tier (0.1 s courtesy sleep).
+    Exponential backoff on 429 / 5xx errors.
 
 Step 2 — Spam filter (deterministic):
     Drops pure retweets (RT @...), emoji-only posts, bare URLs, and
@@ -40,13 +40,14 @@ One shock (dry-run, steps 2-4 only):
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import logging
 import os
 import re
-import time
 from collections import defaultdict
+import httpx
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -63,11 +64,11 @@ ARCHIVES_README = Path("/Volumes/JUHIDRIVE/electoralData/archives/README.md")
 
 # ── Gemini config ──────────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_SLEEP = 4.0  # seconds between requests (60 / 15 RPM = 4 s)
-GEMINI_BATCH = 50  # posts per prompt
+GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_SLEEP = 0.1  # seconds between requests (paid tier: 1000 RPM)
+GEMINI_BATCH = 200  # posts per prompt
 GEMINI_MAX_RETRIES = 5
-GEMINI_BACKOFF_BASE = 2.0  # wait = base ** attempt (seconds)
+GEMINI_BACKOFF_BASE = 10.0  # wait = base * 2^attempt → 10, 20, 40, 80, 160 s
 
 # ── Abbreviation map (Step 3) ─────────────────────────────────────────────────
 
@@ -114,21 +115,38 @@ def _gemini_client():
     return genai.Client(api_key=api_key)
 
 
-def _call_with_backoff(client, prompt: str) -> str:
+try:
+    from google.genai import errors as _genai_errors
+
+    _GENAI_SERVER_ERROR: type | None = _genai_errors.ServerError
+except (ImportError, AttributeError):
+    _GENAI_SERVER_ERROR = None
+
+
+async def _call_with_backoff_async(client, prompt: str) -> str:
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
-            return client.models.generate_content(model=GEMINI_MODEL, contents=prompt).text
+            response = await client.aio.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+            return response.text
         except Exception as exc:
             err = str(exc)
-            if "429" in err or "quota" in err.lower() or "rate" in err.lower():
-                wait = GEMINI_BACKOFF_BASE ** (attempt + 1)
+            retryable = (
+                isinstance(exc, (httpx.RemoteProtocolError, httpx.ReadError))
+                or (_GENAI_SERVER_ERROR is not None and isinstance(exc, _GENAI_SERVER_ERROR))
+                or "429" in err
+                or "quota" in err.lower()
+                or "rate" in err.lower()
+            )
+            if retryable:
+                wait = GEMINI_BACKOFF_BASE * (2**attempt)
                 logger.warning(
-                    "Gemini 429 — waiting %.0f s (attempt %d/%d)",
+                    "Gemini transient error (%s) — waiting %.0f s (attempt %d/%d)",
+                    type(exc).__name__,
                     wait,
                     attempt + 1,
                     GEMINI_MAX_RETRIES,
                 )
-                time.sleep(wait)
+                await asyncio.sleep(wait)
             else:
                 raise
     raise RuntimeError(f"Gemini call failed after {GEMINI_MAX_RETRIES} retries")
@@ -149,21 +167,16 @@ def _parse_yes_no(response_text: str, n: int) -> list[bool]:
     return keep
 
 
-def filter_off_topic(
+async def _filter_off_topic_async(
     posts: list[dict],
     shock_description: str,
     client,
-    dry_run: bool,
+    concurrency: int,
 ) -> tuple[list[dict], int]:
-    """Return (kept_posts, n_dropped). Skips Gemini call when dry_run=True."""
-    if dry_run or not posts:
-        return posts, 0
+    batches = [posts[i : i + GEMINI_BATCH] for i in range(0, len(posts), GEMINI_BATCH)]
+    semaphore = asyncio.Semaphore(concurrency)
 
-    kept: list[dict] = []
-    dropped = 0
-
-    for batch_start in range(0, len(posts), GEMINI_BATCH):
-        batch = posts[batch_start : batch_start + GEMINI_BATCH]
+    async def process_batch(batch: list[dict]) -> tuple[list[dict], list[bool]]:
         numbered = "\n".join(f"{i + 1}. {p['payload']['text'][:300]}" for i, p in enumerate(batch))
         prompt = (
             f"For each numbered post below, reply with just the number and yes or no — "
@@ -171,18 +184,47 @@ def filter_off_topic(
             f"Posts that mention the topic only incidentally count as no.\n\n"
             f"{numbered}"
         )
-        response = _call_with_backoff(client, prompt)
-        keep_flags = _parse_yes_no(response, len(batch))
+        async with semaphore:
+            response = await _call_with_backoff_async(client, prompt)
+        await asyncio.sleep(GEMINI_SLEEP)
+        return batch, _parse_yes_no(response, len(batch))
 
-        for post, keep in zip(batch, keep_flags):
-            if keep:
-                kept.append(post)
-            else:
-                dropped += 1
+    results = await asyncio.gather(*[process_batch(b) for b in batches], return_exceptions=True)
 
-        time.sleep(GEMINI_SLEEP)
+    kept: list[dict] = []
+    dropped = 0
+    for i, result in enumerate(results):
+        if isinstance(result, BaseException):
+            logger.warning(
+                "Batch %d/%d failed after retries (%s) — keeping all %d posts in batch",
+                i + 1,
+                len(batches),
+                result,
+                len(batches[i]),
+            )
+            kept.extend(batches[i])
+        else:
+            batch, keep_flags = result
+            for post, keep in zip(batch, keep_flags):
+                if keep:
+                    kept.append(post)
+                else:
+                    dropped += 1
 
     return kept, dropped
+
+
+def filter_off_topic(
+    posts: list[dict],
+    shock_description: str,
+    client,
+    dry_run: bool,
+    concurrency: int = 50,
+) -> tuple[list[dict], int]:
+    """Return (kept_posts, n_dropped). Skips Gemini call when dry_run=True."""
+    if dry_run or not posts:
+        return posts, 0
+    return asyncio.run(_filter_off_topic_async(posts, shock_description, client, concurrency))
 
 
 # ── Step 2: Spam filter (deterministic) ───────────────────────────────────────
@@ -309,6 +351,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--max-posts", type=int, default=None, help="Cap total posts processed (for testing)"
     )
+    p.add_argument(
+        "--concurrency",
+        type=int,
+        default=50,
+        help="Max simultaneous Gemini requests (default: 50)",
+    )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip shock/archive pairs whose output JSONL already exists",
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
 
@@ -344,7 +397,9 @@ def main() -> None:
     client = None
     if not args.dry_run:
         client = _gemini_client()
-        logger.info("Gemini client ready (model=%s, %.0f s/request)", GEMINI_MODEL, GEMINI_SLEEP)
+        logger.info(
+            "Gemini client ready (model=%s, concurrency=%d)", GEMINI_MODEL, args.concurrency
+        )
     else:
         logger.info("--dry-run: Gemini off-topic filter skipped")
 
@@ -352,6 +407,11 @@ def main() -> None:
     total_processed = 0
 
     for (shock_id, archive_id), paths in sorted(groups.items()):
+        output_path = args.output_dir / shock_id / f"{archive_id}.jsonl"
+        if args.resume and output_path.exists():
+            logger.info("[%s / %s] already cleaned — skipping (--resume)", shock_id, archive_id)
+            continue
+
         shock = shocks_by_id.get(shock_id, {})
         shock_desc = shock.get("description", shock_id)
 
@@ -377,7 +437,9 @@ def main() -> None:
         logger.info("[%s / %s] %d posts loaded", shock_id, archive_id, n_input)
 
         # Step 1 — off-topic (Gemini)
-        posts, off_topic_dropped = filter_off_topic(posts, shock_desc, client, args.dry_run)
+        posts, off_topic_dropped = filter_off_topic(
+            posts, shock_desc, client, args.dry_run, concurrency=args.concurrency
+        )
         logger.info("  step 1 off-topic : -%d → %d kept", off_topic_dropped, len(posts))
 
         # Step 2 — spam
@@ -391,7 +453,6 @@ def main() -> None:
         posts, dedup_dropped = deduplicate(posts)
         logger.info("  step 4 dedup     : -%d → %d kept", dedup_dropped, len(posts))
 
-        output_path = args.output_dir / shock_id / f"{archive_id}.jsonl"
         write_cleaned(posts, output_path)
         logger.info("  → %s", output_path)
 

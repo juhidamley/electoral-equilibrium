@@ -1,22 +1,23 @@
 #!/bin/bash
 #SBATCH --job-name=discord_sample
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH --time=4:00:00
-#SBATCH --output=/hopper/home/jdamley28/discord/logs/sample_%j.log
+#SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/discord_sample_%j.log
 #SBATCH --dependency=afterok:$DISCORD_EXTRACT_ARRAY_JID
 
 set -euo pipefail
 
-DISCORD_DIR=/hopper/home/jdamley28/discord
+DISCORD_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/discord
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discord sampling pass"
 
-source /hopper/home/jdamley28/miniconda3/etc/profile.d/conda.sh
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
 conda activate base
-
 python - "$DISCORD_DIR" <<'EOF'
 import sys
 import json
@@ -57,7 +58,15 @@ for json_path in json_files:
     print(f"[{guild_id}] Loading {json_path.name}...")
     try:
         with open(json_path, "r", errors="replace") as f:
-            raw = json.load(f)
+            raw = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     except (json.JSONDecodeError, OSError) as e:
         print(f"[{guild_id}] ERROR reading file: {e}")
         continue

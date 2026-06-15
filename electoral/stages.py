@@ -27,7 +27,6 @@ from pathlib import Path
 
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
-from electoral.core.rng import make_rng
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.kernels.baseline import build_baseline_portfolio as _build_baseline_kernel
 from electoral.kernels.data import build_voter_panel as _build_voter_panel_kernel
@@ -116,14 +115,10 @@ def build_llm_finetune(
     config: PipelineConfig,
     sentiment: SentimentData,
 ) -> LLMFineTuneData:
-    """Week 4: QLoRA fine-tuning of Mistral 7B on the unified dataset."""
-    payload = LLMFineTuneData(
-        base_model="mistralai/Mistral-7B-v0.3",
-        lora_rank=16,
-        n_examples=1,
-        cycles_used=[2020],
-        adapter_path=None,
-    )
+    """Week 5: QLoRA fine-tuning of Mistral 7B — idempotent, skips if adapter exists."""
+    from electoral.kernels.finetune import build_llm_finetune as _build_finetune_kernel
+
+    payload = _build_finetune_kernel(config)
     payload.validate()
     envelope = StageArtifact(
         stage="llm_finetune",
@@ -140,24 +135,11 @@ def build_shock_response(
     event: str,
     intensity: float,
 ) -> ShockResponseData:
-    """Week 4/5: LLM constrained decoding → per-bloc Δμ estimates."""
-    all_blocs = list(config.races) + list(config.religions) + list(config.genders)
-    n = len(all_blocs)
-    payload = ShockResponseData(
-        shock=event,
-        cycle=2020,
-        deltas={bloc: 0.0 for bloc in all_blocs},
-        covariance=[[0.0] * n for _ in range(n)],
-        source="llm_unified",
-    )
+    """Week 5: LLM constrained decoding → covariance bootstrap → CVXPY optimizer."""
+    from electoral.kernels.shock import build_shock_response as _build_shock_kernel
+
+    payload, _equilibrium = _build_shock_kernel(config, event, intensity)
     payload.validate()
-    envelope = StageArtifact(
-        stage="shock_response",
-        run_key=config.run_key,
-        metadata={"event": event, "intensity": intensity},
-        data=payload.to_dict(),
-    )
-    write_artifact(f"{config.output_dir}/shock_response.json", envelope.to_dict())
     return payload
 
 
@@ -198,14 +180,9 @@ def run_simulations(
     n_simulations: int = 10_000,
 ) -> SimulationData:
     """Week 5: Logistic-Normal ILR Monte Carlo → 90% CI on win probability."""
-    rng = make_rng(config.derive_seed("monte_carlo"))
-    _ = rng  # seeded but not yet used in stub
-    payload = SimulationData(
-        n_simulations=n_simulations,
-        seed=config.derive_seed("monte_carlo"),
-        win_probability=0.50,
-        percentiles={r: [0.1, 0.3, 0.5, 0.7, 0.9] for r in config.races},
-    )
+    from electoral.simulation.montecarlo import run_ilr_montecarlo
+
+    payload = run_ilr_montecarlo(equilibrium, config, n_simulations=n_simulations)
     payload.validate()
     envelope = StageArtifact(
         stage="simulation",

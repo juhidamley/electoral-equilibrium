@@ -2,20 +2,25 @@
 """filter_reddit_monthly.py — filter Pushshift monthly Reddit bz2 dumps to politically
 and demographically relevant posts.
 
-Input:  /Volumes/JUHIDRIVE/electoralData/archives/reddit_monthly/RC_YYYY-MM.bz2
-Output: /Volumes/JUHIDRIVE/electoralData/archives/reddit_monthly/filtered/
-            {subreddit}/{YYYY-MM}.jsonl
+Input:  --input-dir (default /Volumes/JUHIDRIVE/electoralData/archives/reddit_monthly/)
+        OR --input-file <single.bz2>  (SLURM array mode — pass one file directly)
+Output: --output-dir / {year} / {subreddit} / {MM}.jsonl
+        Default: /scratch/JDamley28@cmc.edu/electoralData/archives/reddit/reddit_monthly_filtered/
 
 A post is kept when its subreddit name matches any keyword in KEYWORD_FILTERS
 (case-insensitive substring) OR appears in configs/reddit_target_subreddits.json.
 Posts with body [deleted]/[removed] or under 10 characters are always skipped.
+Empty output files are never written.
 
 Usage
 -----
 List processable files (for SLURM array sizing):
     python scripts/filter_reddit_monthly.py --list-tasks
 
-Process a single file (SLURM array mode):
+Process a single file (SLURM array mode — preferred):
+    python scripts/filter_reddit_monthly.py --input-file RC_2020-11.bz2 [--output-dir ...] [--workers 8]
+
+Process via task ID (legacy SLURM array mode):
     python scripts/filter_reddit_monthly.py --task-id 0 [--input-dir ...] [--output-dir ...]
 
 Process all files in a year range:
@@ -33,8 +38,10 @@ import json
 import logging
 import re
 import sys
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterator
 
@@ -44,7 +51,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET_SUBREDDITS_PATH = REPO_ROOT / "configs" / "reddit_target_subreddits.json"
 
 DEFAULT_INPUT_DIR = Path("/Volumes/JUHIDRIVE/electoralData/archives/reddit_monthly/")
-DEFAULT_OUTPUT_DIR = Path("/Volumes/JUHIDRIVE/electoralData/archives/reddit_monthly/filtered/")
+DEFAULT_OUTPUT_DIR = Path(
+    "/scratch/JDamley28@cmc.edu/electoralData/archives/reddit/reddit_monthly_filtered"
+)
+
+# ── Tuning constants ───────────────────────────────────────────────────────────
+
+CHUNK_BYTES = 50 * 1024 * 1024  # 50 MB decompressed read chunks
+WRITE_BUFFER_BYTES = 64 * 1024 * 1024  # 64 MB write buffer per output file
+DEFAULT_WORKERS = 8
+PROGRESS_INTERVAL = 500_000
 
 # ── Filtering constants ────────────────────────────────────────────────────────
 
@@ -105,7 +121,6 @@ _KW_RE = re.compile(
 
 SKIP_BODIES: frozenset[str] = frozenset({"[deleted]", "[removed]", "[removed by reddit]"})
 MIN_BODY_LEN = 10
-PROGRESS_INTERVAL = 500_000
 
 logger = logging.getLogger(__name__)
 
@@ -168,67 +183,59 @@ def list_input_files(
     return files
 
 
-# ── Per-file processing ────────────────────────────────────────────────────────
+# ── Chunk-based bz2 reader ─────────────────────────────────────────────────────
 
 
-def _iter_bz2_lines(path: Path) -> Iterator[dict]:
-    """Yield parsed JSON dicts from a bz2 file, one per line."""
+def _iter_bz2_lines_chunked(path: Path, chunk_bytes: int = CHUNK_BYTES) -> Iterator[list[str]]:
+    """Read a bz2 file in ~chunk_bytes decompressed byte chunks.
+
+    Yields batches of complete line strings. Partial lines at chunk boundaries
+    are carried over and prepended to the next chunk so no line is split.
+    """
+    leftover = b""
     try:
-        with bz2.open(path, mode="rt", encoding="utf-8", errors="replace") as fh:
-            for lineno, line in enumerate(fh, 1):
-                line = line.strip()
-                if not line:
+        with bz2.open(path, mode="rb") as fh:
+            while True:
+                raw = fh.read(chunk_bytes)
+                if not raw:
+                    break
+                block = leftover + raw
+                last_nl = block.rfind(b"\n")
+                if last_nl == -1:
+                    leftover = block
                     continue
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError as exc:
-                    logger.debug("%s line %d: JSON error (%s)", path.name, lineno, exc)
+                leftover = block[last_nl + 1 :]
+                yield block[:last_nl].decode("utf-8", errors="replace").splitlines()
+        if leftover:
+            lines = leftover.decode("utf-8", errors="replace").splitlines()
+            if lines:
+                yield lines
     except (OSError, EOFError) as exc:
         logger.warning("Read error on %s: %s", path, exc)
 
 
-def process_file(
-    path: Path,
-    output_dir: Path,
-    target_set: set[str],
-    dry_run: bool = False,
-) -> Counter:
-    """Process one monthly bz2 file. Returns Counter of {subreddit: posts_kept}.
+# ── Parallel batch filter ──────────────────────────────────────────────────────
 
-    In dry_run mode, counts matches without writing any output.
+
+def _filter_batch(args: tuple[list[str], frozenset[str]]) -> list[dict]:
+    """Worker: parse and filter a batch of raw JSON line strings.
+
+    Must be a module-level function for multiprocessing pickling.
+    Uses module-level _KW_RE, SKIP_BODIES, MIN_BODY_LEN via fork inheritance.
     """
-    year_month = _year_month_from_path(path)
-    if year_month is None:
-        logger.warning("Cannot extract year-month from %s — skipping", path.name)
-        return Counter()
-
-    logger.info("Processing %s (year_month=%s, dry_run=%s)", path.name, year_month, dry_run)
-
-    subreddit_counts: Counter = Counter()
-    # Buffer: subreddit → list of JSON strings (flushed at end)
-    buffer: dict[str, list[str]] = defaultdict(list)
-    total_lines = 0
-    unique_subs_seen: set[str] = set()
-
-    for row in _iter_bz2_lines(path):
-        total_lines += 1
-
-        if total_lines % PROGRESS_INTERVAL == 0:
-            logger.info(
-                "%s: %s lines scanned, %s posts kept, %d unique subreddits matched",
-                path.name,
-                f"{total_lines:,}",
-                f"{sum(subreddit_counts.values()):,}",
-                len(subreddit_counts),
-            )
-
-        subreddit = str(row.get("subreddit") or "").strip()
-        if not subreddit:
+    lines, target_set = args
+    results: list[dict] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
             continue
 
-        unique_subs_seen.add(subreddit)
-
-        if not is_relevant_subreddit(subreddit, target_set):
+        subreddit = str(row.get("subreddit") or "").strip()
+        if not subreddit or not is_relevant_subreddit(subreddit, target_set):
             continue
 
         body = str(row.get("body") or "").strip()
@@ -241,37 +248,113 @@ def process_file(
         except (TypeError, ValueError, OSError):
             created_at = None
 
-        record = {
-            "text": body,
-            "created_at": created_at,
-            "username": str(row.get("author") or ""),
-            "platform": subreddit,
-            "post_id": str(row.get("id") or ""),
-            "likes": row.get("score"),
-            "author_description": str(row.get("author_flair_text") or "").strip() or None,
-            "archive_id": "reddit_monthly",
-        }
+        results.append(
+            {
+                "text": body,
+                "created_at": created_at,
+                "username": str(row.get("author") or ""),
+                "platform": subreddit,
+                "post_id": str(row.get("id") or ""),
+                "likes": row.get("score"),
+                "author_description": str(row.get("author_flair_text") or "").strip() or None,
+                "archive_id": "reddit_monthly_filtered",
+            }
+        )
+    return results
 
-        subreddit_counts[subreddit] += 1
-        if not dry_run:
-            buffer[subreddit].append(json.dumps(record, ensure_ascii=False) + "\n")
 
-    # Write buffered output
-    if not dry_run and buffer:
+# ── Per-file processing ────────────────────────────────────────────────────────
+
+
+def process_file(
+    path: Path,
+    output_dir: Path,
+    target_set: set[str],
+    dry_run: bool = False,
+    workers: int = DEFAULT_WORKERS,
+) -> Counter:
+    """Process one monthly bz2 file using a multiprocessing pool.
+
+    Reads bz2 in 50 MB chunks, distributes line batches to workers for parallel
+    filtering, then writes per-subreddit output to
+    {output_dir}/{year}/{subreddit}/{MM}.jsonl with a 64 MB write buffer.
+    Empty output files are never written.
+
+    Returns Counter of {subreddit: posts_kept}.
+    """
+    year_month = _year_month_from_path(path)
+    if year_month is None:
+        logger.warning("Cannot extract year-month from %s — skipping", path.name)
+        return Counter()
+
+    year = year_month[:4]
+    month = year_month[5:]  # MM
+
+    logger.info(
+        "Processing %s (year_month=%s, dry_run=%s, workers=%d)",
+        path.name,
+        year_month,
+        dry_run,
+        workers,
+    )
+
+    subreddit_counts: Counter = Counter()
+    buffer: dict[str, list[str]] = defaultdict(list)
+    total_lines = 0
+    t_start = time.monotonic()
+    frozen_target = frozenset(target_set)
+
+    with Pool(workers) as pool:
+        for chunk_lines in _iter_bz2_lines_chunked(path):
+            n = len(chunk_lines)
+            prev_total = total_lines
+            total_lines += n
+
+            # Log throughput every PROGRESS_INTERVAL lines
+            if (total_lines // PROGRESS_INTERVAL) > (prev_total // PROGRESS_INTERVAL):
+                elapsed = time.monotonic() - t_start
+                rate = total_lines / elapsed if elapsed > 0 else 0
+                logger.info(
+                    "%s: %s lines scanned, %s posts kept, %.0f lines/s",
+                    path.name,
+                    f"{total_lines:,}",
+                    f"{sum(subreddit_counts.values()):,}",
+                    rate,
+                )
+
+            # Split chunk into one batch per worker for parallel filtering
+            batch_size = max(1, len(chunk_lines) // workers)
+            batches = [
+                (chunk_lines[i : i + batch_size], frozen_target)
+                for i in range(0, len(chunk_lines), batch_size)
+            ]
+
+            for records in pool.map(_filter_batch, batches):
+                for rec in records:
+                    sub = rec["platform"]
+                    subreddit_counts[sub] += 1
+                    if not dry_run:
+                        buffer[sub].append(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    # Write buffered output with 64 MB write buffer; skip empty subreddits
+    if not dry_run:
         for subreddit, lines in buffer.items():
-            out_path = output_dir / subreddit / f"{year_month}.jsonl"
+            if not lines:
+                continue
+            out_path = output_dir / year / subreddit / f"{month}.jsonl"
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(out_path, "a", encoding="utf-8") as f:
+            with open(out_path, "a", encoding="utf-8", buffering=WRITE_BUFFER_BYTES) as f:
                 f.writelines(lines)
 
-    # Summary
     total_kept = sum(subreddit_counts.values())
+    elapsed_total = time.monotonic() - t_start
     logger.info(
-        "%s: done — %s lines, %s posts kept across %d subreddits",
+        "%s: done — %s lines, %s posts kept across %d subreddits in %.1fs",
         path.name,
         f"{total_lines:,}",
         f"{total_kept:,}",
         len(subreddit_counts),
+        elapsed_total,
     )
     top20 = subreddit_counts.most_common(20)
     logger.info("%s: top 20 subreddits by posts kept:", path.name)
@@ -288,6 +371,12 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Filter Reddit monthly bz2 dumps")
     p.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    p.add_argument(
+        "--input-file",
+        type=Path,
+        default=None,
+        help="Process a single bz2 file directly (SLURM array mode; overrides --task-id)",
+    )
     p.add_argument("--year-start", type=int, default=None)
     p.add_argument("--year-end", type=int, default=None)
     p.add_argument("--dry-run", action="store_true", help="Scan and report without writing output")
@@ -295,10 +384,16 @@ def parse_args() -> argparse.Namespace:
         "--task-id",
         type=int,
         default=int(__import__("os").environ.get("SLURM_ARRAY_TASK_ID", -1)),
-        help="Process only the Nth sorted bz2 file (SLURM array mode)",
+        help="Process only the Nth sorted bz2 file (legacy SLURM array mode)",
     )
     p.add_argument(
         "--list-tasks", action="store_true", help="Print file count for SLURM array sizing and exit"
+    )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help="Multiprocessing pool size (default: 8)",
     )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args()
@@ -311,6 +406,15 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # --input-file: single bz2 passed directly by SLURM array script
+    if args.input_file is not None:
+        if not args.input_file.exists():
+            logger.error("Input file not found: %s", args.input_file)
+            sys.exit(1)
+        target_set = load_target_subreddits(TARGET_SUBREDDITS_PATH)
+        process_file(args.input_file, args.output_dir, target_set, args.dry_run, args.workers)
+        return
 
     input_dir = args.input_dir
     if not input_dir.exists():
@@ -332,16 +436,16 @@ def main() -> None:
     target_set = load_target_subreddits(TARGET_SUBREDDITS_PATH)
 
     if args.task_id >= 0:
-        # SLURM array mode: process one file
+        # Legacy SLURM array mode: process one file by index
         if args.task_id >= len(files):
             logger.error("task-id %d out of range [0, %d)", args.task_id, len(files))
             sys.exit(1)
-        process_file(files[args.task_id], args.output_dir, target_set, args.dry_run)
+        process_file(files[args.task_id], args.output_dir, target_set, args.dry_run, args.workers)
     else:
         # Local mode: process all files in range
         grand_total: Counter = Counter()
         for path in files:
-            counts = process_file(path, args.output_dir, target_set, args.dry_run)
+            counts = process_file(path, args.output_dir, target_set, args.dry_run, args.workers)
             grand_total.update(counts)
 
         logger.info(

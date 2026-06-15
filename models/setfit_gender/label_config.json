@@ -1,0 +1,12 @@
+{
+  "id2label": {
+    "0": "F",
+    "1": "M"
+  },
+  "label2id": {
+    "F": 0,
+    "M": 1
+  },
+  "stratum": "gender",
+  "backbone": "sentence-transformers/all-MiniLM-L6-v2"
+}

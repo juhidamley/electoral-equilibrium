@@ -2,69 +2,92 @@
   "data": {
     "covariance": [
       [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        8.907711721566617e-05,
+        3.431582932376927e-06,
+        -1.283415753522224e-05,
+        -1.0446025528197338e-05,
+        -1.7486741250321965e-05
       ],
       [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        3.431582932376927e-06,
+        7.618979977914092e-05,
+        7.593011128097865e-06,
+        4.2384961862391425e-06,
+        1.414418245172678e-05
       ],
       [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        -1.283415753522224e-05,
+        7.593011128097865e-06,
+        9.09389561343401e-05,
+        8.530750799703802e-06,
+        6.4775517111629e-06
       ],
       [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        -1.0446025528197338e-05,
+        4.2384961862391425e-06,
+        8.530750799703802e-06,
+        0.00011148125101412543,
+        5.450641501422683e-06
       ],
       [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        -1.7486741250321965e-05,
+        1.414418245172678e-05,
+        6.4775517111629e-06,
+        5.450641501422683e-06,
+        9.64712428054179e-05
       ]
     ],
-    "cycle": 2020,
-    "deltas": {
-      "african_american": 0.0,
-      "evangelical": 0.0,
-      "men": 0.0,
-      "secular": 0.0,
-      "white": 0.0,
-      "women": 0.0
+    "cycle": 2024,
+    "delta_bins_gender": {
+      "men": "slight_neg",
+      "other_gender": "strong_neg",
+      "women": "strong_neg"
     },
-    "shock": "smoke_test",
+    "delta_bins_race": {
+      "african_american": "strong_neg",
+      "asian": "mod_neg",
+      "latino": "mod_neg",
+      "other_race": "mod_neg",
+      "white": "mild_neg"
+    },
+    "delta_bins_religion": {
+      "catholic": "mild_pos",
+      "evangelical": "strong_pos",
+      "jewish": "mod_neg",
+      "muslim": "mod_neg",
+      "other_rel": "mod_neg",
+      "protestant": "mild_pos",
+      "secular": "strong_neg"
+    },
+    "delta_eff": 0.05331195284681165,
+    "deltas_gender": {
+      "men": -0.006,
+      "other_gender": -0.06,
+      "women": -0.06
+    },
+    "deltas_race": {
+      "african_american": -0.06,
+      "asian": -0.035,
+      "latino": -0.035,
+      "other_race": -0.035,
+      "white": -0.0175
+    },
+    "deltas_religion": {
+      "catholic": 0.0175,
+      "evangelical": 0.06,
+      "jewish": -0.035,
+      "muslim": -0.035,
+      "other_rel": -0.035,
+      "protestant": 0.0175,
+      "secular": -0.06
+    },
+    "party": "democrat",
+    "shock": "supreme_court_overturns_roe_v_",
     "source": "llm_unified"
   },
   "metadata": {
-    "event": "smoke_test",
-    "intensity": 0.5
+    "delta_eff": 0.05331195284681165,
+    "shock": "supreme_court_overturns_roe_v_"
   },
   "run_key": "smoke_test",
   "stage": "shock_response"

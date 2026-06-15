@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import importlib
+
 import pytest
 
 from electoral.artifacts import (
@@ -28,7 +30,7 @@ from electoral.artifacts import (
     VoterPanelData,
 )
 from electoral.config import PipelineConfig
-from electoral.core.types import CANONICAL_RACES
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.stages import (
     build_baseline_portfolio,
     build_llm_finetune,
@@ -65,6 +67,20 @@ def cfg(tmp_path) -> PipelineConfig:
     c = PipelineConfig.from_json(p)
     c.validate()
     return c
+
+
+def _torch_available() -> bool:
+    try:
+        importlib.import_module("torch")
+        return True
+    except ImportError:
+        return False
+
+
+_skip_no_torch = pytest.mark.skipif(
+    not _torch_available(),
+    reason="torch/transformers not installed — skip LLM-dependent stages",
+)
 
 
 def _envelope(path: Path) -> dict:
@@ -199,6 +215,7 @@ class TestBuildLLMFinetune:
 # ── Stage 5: build_shock_response ────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestBuildShockResponse:
     def test_returns_shock_response_data(self, cfg):
         result = build_shock_response(cfg, "roe_v_wade_2022", 0.8)
@@ -212,16 +229,26 @@ class TestBuildShockResponse:
         result = build_shock_response(cfg, "kavanaugh_2018", 0.6)
         assert result.shock == "kavanaugh_2018"
 
-    def test_deltas_cover_all_blocs(self, cfg):
+    def test_party_matches_config(self, cfg):
         result = build_shock_response(cfg, "event", 0.5)
-        expected = set(cfg.races) | set(cfg.religions) | set(cfg.genders)
-        assert set(result.deltas.keys()) == expected
+        assert result.party == cfg.party
 
-    def test_covariance_square_matches_blocs(self, cfg):
+    def test_delta_bins_race_covers_canonical_races(self, cfg):
         result = build_shock_response(cfg, "event", 0.5)
-        n = len(result.deltas)
-        assert len(result.covariance) == n
-        assert all(len(row) == n for row in result.covariance)
+        assert set(result.delta_bins_race.keys()) == set(CANONICAL_RACES)
+
+    def test_delta_bins_religion_covers_canonical_religions(self, cfg):
+        result = build_shock_response(cfg, "event", 0.5)
+        assert set(result.delta_bins_religion.keys()) == set(CANONICAL_RELIGIONS)
+
+    def test_delta_bins_gender_covers_canonical_genders(self, cfg):
+        result = build_shock_response(cfg, "event", 0.5)
+        assert set(result.delta_bins_gender.keys()) == set(CANONICAL_GENDERS)
+
+    def test_covariance_is_5x5(self, cfg):
+        result = build_shock_response(cfg, "event", 0.5)
+        assert len(result.covariance) == 5
+        assert all(len(row) == 5 for row in result.covariance)
 
     def test_envelope_written_to_disk(self, cfg):
         build_shock_response(cfg, "event", 0.5)
@@ -233,6 +260,7 @@ class TestBuildShockResponse:
 # ── Stage 6: build_optimization ──────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestBuildOptimization:
     @pytest.fixture
     def shock(self, cfg) -> ShockResponseData:
@@ -272,6 +300,7 @@ class TestBuildOptimization:
 # ── Stage 7: run_simulations ─────────────────────────────────────────────────
 
 
+@_skip_no_torch
 class TestRunSimulations:
     @pytest.fixture
     def equilibrium(self, cfg) -> EquilibriumData:

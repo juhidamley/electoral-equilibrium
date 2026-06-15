@@ -5,25 +5,37 @@
       "lambda_2": 0.3,
       "lambda_3": 0.2
     },
-    "method": "placeholder",
-    "mu_eff": 0.5,
+    "method": "cvxpy_minvar",
+    "mu_eff": 0.581952380952381,
     "mu_gender": {
-      "men": 0.5,
-      "women": 0.5
+      "men": 0.45,
+      "other_gender": 0.7600000000000001,
+      "women": 0.57
     },
     "mu_race": {
-      "african_american": 0.5,
-      "white": 0.5
+      "african_american": 0.87,
+      "asian": 0.61,
+      "latino": 0.65,
+      "other_race": 0.55,
+      "white": 0.41
     },
     "mu_religion": {
+      "catholic": 0.52,
       "evangelical": 0.5,
+      "jewish": 0.5,
+      "muslim": 0.5,
+      "other_rel": 0.69,
+      "protestant": 0.39,
       "secular": 0.5
     },
     "party": "democrat",
     "target": 0.535,
     "weights": {
-      "african_american": 0.5,
-      "white": 0.5
+      "african_american": 0.2,
+      "asian": 0.2,
+      "latino": 0.2,
+      "other_race": 0.2,
+      "white": 0.2
     }
   },
   "metadata": {

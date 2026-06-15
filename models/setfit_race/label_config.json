@@ -1,0 +1,18 @@
+{
+  "id2label": {
+    "0": "african_american",
+    "1": "asian",
+    "2": "latino",
+    "3": "other_race",
+    "4": "white"
+  },
+  "label2id": {
+    "african_american": 0,
+    "asian": 1,
+    "latino": 2,
+    "other_race": 3,
+    "white": 4
+  },
+  "stratum": "race",
+  "backbone": "sentence-transformers/all-MiniLM-L6-v2"
+}

@@ -1,5 +1,5 @@
 {
-  "_note": "shock_id → prediction market contract IDs. All IDs must be looked up manually on each platform — never resolve slugs dynamically. Prediction markets are CALIBRATION BENCHMARKS ONLY (not training inputs). Platform coverage: Polymarket 2020+, PredictIt 2014+, Metaculus 2015+, Manifold 2022+, IEM 1988+ (elections only). Fill in IDs by visiting each platform search interface and recording the exact contract/question ID.",
+  "_note": "shock_id → prediction market contract IDs. All IDs must be looked up manually on each platform — never resolve slugs dynamically. Prediction markets are CALIBRATION BENCHMARKS ONLY (not training inputs). Platform coverage: Polymarket 2020+, PredictIt 2014+, Metaculus 2015+, Manifold 2022+, IEM 1988+ (elections only). Fill in IDs by visiting each platform search interface and recording the exact contract/question ID. Partial: 3 Polymarket slugs filled 2026-06-10. Remaining IDs require manual platform lookup. Priority: dobbs_2022, kavanaugh_2018, russia_ukraine_invasion_2022, israel_hamas_war_2023, trump_indictment_2023 on Metaculus/Manifold.",
   "contracts": {
     "ayatollah_assassination": { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
     "sept_11_2001":            { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
@@ -52,9 +52,9 @@
     "trump_indictment_2023":   { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
     "affirmative_action_scotus_2023": { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
     "israel_hamas_war_2023":   { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
-    "trump_conviction_2024":   { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
+    "trump_conviction_2024":   { "polymarket": "trump-convicted-by-election", "predictit": null, "metaculus": null, "manifold": null, "iem": null },
     "trump_assassination_attempt_2024": { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
-    "biden_withdrawal_2024":   { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": null },
-    "election_2024":           { "polymarket": null, "predictit": null, "metaculus": null, "manifold": null, "iem": "presidential_2024" }
+    "biden_withdrawal_2024":   { "polymarket": "when-will-biden-drop-out", "predictit": null, "metaculus": null, "manifold": null, "iem": null },
+    "election_2024":           { "polymarket": "presidential-election-winner-2024", "predictit": null, "metaculus": null, "manifold": null, "iem": "presidential_2024" }
   }
 }

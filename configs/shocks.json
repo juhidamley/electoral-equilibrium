@@ -41,6 +41,39 @@
     }
   },
   {
+    "id": "iran_war_2026",
+    "date": "2026-02-28",
+    "category": "Geopolitical",
+    "description": "Following assassination of Supreme Leader Khamenei, Iran enters open conflict with Israel and US forces in the region",
+    "keywords": [
+      "Iran war",
+      "Iran conflict",
+      "Iran Israel war",
+      "Iran US war",
+      "Middle East war 2026",
+      "Iran attack",
+      "Israel Iran",
+      "Persian Gulf war",
+      "Iran military",
+      "Iran nuclear"
+    ],
+    "archive_ids": [],
+    "target_blocs": [
+      "muslim",
+      "jewish",
+      "evangelical",
+      "secular"
+    ],
+    "shock_window_days": 30,
+    "active": true,
+    "pilot": false,
+    "date_window": {
+      "start": "2026-02-25",
+      "shock_date": "2026-02-28",
+      "end": "2026-03-30"
+    }
+  },
+  {
     "id": "sept_11_2001",
     "date": "2001-09-11",
     "category": "Security",
@@ -163,7 +196,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -199,7 +233,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -235,7 +270,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "muslim",
@@ -270,7 +306,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -305,7 +342,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -341,7 +379,8 @@
     "archive_ids": [
       "election_2012",
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "archive_schema_notes": {
       "format": "JSON",
@@ -381,7 +420,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "women",
@@ -416,7 +456,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "muslim",
@@ -452,7 +493,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -488,7 +530,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "reddit_monthly"
+      "reddit_monthly",
+      "reddit_monthly_filtered"
     ],
     "target_blocs": [
       "african_american",
@@ -1239,7 +1282,8 @@
     ],
     "archive_ids": [
       "covid_pandemic_2020",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1278,7 +1322,8 @@
     ],
     "archive_ids": [
       "covid_vaccine_2020",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "archive_schema_notes": {
       "user_description": "user_description (confirmed present — use for bio classification)",
@@ -1320,7 +1365,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1358,7 +1404,8 @@
     ],
     "archive_ids": [
       "daca_scotus_2020",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "archive_schema_notes": {
       "text": "status",
@@ -1399,7 +1446,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "women",
@@ -1434,7 +1482,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1472,7 +1521,8 @@
     ],
     "archive_ids": [
       "election_2020",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "archive_schema_notes": {
       "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
@@ -1512,7 +1562,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "white",
@@ -1547,7 +1598,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1583,7 +1635,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1618,7 +1671,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1655,7 +1709,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1692,7 +1747,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1729,7 +1785,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "women",
@@ -1764,7 +1821,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1799,7 +1857,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1838,7 +1897,8 @@
     ],
     "archive_ids": [
       "reddit_pushshift",
-      "3dlnews"
+      "3dlnews",
+      "discord"
     ],
     "target_blocs": [
       "jewish",
@@ -1874,7 +1934,8 @@
     ],
     "archive_ids": [
       "truth_social_2024",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1909,7 +1970,8 @@
     ],
     "archive_ids": [
       "truth_social_2024",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "target_blocs": [
       "evangelical",
@@ -1946,7 +2008,8 @@
     ],
     "archive_ids": [
       "truth_social_2024",
-      "reddit_pushshift"
+      "reddit_pushshift",
+      "discord"
     ],
     "target_blocs": [
       "african_american",
@@ -1982,7 +2045,8 @@
     "archive_ids": [
       "truth_social_2024",
       "reddit_pushshift",
-      "telegram_2024"
+      "telegram_2024",
+      "discord"
     ],
     "target_blocs": [
       "african_american",

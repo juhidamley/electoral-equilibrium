@@ -5,12 +5,14 @@
 # Targets overview:
 #   smoke       Run pipeline end-to-end on the smoke config (fast, for local dev checks)
 #   test        Run the full pytest suite with verbose output
-#   score       Submit RoBERTa SLURM array job on CMC HPC
-#   train       Submit QLoRA fine-tuning SLURM job on CMC HPC
-#   deploy      Deploy to Modal (GPU inference) + Vercel (frontend)
-#   sample      Submit stratified archive sampling SLURM array on CMC Hopper HPC
+#   score         Submit RoBERTa SLURM array job on CMC HPC
+#   score-laguna  Submit RoBERTa SLURM array job on USC Laguna HPC
+#   train         Submit QLoRA fine-tuning SLURM job on CMC HPC
+#   deploy        Deploy to Modal (GPU inference) + Vercel (frontend)
+#   sample        Submit stratified archive sampling SLURM array on CMC Hopper HPC
 #   sample-laguna Submit same array on USC Laguna HPC
 #   clean       Run LLM cleaning on sampled social/news data (M5, local open-weight model)
+#   scrape      Scrape news articles for a shock event via Google News RSS (Intel Mac)
 #   continuous  Run nightly incremental pipeline (post-SRP mode, launchd @ 2am)
 
 # ── Local development ────────────────────────────────────────────────────────
@@ -52,6 +54,25 @@ sample:
     sbatch --array=0-$((N-1)) scripts/hpc/sample_archives.slurm
     echo "Monitor with: squeue -u $USER"
 
+# Submit RoBERTa scoring array on USC Laguna HPC.
+# Counts shock_id directories already present in rawdata/merged/ and submits one task per shock.
+# Prerequisite: run `just clean` first so rawdata/merged/ contains the cleaned posts.jsonl files.
+score-laguna:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    LAGUNA_SCRATCH=/scratch/JDamley28@cmc.edu/electoralData
+    rsync -avz --progress rawdata/merged/ laguna:${LAGUNA_SCRATCH}/merged/
+    rsync -avz --progress rawdata/articles/ laguna:${LAGUNA_SCRATCH}/articles/
+    N=$(find rawdata/merged -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$N" -eq 0 ]]; then
+        echo "ERROR: no shock directories found in rawdata/merged/ — run 'just clean' first"
+        exit 1
+    fi
+    echo "Submitting Laguna scoring array: $N tasks (0-$((N-1)))"
+    sbatch --array=0-$((N-1)) scripts/hpc/score_array_laguna.slurm
+    echo "Monitor with: squeue -u \$USER"
+    echo "Output:        ${LAGUNA_SCRATCH}/scored/{shock_id}/scored.jsonl"
+
 # Submit same sampling array on USC Laguna HPC (partition=compute, scratch at /scratch/JDamley28@cmc.edu/)
 sample-laguna:
     #!/usr/bin/env bash
@@ -69,6 +90,26 @@ clean:
     python scripts/clean_with_llm.py \
         --input-dir /Volumes/JUHIDRIVE/electoralData/sampled/ \
         --output-dir /Volumes/JUHIDRIVE/electoralData/cleaned/
+
+# Scrape news articles for a shock event via Google News RSS (runs on Intel Mac).
+# Override sources with: just scrape SHOCK=dobbs_2022 SOURCES="nyt wapo reuters"
+# Quick test (5 articles/source): just scrape-test SHOCK=ayatollah_assassination
+SHOCK := "ayatollah_assassination"
+SOURCES := ""
+DATE_START := "2026-02-25"
+DATE_END := "2026-03-15"
+
+scrape:
+    python -m electoral.nlp.scraper \
+        --shock-id {{SHOCK}} \
+        $([ -n "{{SOURCES}}" ] && echo "--sources {{SOURCES}}") \
+        --date-range {{DATE_START}} {{DATE_END}}
+
+scrape-test:
+    python -m electoral.nlp.scraper \
+        --shock-id {{SHOCK}} \
+        --date-range {{DATE_START}} {{DATE_END}} \
+        --test
 
 # ── Deployment ────────────────────────────────────────────────────────────────
 
@@ -99,6 +140,12 @@ lint:
 fmt:
     ruff check --fix electoral/ tests/ scripts/ collectors/
     black electoral/ tests/ scripts/ collectors/
+
+# Three-way baseline comparison (news_only / social_only / unified_llm)
+# Reads data/finetune/eval.jsonl; writes artifacts/baseline_comparison.json + docs/baseline_comparison.md
+# Set ADAPTER_PATH to override default (/Volumes/JUHIDRIVE/electoralData/models/mistral-r16)
+baseline:
+    python scripts/run_baseline_comparison.py
 
 # Remove generated artifacts (keeps source data)
 clean-artifacts:

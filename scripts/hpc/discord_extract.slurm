@@ -1,69 +1,76 @@
 #!/bin/bash
-#SBATCH --job-name=discord_extract
+#SBATCH --job-name=discord-extract
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=8:00:00
-#SBATCH --output=/hopper/home/jdamley28/discord/logs/extract_%A_%a.log
-
-# Array bounds are set at submission time:
-#   sbatch --array=0-$(( $(wc -l < target_servers.txt) - 1 )) discord_extract.slurm
-# Do NOT hardcode --array here so the bound stays dynamic.
+#SBATCH --mem=64G
+#SBATCH --time=4:00:00
+#SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/discord_extract_%j.log
+#
+# Single-pass extraction of all target Discord servers from the 110 GB archive.
+# Streams dataset.zst once through zstd | tar, pulling every guild JSON file
+# listed in guild_ids.txt.  No array job, no repeated decompression.
+#
+# Prerequisites:
+#   guild_ids.txt — one guild_id per line, no header.
+#   Generate from target_servers.txt:
+#     tail -n +2 target_servers.txt | cut -f1 > guild_ids.txt
+#
+# Submit:
+#   sbatch scripts/hpc/discord_extract.slurm
 
 set -euo pipefail
 
-DISCORD_DIR=/hopper/home/jdamley28/discord
-DATASET=$DISCORD_DIR/dataset.zst
-TARGET_FILE=$DISCORD_DIR/target_servers.txt
+HOME_DIR=/home1/JDamley28@cmc.edu
+DISCORD_DIR=/scratch/JDamley28@cmc.edu/electoralData/archives/discord
+DATASET=${DISCORD_DIR}/dataset.zst
+GUILD_IDS=${DISCORD_DIR}/guild_ids.txt
+EXTRACTED_DIR=${DISCORD_DIR}/extracted
+ZSTD=~/.conda/envs/electoral/bin/zstd
 
-# Read the guild ID for this array task (skip comment/blank lines)
-mapfile -t GUILD_IDS < <(grep -v '^\s*#' "$TARGET_FILE" | grep -v '^\s*$' | awk '{print $1}')
+mkdir -p "$EXTRACTED_DIR" /scratch/JDamley28@cmc.edu/electoralData/logs
 
-if [[ $SLURM_ARRAY_TASK_ID -ge ${#GUILD_IDS[@]} ]]; then
-    echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID exceeds guild ID list length ${#GUILD_IDS[@]}. Exiting."
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Job $SLURM_JOB_ID starting on $(hostname)"
+
+if [[ ! -f "$GUILD_IDS" ]]; then
+    echo "ERROR: guild_ids.txt not found: $GUILD_IDS" >&2
+    echo "  Generate with: tail -n +2 target_servers.txt | cut -f1 > guild_ids.txt" >&2
     exit 1
 fi
 
-GUILD_ID="${GUILD_IDS[$SLURM_ARRAY_TASK_ID]}"
-OUTPUT=$DISCORD_DIR/extracted/${GUILD_ID}.json
+N=$(wc -l < "$GUILD_IDS")
+echo "  Guild IDs  : $N"
+echo "  Dataset    : $DATASET"
+echo "  Extract to : $EXTRACTED_DIR"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task $SLURM_ARRAY_TASK_ID — guild $GUILD_ID"
+# ── Environment ───────────────────────────────────────────────────────────────
 
-if [[ -f "$OUTPUT" ]]; then
-    echo "Output already exists: $OUTPUT — skipping."
-    exit 0
-fi
+module load conda
+source /apps/conda/miniforge3/25.11.0-1/etc/profile.d/conda.sh
+conda activate electoral
 
-source /hopper/home/jdamley28/miniconda3/etc/profile.d/conda.sh
-conda activate base
+# ── Build tar extraction list ─────────────────────────────────────────────────
 
-echo "Extracting guild $GUILD_ID from $DATASET..."
+# Translate guild IDs to tar member paths (./GUILD_ID.json).
+# Written to a temp file so we never hit shell ARG_MAX with thousands of IDs.
+EXTRACT_LIST=$(mktemp /tmp/discord_extract_XXXXXX.txt)
+trap 'rm -f "$EXTRACT_LIST"' EXIT
 
-/usr/bin/pzstd -d -c "$DATASET" 2>/dev/null | python - "$GUILD_ID" "$OUTPUT" <<'EOF'
-import sys
-import json
+awk '{print "./" $1 ".json"}' "$GUILD_IDS" > "$EXTRACT_LIST"
+echo "  Members to extract: $(wc -l < "$EXTRACT_LIST")"
 
-guild_id = sys.argv[1]
-output_path = sys.argv[2]
+# ── Single streaming pass ─────────────────────────────────────────────────────
 
-messages = []
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        obj = json.loads(line)
-        if str(obj.get("guild_id") or obj.get("server_id") or obj.get("guildId", "")) == guild_id:
-            messages.append(obj)
-    except json.JSONDecodeError:
-        continue
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Streaming extraction started"
 
-with open(output_path, "w") as f:
-    json.dump(messages, f)
+# -f -           read archive from stdin (piped zstd output)
+# -T EXTRACT_LIST  extract only the listed members (exact names, no wildcards needed)
+# --ignore-failed-read  warn but continue if a listed member is absent from archive
+$ZSTD -d -c "$DATASET" | \
+    tar -x -C "$EXTRACTED_DIR" -f - -T "$EXTRACT_LIST" --ignore-failed-read \
+    2>&1 | grep -v "^tar: Removing leading" || true
 
-print(f"Extracted {len(messages)} messages for guild {guild_id}")
-EOF
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Extraction complete: $OUTPUT"
-echo "File size: $(du -sh "$OUTPUT" | cut -f1)"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Extraction complete"
+EXTRACTED=$(find "$EXTRACTED_DIR" -name '*.json' | wc -l)
+echo "Extracted: $EXTRACTED / $N files"

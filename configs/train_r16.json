@@ -1,0 +1,12 @@
+{
+  "base_model": "mistralai/Mistral-7B-v0.3",
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "learning_rate": 2e-4,
+  "epochs": 3,
+  "batch_size": 4,
+  "train_path": "data/finetune/train.jsonl",
+  "eval_path": "data/finetune/eval.jsonl",
+  "output_dir": "models/mistral-r16",
+  "backend": "hpc"
+}

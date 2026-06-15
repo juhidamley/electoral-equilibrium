@@ -1,7 +1,11 @@
 {
   "data": {
     "cycles": [
-      2020
+      2004,
+      2008,
+      2012,
+      2020,
+      2024
     ],
     "genders": [
       "women",
@@ -12,9 +16,9 @@
       "lambda_2": 0.3,
       "lambda_3": 0.2
     },
-    "n_rows_gender": 0,
-    "n_rows_race": 0,
-    "n_rows_religion": 0,
+    "n_rows_gender": 7,
+    "n_rows_race": 5,
+    "n_rows_religion": 3,
     "races": [
       "african_american",
       "white"
@@ -23,7 +27,7 @@
       "evangelical",
       "secular"
     ],
-    "source": null
+    "source": "NEP"
   },
   "metadata": {
     "seed": 1401318295
