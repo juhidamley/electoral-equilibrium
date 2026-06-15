@@ -444,7 +444,9 @@ def test_infeasible_returns_false():
 
 def test_weights_respect_bounds():
     floor, ceiling = 0.05, 0.60
-    result = solve_rebalanced(_uniform_mu(0.65), _eye_cov(), target=0.52, floor=floor, ceiling=ceiling)
+    result = solve_rebalanced(
+        _uniform_mu(0.65), _eye_cov(), target=0.52, floor=floor, ceiling=ceiling
+    )
     assert result.feasible is True
     for w in result.weights.values():
         assert w >= floor - 1e-6

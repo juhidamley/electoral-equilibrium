@@ -258,9 +258,9 @@ def test_ci_width_shrinks_with_more_simulations():
     r_large = run_ilr_montecarlo(eq, cfg, n_simulations=5000, sigma_default=0.05)
     width_small = r_small.win_probability_high - r_small.win_probability_low
     width_large = r_large.win_probability_high - r_large.win_probability_low
-    assert width_large < width_small, (
-        f"CI did not shrink: small={width_small:.4f}, large={width_large:.4f}"
-    )
+    assert (
+        width_large < width_small
+    ), f"CI did not shrink: small={width_small:.4f}, large={width_large:.4f}"
 
 
 def test_ci_bounds_are_not_trivially_zero_and_one():

@@ -86,10 +86,10 @@ def solve_rebalanced(
     def _build_problem(L_mat: np.ndarray) -> cp.Problem:
         constraints = [
             cp.norm(L_mat.T @ y, 2) <= 1,  # y^T Sigma y <= 1 (tight at optimum)
-            cp.sum(y) == tau,               # sum(y/tau) = 1 → sum(w) = 1
-            y >= floor * tau,               # w_i >= floor
-            y <= ceiling * tau,             # w_i <= ceiling
-            mu @ y >= target * tau,         # mu @ w >= target; infeasible if win unreachable
+            cp.sum(y) == tau,  # sum(y/tau) = 1 → sum(w) = 1
+            y >= floor * tau,  # w_i >= floor
+            y <= ceiling * tau,  # w_i <= ceiling
+            mu @ y >= target * tau,  # mu @ w >= target; infeasible if win unreachable
         ]
         return cp.Problem(cp.Maximize(mu @ y - target * tau), constraints)
 

@@ -1515,8 +1515,10 @@ scraper = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "black" },
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pytest", version = "9.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -1546,7 +1548,11 @@ requires-dist = [
 provides-extras = ["data", "ml", "llm", "orchestration", "scraper", "dev", "all"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.4.2" }]
+dev = [
+    { name = "black", specifier = ">=25.11.0" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "ruff", specifier = ">=0.15.15" },
+]
 
 [[package]]
 name = "exceptiongroup"
