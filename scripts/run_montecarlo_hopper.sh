@@ -12,7 +12,12 @@ set -euo pipefail
 
 REPO_DIR=/hopper/home/jdamley28/electoral-equilibrium
 SHOCK_ID="${SHOCK_ID:-ayatollah_assassination}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/smoke}"
 N_SIMS="${N_SIMS:-50000}"
+
+SHOCK_FILE="${ARTIFACT_DIR}/shock_${SHOCK_ID:0:30}.json"
+EQ_FILE="${ARTIFACT_DIR}/equilibrium_${SHOCK_ID:0:30}.json"
+OUTPUT="${ARTIFACT_DIR}/sim_${SHOCK_ID}.json"
 
 mkdir -p "${REPO_DIR}/logs"
 
@@ -22,9 +27,9 @@ conda activate electoral
 cd "$REPO_DIR"
 
 python -m electoral.simulation.montecarlo \
-    --shock-artifact       "artifacts/shock_${SHOCK_ID}.json" \
-    --equilibrium-artifact "artifacts/equilibrium_${SHOCK_ID}.json" \
-    --output               "artifacts/sim_${SHOCK_ID}.json" \
+    --shock-artifact       "$SHOCK_FILE" \
+    --equilibrium-artifact "$EQ_FILE" \
+    --output               "$OUTPUT" \
     --n-simulations        "$N_SIMS"
 
-echo "Job complete: artifacts/sim_${SHOCK_ID}.json"
+echo "Job complete: ${OUTPUT}"
