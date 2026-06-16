@@ -40,6 +40,18 @@ _LAYER_WEIGHTS_PATH = _REPO_ROOT / "configs" / "layer_weights.json"
 # 0.50 = maximum uncertainty; does not bias the optimizer toward or away from the bloc.
 _ABSENT_MU: float = 0.50
 
+# Source: Edison Research National Exit Poll 2024.
+# These are shares of actual voters, not census population.
+# Non-citizens and non-voters are excluded — correct for
+# electoral modeling. Do not substitute census shares here.
+DEFAULT_NEP_SHARES: dict[str, float] = {
+    "african_american": 0.12,  # NEP 2024: 12% of electorate
+    "asian": 0.05,             # NEP 2024: 5% of electorate
+    "latino": 0.15,            # NEP 2024: 15% of electorate
+    "other_race": 0.05,        # NEP 2024: 5% of electorate
+    "white": 0.63,             # NEP 2024: 63% of electorate
+}
+
 
 def _load_layer_weights() -> dict[str, float]:
     with _LAYER_WEIGHTS_PATH.open() as f:
@@ -125,8 +137,8 @@ def build_baseline_portfolio(
             target,
             exc,
         )
-        weights = {b: 1.0 / len(CANONICAL_RACES) for b in CANONICAL_RACES}
-        method = "equal_weight_fallback"
+        weights = dict(DEFAULT_NEP_SHARES)
+        method = "nep_share_fallback"
 
     # ── 5. mu_eff — three-stratum formula (CLAUDE.md §Demographic architecture) ─
     # v_R = 1/N_R and g_G = 1/N_G (equal stratum weights) until raking.py
