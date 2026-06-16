@@ -360,10 +360,13 @@ class ShockEstimator:
         deltas_religion = {k: BIN_MIDPOINTS[v] for k, v in bins_religion.items()}
         deltas_gender = {k: BIN_MIDPOINTS[v] for k, v in bins_gender.items()}
 
-        # (v) Scale by intensity
+        # (v) Scale by intensity, then clip to [-0.15, 0.15]
         deltas_race = {k: v * intensity for k, v in deltas_race.items()}
+        deltas_race = {k: max(-0.15, min(0.15, v)) for k, v in deltas_race.items()}
         deltas_religion = {k: v * intensity for k, v in deltas_religion.items()}
+        deltas_religion = {k: max(-0.15, min(0.15, v)) for k, v in deltas_religion.items()}
         deltas_gender = {k: v * intensity for k, v in deltas_gender.items()}
+        deltas_gender = {k: max(-0.15, min(0.15, v)) for k, v in deltas_gender.items()}
 
         # (vi) delta_eff: use LLM-predicted value scaled by intensity
         delta_eff = schema_out.delta_eff * intensity
