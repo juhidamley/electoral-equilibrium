@@ -401,6 +401,8 @@ def train(
         seed=derive_seed(seed, "llm_finetune"),
         report_to="none",
         dataloader_drop_last=False,
+        dataloader_num_workers=0,
+        dataloader_pin_memory=False,
     )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
