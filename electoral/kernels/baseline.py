@@ -2,9 +2,13 @@
 
 build_baseline_portfolio() orchestrates:
   1. Moment estimation (mu_race/religion/gender, Sigma) from the voter panel
-  2. Min-variance QP via solve_baseline → optimal race coalition weights
+  2. NEP×loyalty population-weighted coalition shares → baseline race weights
   3. mu_eff scalar via the three-stratum formula from CLAUDE.md
   4. BaselinePortfolioData payload construction
+
+w0_i = (nep_share_i × loyalty_i) / Σ_j(nep_share_j × loyalty_j)
+solve_baseline (min-variance QP) is for post-shock rebalancing only
+(kernels/shock.py → optimization/cvx.py), not for computing the baseline.
 
 Equal stratum weights (1/N) are used for religion and gender in the mu_eff
 formula until kernels/raking.py produces IPF-calibrated v_R and g_G values.
@@ -29,7 +33,6 @@ from electoral.core.types import (
     LAYER_WEIGHT_KEYS,
 )
 from electoral.models.ml_baseline import estimate_moments, ground_truth_winning_cycles
-from electoral.portfolios.cvx import solve_baseline
 
 log = logging.getLogger(__name__)
 
@@ -97,8 +100,7 @@ def build_baseline_portfolio(
     Returns
     -------
     BaselinePortfolioData
-        Fully validated artifact.  ``method`` is ``"cvxpy_minvar"`` on success
-        or ``"equal_weight_fallback"`` if the QP is infeasible after retries.
+        Fully validated artifact.  ``method`` is ``"nep_loyalty_weighted"``.
     """
     # ── 1. Layer weights ───────────────────────────────────────────────────────
     try:
@@ -125,20 +127,17 @@ def build_baseline_portfolio(
     mu_religion = _impute_nan(moments.mu_religion, "mu_religion")
     mu_gender = _impute_nan(moments.mu_gender, "mu_gender")
 
-    # ── 4. Min-variance QP ────────────────────────────────────────────────────
+    # ── 4. NEP×loyalty population-weighted coalition shares ───────────────────
+    # w0_i = (nep_share_i × loyalty_i) / Σ_j(nep_share_j × loyalty_j)
+    # Population-weighted coalition shares. solve_baseline is for
+    # post-shock rebalancing only, not for computing the baseline.
     target = config.target
-    try:
-        weights = solve_baseline(mu_race, moments.Sigma, target=target)
-        method = "cvxpy_minvar"
-    except ValueError as exc:
-        log.warning(
-            "baseline: solve_baseline infeasible at target=%.4f (%s); "
-            "falling back to equal weights",
-            target,
-            exc,
-        )
-        weights = dict(DEFAULT_NEP_SHARES)
-        method = "nep_share_fallback"
+    pop_shares = getattr(config, "bloc_population_shares", None) or DEFAULT_NEP_SHARES
+    raw = {r: pop_shares[r] * mu_race[r] for r in CANONICAL_RACES}
+    total = sum(raw.values())
+    weights = {r: raw[r] / total for r in raw}
+    method = "nep_loyalty_weighted"
+    log.info("w0 from NEP×loyalty: %s", {k: round(v, 4) for k, v in weights.items()})
 
     # ── 5. mu_eff — three-stratum formula (CLAUDE.md §Demographic architecture) ─
     # v_R = 1/N_R and g_G = 1/N_G (equal stratum weights) until raking.py
