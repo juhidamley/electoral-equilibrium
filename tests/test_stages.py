@@ -283,9 +283,10 @@ class TestBuildOptimization:
         assert result.shock == shock.shock
 
     def test_weights_race_blocs_only(self, cfg, shock):
-        # weights are the CVXPY decision variables — race blocs only, not all blocs
+        # weights are the CVXPY decision variables — all 5 canonical race blocs,
+        # not religion/gender and not limited to cfg.races (which may be a smoke subset)
         result = build_optimization(cfg, shock)
-        assert set(result.weights.keys()) == set(cfg.races)
+        assert set(result.weights.keys()) == set(CANONICAL_RACES)
 
     def test_weights_equal_mu_shifted_keys(self, cfg, shock):
         result = build_optimization(cfg, shock)

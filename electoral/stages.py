@@ -152,22 +152,14 @@ def build_optimization(
     weights and mu_shifted are keyed by race blocs only — the optimizer decision
     variables. Religion and gender weights (v_R, g_G) are fixed and not optimized.
     """
-    placeholder_weights = {r: 1.0 / len(config.races) for r in config.races}
-    payload = EquilibriumData(
-        method="placeholder",
-        party=config.party,
-        shock=shock.shock,
-        weights=placeholder_weights,
-        mu_shifted={r: 0.50 for r in config.races},
-        feasible=True,
-        target_met=False,
-        target=config.target,
-    )
+    from electoral.kernels.optimize import build_optimization as _build_optimization_kernel
+
+    payload = _build_optimization_kernel(config, shock)
     payload.validate()
     envelope = StageArtifact(
         stage="optimization",
         run_key=config.run_key,
-        metadata={},
+        metadata={"feasible": payload.feasible, "target_met": payload.target_met},
         data=payload.to_dict(),
     )
     write_artifact(f"{config.output_dir}/optimization.json", envelope.to_dict())

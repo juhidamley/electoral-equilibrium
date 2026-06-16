@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import pytest
+from unittest.mock import MagicMock
+
+log = logging.getLogger(__name__)
 
 from electoral.simulation.montecarlo import (
     helmert_matrix,
@@ -271,3 +275,53 @@ def test_ci_bounds_are_not_trivially_zero_and_one():
     result = run_ilr_montecarlo(eq, cfg, n_simulations=2000, sigma_default=0.05)
     assert result.win_probability_low > 0.0, "CI lower bound is trivially 0"
     assert result.win_probability_high < 1.0, "CI upper bound is trivially 1"
+
+
+def test_mc_convergence():
+    """Win probability estimates must converge as N increases.
+
+    N=5 000 and N=10 000 must differ by < 0.005.
+    N=1 000 must be within 0.02 of N=10 000 (looser bound).
+
+    mu=0.535 sits right at target but lambda_1=1/3 scaling pulls
+    mu_eff ≈ 0.511 below it, pinning wp near 0.  Using mu=0.57 with
+    sigma_default=0.05 gives wp ≈ 0.19 — clearly non-degenerate.
+    """
+    races = list(CANONICAL_RACES)
+    eq = EquilibriumData(
+        method="test",
+        party="democrat",
+        shock="convergence_test",
+        weights={r: 0.2 for r in races},
+        mu_shifted={r: 0.57 for r in races},
+        feasible=True,
+        target_met=False,
+        target=0.535,
+    )
+
+    config = MagicMock()
+    config.derive_seed.return_value = 42
+
+    wp_1k = run_ilr_montecarlo(eq, config, n_simulations=1_000, sigma_default=0.05).win_probability
+    wp_5k = run_ilr_montecarlo(eq, config, n_simulations=5_000, sigma_default=0.05).win_probability
+    wp_10k = run_ilr_montecarlo(eq, config, n_simulations=10_000, sigma_default=0.05).win_probability
+
+    log.info(
+        "Convergence: N=1k → %.4f  N=5k → %.4f  N=10k → %.4f",
+        wp_1k, wp_5k, wp_10k,
+    )
+    print(
+        f"\nConvergence estimates:\n"
+        f"  N= 1,000: {wp_1k:.4f}\n"
+        f"  N= 5,000: {wp_5k:.4f}\n"
+        f"  N=10,000: {wp_10k:.4f}\n"
+        f"  |5k - 10k| = {abs(wp_5k - wp_10k):.4f}  (must be < 0.005)\n"
+        f"  |1k - 10k| = {abs(wp_1k - wp_10k):.4f}  (must be < 0.02)"
+    )
+
+    assert abs(wp_5k - wp_10k) < 0.005, (
+        f"5k vs 10k diff {abs(wp_5k - wp_10k):.4f} exceeds 0.005"
+    )
+    assert abs(wp_1k - wp_10k) < 0.02, (
+        f"1k vs 10k diff {abs(wp_1k - wp_10k):.4f} exceeds 0.02"
+    )

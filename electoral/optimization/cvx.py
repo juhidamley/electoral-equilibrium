@@ -68,6 +68,16 @@ def solve_rebalanced(
     mu = np.array([mu_tilde[b] for b in blocs], dtype=float)
     Sigma = np.array(cov_delta, dtype=float)
 
+    # Pre-solve feasibility: if even the best-case bloc can't reach target, skip solver.
+    # max(mu @ w) over the simplex = max(mu_i), so any weight allocation fails.
+    if mu.max() < target:
+        logger.warning(
+            "solve_rebalanced: mu_max=%.4f < target=%.4f — mathematically infeasible",
+            mu.max(),
+            target,
+        )
+        return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
+
     # Regularize covariance to ensure positive definiteness for Cholesky
     min_eig = np.linalg.eigvalsh(Sigma).min()
     if min_eig < 1e-8:
@@ -127,6 +137,7 @@ def solve_rebalanced(
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
     w_opt = y.value / tau_val
+    w_opt = w_opt / w_opt.sum()  # normalize: Charnes-Cooper recovery is only approximate
     mu_eff = float(mu @ w_opt)
 
     return EquilibriumData(
