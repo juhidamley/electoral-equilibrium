@@ -275,13 +275,14 @@ def run_ilr_montecarlo(
     # Resampling win_flags B times gives B bootstrap estimates of win_probability;
     # the 5th/95th percentiles of those means form a meaningful CI that narrows with N.
     # Uses the seeded rng already in scope — no fresh generator.
-    _N_BOOT = 500
-    n_valid = len(win_flags)
-    win_flags_f = win_flags.astype(float)
-    boot_idx = rng.integers(0, n_valid, size=(_N_BOOT, n_valid))
-    boot_means = win_flags_f[boot_idx].mean(axis=1)
-    win_probability_low = float(np.percentile(boot_means, 5))
-    win_probability_high = float(np.percentile(boot_means, 95))
+_N_BOOT = 500
+n_valid = len(win_flags)
+# For Bernoulli data, bootstrapping the resampled mean is equivalent to
+# drawing counts from Binomial(n_valid, p_hat) where p_hat is the observed mean.
+boot_counts = rng.binomial(n_valid, win_probability, size=_N_BOOT)
+boot_means = boot_counts / n_valid
+win_probability_low = float(np.percentile(boot_means, 5))
+win_probability_high = float(np.percentile(boot_means, 95))
 
     # ── Compute per-bloc percentiles ──────────────────────────────────────────
     percentile_levels = [5, 25, 50, 75, 95]
