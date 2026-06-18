@@ -730,9 +730,9 @@ class SimulationData:
 
     n_simulations: int  # number of Monte Carlo draws (≥10,000 for production)
     seed: int  # RNG seed used for this simulation run
-    win_probability: float  # point estimate: fraction of draws meeting V_eq
-    win_probability_low: float  # 5th percentile of win prob across ILR draws
-    win_probability_high: float  # 95th percentile of win prob across ILR draws
+win_probability: float  # point estimate: fraction of draws meeting V_eq
+win_probability_low: float  # 5th percentile of bootstrap distribution of win_probability
+win_probability_high: float  # 95th percentile of bootstrap distribution of win_probability
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
 
     def to_dict(self) -> dict[str, Any]:
