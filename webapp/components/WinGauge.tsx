@@ -1,8 +1,15 @@
-// WinGauge — win probability semicircle gauge + market prior.
-// Shows point estimate and p5-p95 percentile strip from Monte Carlo.
+// WinGauge — win probability semicircle gauge + 90% CI strip.
+// Stays in skeleton/loading state until simulation is non-null.
 // Populates on SSE event: simulation.
-// TODO (Week 7): implement
+// TODO: implement gauge rendering
 
-export default function WinGauge() {
-  return null; // stub
+import type { SimulationData } from "@/lib/types";
+
+interface WinGaugeProps {
+  simulation: SimulationData | null;
+  loading: boolean;
+}
+
+export default function WinGauge(_props: WinGaugeProps) {
+  return null;
 }

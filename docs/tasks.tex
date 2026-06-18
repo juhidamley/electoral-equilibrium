@@ -2938,7 +2938,7 @@ moves to Week~8 Days~1--2 to give it the time it actually requires.
   \texttt{event: deltas} SSE event fires --- the user sees the prediction
   in words before the charts finish rendering.}{3}
 
-\done \task{Implement \texttt{webapp/components/CoalitionChart.tsx} --- the
+\task{Implement \texttt{webapp/components/CoalitionChart.tsx} --- the
   single unified chart that shows both the prediction and the rebalance in
   one view. Props: \texttt{baseline: Record<string, number>} (pre-shock
   loyalty $\mu_i$), \texttt{shifted: Record<string, number>} (post-shock
@@ -3507,6 +3507,22 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   underlying issue --- escalate to a data-quality review with Prof.\ Espinosa
   rather than generating more volume.}{3}
 
+\task{Verify party-neutral event text + explicit party field produces
+  party-appropriate deltas. The webapp uses an authoritative party toggle
+  with party-neutral preset templates (e.g.\ ``the leading presidential
+  candidate'', ``the sitting administration'') --- the party is passed as a
+  separate field in the event dict, not named in the description. But the
+  model was fine-tuned on synthetic seeds that DO name the party in the
+  text (``Democratic nominee\ldots{}'', ``Republican administration\ldots{}'').
+  Confirm the model reads the separate \texttt{party} field correctly: send
+  the same neutral event text with \texttt{party="democrat"} and
+  \texttt{party="republican"} and verify the predicted deltas flip in the
+  politically expected direction. If they do NOT (i.e.\ the model ignores
+  the party field when the text is neutral), the fix is to have the
+  frontend inject the party name into the event text at submit time
+  (template ``the \{party\} candidate'') rather than relying on the field.
+  Decide and document which approach is authoritative.}{2}
+
 \task{Resolve the \texttt{win\_probability=1.0} saturation. With NEP-weighted
   $w_0$, the Democrat baseline $\mu_{\mathrm{eff}}$ is 0.605 vs.\ target
   0.5066 --- a 0.098 gap that makes \texttt{win\_probability} saturate at 1.0
@@ -3639,6 +3655,30 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   strata pre-2004 and most blocs in 2024). Emit a structured coverage
   artifact from \texttt{build\_voter\_panel} that the endpoint can serve,
   rather than the frontend guessing.}{2}
+
+\task{Implement the \texttt{/estimate/stream} SSE endpoint in
+  \texttt{shock\_endpoint.py}. The frontend \texttt{page.tsx} opens an
+  \texttt{EventSource} expecting named events \texttt{deltas},
+  \texttt{equilibrium}, \texttt{simulation}, and \texttt{done}, emitted in
+  that order as each pipeline stage completes. Use FastAPI
+  \texttt{StreamingResponse} with \texttt{media\_type="text/event-stream"}.
+  Yield the \texttt{deltas} event as soon as
+  \texttt{ShockEstimator.estimate()} returns ($\sim$12\,s), then
+  \texttt{equilibrium} after \texttt{solve\_rebalanced} ($\sim$ms), then
+  \texttt{simulation} after \texttt{run\_ilr\_montecarlo}, then
+  \texttt{done}. This is what makes the progressive-render UX work ---
+  without it the user stares at a blank dashboard for the full 12\,s. Note:
+  \texttt{EventSource} only supports GET, so this endpoint takes query
+  params (\texttt{event}, \texttt{intensity}, \texttt{party}), unlike the
+  POST \texttt{/estimate}.}{3}
+
+\task{Reconcile the two endpoint shapes. The webapp now depends on BOTH
+  POST \texttt{/estimate} (returns the full bundle, validated by
+  \texttt{EstimateResponseSchema}) and GET \texttt{/estimate/stream} (SSE,
+  incremental). Decide whether both are maintained or the non-streaming
+  one is dropped. If both stay, the Zod \texttt{EstimateResponseSchema}
+  should also validate the assembled-from-stream object so the streamed
+  path gets the same runtime safety as the single-shot path.}{2}
 
 \end{taskbox}
 
