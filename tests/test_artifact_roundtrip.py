@@ -694,20 +694,28 @@ class TestSimulationData:
             n_simulations=10_000,
             seed=42,
             win_probability=0.35,
+            win_probability_low=0.05,
+            win_probability_high=0.95,
             percentiles={r: [0.10, 0.25, 0.35, 0.45, 0.60] for r in RACE_IDS},
         )
         defaults.update(overrides)
         return SimulationData(**defaults)
 
     def test_roundtrip(self):
-        assert_roundtrip(self._make())
+        d = assert_roundtrip(self._make())
+        assert d["win_probability_low"] == pytest.approx(0.05)
+        assert d["win_probability_high"] == pytest.approx(0.95)
 
     def test_empty_percentiles(self):
         assert_roundtrip(self._make(percentiles={}))
 
     def test_win_probability_boundary_values(self):
-        assert_roundtrip(self._make(win_probability=0.0))
-        assert_roundtrip(self._make(win_probability=1.0))
+        assert_roundtrip(
+            self._make(win_probability=0.0, win_probability_low=0.0, win_probability_high=0.0)
+        )
+        assert_roundtrip(
+            self._make(win_probability=1.0, win_probability_low=1.0, win_probability_high=1.0)
+        )
 
     def test_win_probability_out_of_range_raises(self):
         with pytest.raises(ValueError, match="win_probability"):
@@ -736,6 +744,30 @@ class TestSimulationData:
     def test_zero_n_simulations_raises(self):
         with pytest.raises(ValueError, match="n_simulations"):
             self._make(n_simulations=0).validate()
+
+    def test_win_probability_ci_inverted_raises(self):
+        with pytest.raises(ValueError, match="win_probability_low"):
+            self._make(win_probability_low=0.80, win_probability_high=0.20).validate()
+
+    def test_win_probability_ci_boundary_values(self):
+        assert_roundtrip(self._make(win_probability_low=0.0, win_probability_high=1.0))
+        assert_roundtrip(
+            self._make(win_probability=0.5, win_probability_low=0.5, win_probability_high=0.5)
+        )
+
+    def test_win_probability_ci_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="win_probability_low"):
+            self._make(win_probability_low=-0.01, win_probability_high=0.5).validate()
+
+    def test_win_probability_ci_high_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="win_probability_low"):
+            self._make(win_probability_low=0.5, win_probability_high=1.5).validate()
+
+    def test_win_probability_outside_ci_raises(self):
+        with pytest.raises(ValueError, match="within CI bounds"):
+            self._make(
+                win_probability=0.10, win_probability_low=0.20, win_probability_high=0.80
+            ).validate()
 
 
 class TestMetricsTablesData:

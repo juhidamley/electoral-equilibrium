@@ -1,4 +1,12 @@
 {
+  "_bloc_population_shares_source": "Edison Research NEP 2024 — share of actual voters, not census population",
+  "bloc_population_shares": {
+    "african_american": 0.12,
+    "asian": 0.05,
+    "latino": 0.15,
+    "other_race": 0.05,
+    "white": 0.63
+  },
   "data_path": "data/",
   "data_root": "/Volumes/JUHIDRIVE/electoralData/archives/",
   "genders": [

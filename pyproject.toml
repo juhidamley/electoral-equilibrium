@@ -3,8 +3,11 @@ name = "electoral-equilibrium"
 version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = [
+    "cvxpy>=1.7.5",
     "numpy>=1.24",
+    "pandas>=2.3.3",
     "pydantic>=2.0",
+    "scikit-learn>=1.6.1",
 ]
 
 [project.optional-dependencies]
@@ -59,3 +62,10 @@ target-version = "py39"
 [tool.black]
 line-length = 100
 target-version = ["py39"]
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "pytest>=8.4.2",
+    "ruff>=0.15.15",
+]
