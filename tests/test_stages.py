@@ -253,10 +253,9 @@ class TestBuildShockResponse:
 
     def test_envelope_written_to_disk(self, cfg):
         build_shock_response(cfg, "event", 0.5)
-        # event "event" → shock_id "event" → shock_event.json
-        envelope = _envelope(Path(cfg.output_dir) / "shock_event.json")
+        envelope = _envelope(Path(cfg.output_dir) / "shock_response.json")
         assert envelope["stage"] == "shock_response"
-        assert envelope["metadata"]["shock"] == "event"
+        assert envelope["metadata"]["event"] == "event"
 
 
 # ── Stage 6: build_optimization ──────────────────────────────────────────────

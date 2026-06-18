@@ -259,10 +259,14 @@ def _write_artifacts(
     shock_envelope = StageArtifact(
         stage="shock_response",
         run_key=config.run_key,
-        metadata={"shock": shock_id, "delta_eff": shock.delta_eff},
+        metadata={"shock": shock_id, "event": shock_id, "delta_eff": shock.delta_eff},
         data=shock.to_dict(),
     )
-    write_artifact(f"{config.output_dir}/shock_{shock_id}.json", shock_envelope.to_dict())
+    shock_dict = shock_envelope.to_dict()
+    # per-id path (consumed by SLURM sweep and tables.py)
+    write_artifact(f"{config.output_dir}/shock_{shock_id}.json", shock_dict)
+    # legacy generic path (consumed by stage tests and single-shock pipelines)
+    write_artifact(f"{config.output_dir}/shock_response.json", shock_dict)
 
     eq_envelope = StageArtifact(
         stage="equilibrium",
@@ -270,9 +274,13 @@ def _write_artifacts(
         metadata={"feasible": equilibrium.feasible, "target_met": equilibrium.target_met},
         data=equilibrium.to_dict(),
     )
-    write_artifact(f"{config.output_dir}/equilibrium_{shock_id}.json", eq_envelope.to_dict())
+    eq_dict = eq_envelope.to_dict()
+    # per-id path
+    write_artifact(f"{config.output_dir}/equilibrium_{shock_id}.json", eq_dict)
+    # legacy generic path
+    write_artifact(f"{config.output_dir}/equilibrium.json", eq_dict)
     log.info(
-        "wrote shock_%s.json and equilibrium_%s.json to %s",
+        "wrote shock_%s.json + shock_response.json and equilibrium_%s.json + equilibrium.json to %s",
         shock_id,
         shock_id,
         config.output_dir,

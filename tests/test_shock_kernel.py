@@ -153,10 +153,11 @@ class TestBuildShockResponseFallbacks:
         assert np.allclose(cov, cov.T, atol=1e-10)
 
     def test_artifacts_written_to_output_dir(self, fallback_config):
-        """build_shock_response writes shock_{id}.json and equilibrium_{id}.json."""
+        """build_shock_response writes both per-id and legacy generic artifacts."""
         _run(fallback_config, delta=0.02)
 
         out = Path(fallback_config.output_dir)
-        # stub hardcodes shock="test_shock" → _write_artifacts uses that as the id
         assert (out / "shock_test_shock.json").exists()
         assert (out / "equilibrium_test_shock.json").exists()
+        assert (out / "shock_response.json").exists()
+        assert (out / "equilibrium.json").exists()
