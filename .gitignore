@@ -294,6 +294,7 @@ devlog/
 # ── markdown files ─────────────────────────────────────────
 # Markdown files are used for documentation and notes, but may contain sensitive info or be too verbose for version control.
 *.md
+!DECISIONS.md        # canonical architecture decision log — always track
 
 # ── Docs ─────────────────────────────────────────
 #  Documentation may contain generated files, build artifacts, or sensitive info. Track source files but ignore build outputs.

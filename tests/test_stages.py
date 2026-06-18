@@ -70,16 +70,17 @@ def cfg(tmp_path) -> PipelineConfig:
 
 
 def _torch_available() -> bool:
-    try:
-        importlib.import_module("torch")
-        return True
-    except ImportError:
-        return False
+    for mod in ("torch", "sentencepiece", "transformers"):
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            return False
+    return True
 
 
 _skip_no_torch = pytest.mark.skipif(
     not _torch_available(),
-    reason="torch/transformers not installed — skip LLM-dependent stages",
+    reason="torch/transformers/sentencepiece not installed — skip LLM-dependent stages",
 )
 
 
@@ -252,9 +253,10 @@ class TestBuildShockResponse:
 
     def test_envelope_written_to_disk(self, cfg):
         build_shock_response(cfg, "event", 0.5)
-        envelope = _envelope(Path(cfg.output_dir) / "shock_response.json")
+        # event "event" → shock_id "event" → shock_event.json
+        envelope = _envelope(Path(cfg.output_dir) / "shock_event.json")
         assert envelope["stage"] == "shock_response"
-        assert envelope["metadata"]["event"] == "event"
+        assert envelope["metadata"]["shock"] == "event"
 
 
 # ── Stage 6: build_optimization ──────────────────────────────────────────────
