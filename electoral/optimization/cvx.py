@@ -176,13 +176,13 @@ def _infeasible_result(
     target: float,
 ) -> EquilibriumData:
     n = len(blocs)
-return EquilibriumData(
-    method="equal_weight_fallback",
-    party=party,
-    shock=shock,
-    weights={b: 1.0 / n for b in blocs},
-    mu_shifted={b: float(mu_tilde[b]) for b in blocs},
-    feasible=False,
-    target_met=False,
-    target=target,
-)
+    return EquilibriumData(
+        method="equal_weight_fallback",
+        party=party,
+        shock=shock,
+        weights={b: 1.0 / n for b in blocs},
+        mu_shifted={b: float(mu_tilde[b]) for b in blocs},
+        feasible=False,
+        target_met=False,
+        target=target,
+    )
