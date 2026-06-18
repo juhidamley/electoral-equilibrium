@@ -51,8 +51,7 @@ def bloc_delta_summary(
     """
     blocs = set(baseline_weights) | set(rebalanced_weights)
     deltas = {
-        b: float(rebalanced_weights.get(b, 0.0) - baseline_weights.get(b, 0.0))
-        for b in blocs
+        b: float(rebalanced_weights.get(b, 0.0) - baseline_weights.get(b, 0.0)) for b in blocs
     }
     ordered = dict(sorted(deltas.items(), key=lambda kv: abs(kv[1]), reverse=True))
     return ordered

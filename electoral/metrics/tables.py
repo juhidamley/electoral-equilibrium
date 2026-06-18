@@ -52,11 +52,15 @@ def build_shock_summary_table(
         eq = _load_artifact(base / f"equilibrium_{key}.json")
         sim = _load_artifact(base / f"sim_{sid}.json")
         if sim is None:
-            sim = _load_artifact(base / f"simulation.json")
+            sim = _load_artifact(base / "simulation.json")
 
         row: dict[str, Any] = {
             "shock_id": sid,
-            "category": taxonomy.get(sid, {}).get("category") if isinstance(taxonomy.get(sid), dict) else taxonomy.get(sid),
+            "category": (
+                taxonomy.get(sid, {}).get("category")
+                if isinstance(taxonomy.get(sid), dict)
+                else taxonomy.get(sid)
+            ),
             "win_probability": None,
             "equilibrium_gap": None,
             "top_moving_bloc": None,

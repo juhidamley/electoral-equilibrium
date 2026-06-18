@@ -355,6 +355,7 @@ def train(
     # ── Load model ────────────────────────────────────────────────────────────
     if use_4bit:
         from transformers import BitsAndBytesConfig
+
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -367,6 +368,7 @@ def train(
             device_map="auto",
         )
         from peft import prepare_model_for_kbit_training
+
         model = prepare_model_for_kbit_training(model)
     else:
         # bf16 full-precision LoRA — for nodes where bitsandbytes hangs
