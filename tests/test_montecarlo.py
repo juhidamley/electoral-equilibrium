@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-from electoral.artifacts import EquilibriumData, SimulationData
+from electoral.artifacts import EquilibriumData
 from electoral.core.types import CANONICAL_RACES
 from electoral.simulation.montecarlo import run_ilr_montecarlo
 

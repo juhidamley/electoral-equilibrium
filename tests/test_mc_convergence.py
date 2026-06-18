@@ -7,8 +7,6 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-log = logging.getLogger(__name__)
-
 from electoral.simulation.montecarlo import (
     helmert_matrix,
     ilr,
@@ -17,6 +15,8 @@ from electoral.simulation.montecarlo import (
 )
 from electoral.artifacts import EquilibriumData
 from electoral.core.types import CANONICAL_RACES
+
+log = logging.getLogger(__name__)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

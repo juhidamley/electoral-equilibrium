@@ -143,8 +143,8 @@ def _call_deepseek(client, event: dict, n: int, retries: int = 3) -> list[dict]:
             if content.startswith("```"):
                 lines = content.splitlines()
                 content = "\n".join(
-                    l for l in lines
-                    if not l.strip().startswith("```")
+                    line for line in lines
+                    if not line.strip().startswith("```")
                 )
             records = json.loads(content)
             if not isinstance(records, list):

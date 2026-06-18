@@ -152,7 +152,7 @@ def review(
     import random
     rng = random.Random(seed)
 
-    recs = [json.loads(l) for l in candidates.read_text().splitlines() if l.strip()]
+    recs = [json.loads(line) for line in candidates.read_text().splitlines() if line.strip()]
     log.info("reviewing %d candidates", len(recs))
 
     n_app = n_rev = n_hum = n_spot = n_err = 0
@@ -215,7 +215,9 @@ def review(
                 log.info("…%d/%d  approve=%d revise=%d human=%d spot=%d", i + 1, len(recs), n_app, n_rev, n_hum, n_spot)
             time.sleep(0.2)  # gentle rate limiting
     finally:
-        f_app.close(); f_q.close(); f_rev.close()
+        f_app.close()
+        f_q.close()
+        f_rev.close()
 
     log.info(
         "DONE — approved=%d revised=%d human_queue=%d (incl %d spot-checks) errors=%d",

@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import pytest
 
 from electoral.core.types import CANONICAL_RACES
 from electoral.optimization.cvx import solve_rebalanced
