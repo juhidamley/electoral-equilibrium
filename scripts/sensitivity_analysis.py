@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")  # headless for HPC
 import matplotlib.pyplot as plt
 
@@ -14,6 +15,7 @@ from electoral.kernels.shock import build_shock_response
 from electoral.simulation.montecarlo import run_ilr_montecarlo
 
 log = logging.getLogger(__name__)
+
 
 def run_sensitivity(config, event, shock_id, intensities=None):
     """Vary intensity from 0.5 to 2.0 and record win prob + per-bloc weights."""
@@ -39,33 +41,35 @@ def run_sensitivity(config, event, shock_id, intensities=None):
 
     return intensities, win_probs, win_lows, win_highs, bloc_weights
 
+
 def make_plot(intensities, win_probs, win_lows, win_highs, bloc_weights, shock_id, out_path):
     """Two-panel figure: win prob vs intensity, and per-bloc weights vs intensity."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     # Panel 1: win probability with CI band
-    ax1.plot(intensities, win_probs, 'o-', color='#2c3e50', linewidth=2, label='Win probability')
-    ax1.fill_between(intensities, win_lows, win_highs, alpha=0.2, color='#3498db', label='90% CI')
-    ax1.axhline(0.5, ls='--', color='gray', alpha=0.5)
-    ax1.set_xlabel('Shock intensity')
-    ax1.set_ylabel('Win probability')
-    ax1.set_title(f'Win probability vs intensity — {shock_id}')
+    ax1.plot(intensities, win_probs, "o-", color="#2c3e50", linewidth=2, label="Win probability")
+    ax1.fill_between(intensities, win_lows, win_highs, alpha=0.2, color="#3498db", label="90% CI")
+    ax1.axhline(0.5, ls="--", color="gray", alpha=0.5)
+    ax1.set_xlabel("Shock intensity")
+    ax1.set_ylabel("Win probability")
+    ax1.set_title(f"Win probability vs intensity — {shock_id}")
     ax1.set_ylim(-0.02, 1.02)
     ax1.legend()
     ax1.grid(alpha=0.3)
 
     # Panel 2: per-bloc weights
     for r in CANONICAL_RACES:
-        ax2.plot(intensities, bloc_weights[r], 'o-', label=r, linewidth=1.5)
-    ax2.set_xlabel('Shock intensity')
-    ax2.set_ylabel('Coalition weight')
-    ax2.set_title(f'Per-bloc weights vs intensity — {shock_id}')
+        ax2.plot(intensities, bloc_weights[r], "o-", label=r, linewidth=1.5)
+    ax2.set_xlabel("Shock intensity")
+    ax2.set_ylabel("Coalition weight")
+    ax2.set_title(f"Per-bloc weights vs intensity — {shock_id}")
     ax2.legend(fontsize=8)
     ax2.grid(alpha=0.3)
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches='tight')
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
     log.info("saved plot to %s", out_path)
+
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -96,6 +100,7 @@ def main():
     json_path = Path(args.output_dir) / f"sensitivity_{args.shock_id}.json"
     json_path.write_text(json.dumps(data, indent=2))
     log.info("saved data to %s", json_path)
+
 
 if __name__ == "__main__":
     main()

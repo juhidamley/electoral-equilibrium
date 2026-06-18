@@ -35,8 +35,15 @@ log = logging.getLogger("generate_deepseek")
 
 # Canonical schema — must match electoral/core/types.py
 BIN_TOKENS = {
-    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+    "strong_neg",
+    "mod_neg",
+    "mild_neg",
+    "slight_neg",
+    "neutral",
+    "slight_pos",
+    "mild_pos",
+    "mod_pos",
+    "strong_pos",
 }
 RACES = ["african_american", "asian", "latino", "other_race", "white"]
 RELIGIONS = ["evangelical", "catholic", "protestant", "secular", "jewish", "muslim", "other_rel"]
@@ -49,6 +56,7 @@ DEEPSEEK_MODEL = "deepseek-chat"
 def _load_env() -> None:
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except ImportError:
         pass
@@ -56,6 +64,7 @@ def _load_env() -> None:
 
 def _client():
     from openai import OpenAI  # DeepSeek is OpenAI-compatible
+
     key = os.environ.get("DEEPSEEK_API_KEY")
     if not key:
         raise SystemExit("DEEPSEEK_API_KEY not set (check .env)")
@@ -110,14 +119,26 @@ Output ONLY the JSON array of {n} records."""
 
 def _validate(rec: dict[str, Any]) -> tuple[bool, str]:
     required = [
-        "shock_id", "description", "party", "cycle", "intensity",
-        "news_roberta_scores", "social_roberta_scores",
-        "delta_bins_race", "delta_bins_religion", "delta_bins_gender", "delta_eff",
+        "shock_id",
+        "description",
+        "party",
+        "cycle",
+        "intensity",
+        "news_roberta_scores",
+        "social_roberta_scores",
+        "delta_bins_race",
+        "delta_bins_religion",
+        "delta_bins_gender",
+        "delta_eff",
     ]
     for f in required:
         if f not in rec:
             return False, f"missing field {f}"
-    checks = [("delta_bins_race", RACES), ("delta_bins_religion", RELIGIONS), ("delta_bins_gender", GENDERS)]
+    checks = [
+        ("delta_bins_race", RACES),
+        ("delta_bins_religion", RELIGIONS),
+        ("delta_bins_gender", GENDERS),
+    ]
     for field, keys in checks:
         d = rec[field]
         if not isinstance(d, dict):

@@ -304,11 +304,15 @@ def test_mc_convergence():
 
     wp_1k = run_ilr_montecarlo(eq, config, n_simulations=1_000, sigma_default=0.05).win_probability
     wp_5k = run_ilr_montecarlo(eq, config, n_simulations=5_000, sigma_default=0.05).win_probability
-    wp_10k = run_ilr_montecarlo(eq, config, n_simulations=10_000, sigma_default=0.05).win_probability
+    wp_10k = run_ilr_montecarlo(
+        eq, config, n_simulations=10_000, sigma_default=0.05
+    ).win_probability
 
     log.info(
         "Convergence: N=1k → %.4f  N=5k → %.4f  N=10k → %.4f",
-        wp_1k, wp_5k, wp_10k,
+        wp_1k,
+        wp_5k,
+        wp_10k,
     )
     print(
         f"\nConvergence estimates:\n"
@@ -319,9 +323,5 @@ def test_mc_convergence():
         f"  |1k - 10k| = {abs(wp_1k - wp_10k):.4f}  (must be < 0.02)"
     )
 
-    assert abs(wp_5k - wp_10k) < 0.005, (
-        f"5k vs 10k diff {abs(wp_5k - wp_10k):.4f} exceeds 0.005"
-    )
-    assert abs(wp_1k - wp_10k) < 0.02, (
-        f"1k vs 10k diff {abs(wp_1k - wp_10k):.4f} exceeds 0.02"
-    )
+    assert abs(wp_5k - wp_10k) < 0.005, f"5k vs 10k diff {abs(wp_5k - wp_10k):.4f} exceeds 0.005"
+    assert abs(wp_1k - wp_10k) < 0.02, f"1k vs 10k diff {abs(wp_1k - wp_10k):.4f} exceeds 0.02"

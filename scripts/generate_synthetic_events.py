@@ -26,20 +26,43 @@ log = logging.getLogger(__name__)
 
 # ── Canonical vocabulary ──────────────────────────────────────────────────────
 
-VALID_BINS = frozenset([
-    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
-])
+VALID_BINS = frozenset(
+    [
+        "strong_neg",
+        "mod_neg",
+        "mild_neg",
+        "slight_neg",
+        "neutral",
+        "slight_pos",
+        "mild_pos",
+        "mod_pos",
+        "strong_pos",
+    ]
+)
 
 RACE_KEYS = ("african_american", "asian", "latino", "other_race", "white")
-RELIGION_KEYS = ("evangelical", "catholic", "protestant", "secular",
-                 "jewish", "muslim", "other_rel")
+RELIGION_KEYS = (
+    "evangelical",
+    "catholic",
+    "protestant",
+    "secular",
+    "jewish",
+    "muslim",
+    "other_rel",
+)
 GENDER_KEYS = ("women", "men", "other_gender")
 
 REQUIRED_TOP_KEYS = {
-    "shock_id", "description", "party", "cycle", "intensity",
-    "news_roberta_scores", "social_roberta_scores",
-    "delta_bins_race", "delta_bins_religion", "delta_bins_gender",
+    "shock_id",
+    "description",
+    "party",
+    "cycle",
+    "intensity",
+    "news_roberta_scores",
+    "social_roberta_scores",
+    "delta_bins_race",
+    "delta_bins_religion",
+    "delta_bins_gender",
     "delta_eff",
 }
 
@@ -62,7 +85,7 @@ def _user_prompt(event: dict, n: int) -> str:
         f"Cycle: {cycle}\n\n"
         "For each record output a JSON object with these exact fields:\n"
         "- shock_id: snake_case event identifier\n"
-        f'- description: varied paraphrase of the event (20-60 words)\n'
+        f"- description: varied paraphrase of the event (20-60 words)\n"
         f'- party: "{party}"\n'
         f"- cycle: {cycle}\n"
         "- intensity: float between 0.8 and 1.2\n"
@@ -81,6 +104,7 @@ def _user_prompt(event: dict, n: int) -> str:
 
 
 # ── Validation ────────────────────────────────────────────────────────────────
+
 
 def _validate_record(rec: dict) -> list[str]:
     """Return list of error strings; empty list means valid."""
@@ -124,6 +148,7 @@ def _validate_record(rec: dict) -> list[str]:
 
 # ── API call ──────────────────────────────────────────────────────────────────
 
+
 def _call_deepseek(client, event: dict, n: int, retries: int = 3) -> list[dict]:
     """Call DeepSeek and return parsed list of records. Raises on unrecoverable failure."""
     prompt = _user_prompt(event, n)
@@ -142,10 +167,7 @@ def _call_deepseek(client, event: dict, n: int, retries: int = 3) -> list[dict]:
             # Strip accidental markdown fences
             if content.startswith("```"):
                 lines = content.splitlines()
-                content = "\n".join(
-                    line for line in lines
-                    if not line.strip().startswith("```")
-                )
+                content = "\n".join(line for line in lines if not line.strip().startswith("```"))
             records = json.loads(content)
             if not isinstance(records, list):
                 raise ValueError(f"Expected JSON array, got {type(records).__name__}")
@@ -155,13 +177,14 @@ def _call_deepseek(client, event: dict, n: int, retries: int = 3) -> list[dict]:
         except Exception as exc:
             log.warning("attempt %d/%d: API error — %s", attempt, retries, exc)
         if attempt < retries:
-            time.sleep(2 ** attempt)  # exponential back-off: 2s, 4s
+            time.sleep(2**attempt)  # exponential back-off: 2s, 4s
     raise RuntimeError(
         f"DeepSeek call failed after {retries} attempts for event: {event['shock_id']!r}"
     )
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     logging.basicConfig(

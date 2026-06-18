@@ -102,9 +102,7 @@ def _load_baseline(
 
     path = Path(config.output_dir) / "baseline_portfolio.json"
     if not path.exists():
-        log.warning(
-            "_load_baseline: %s not found — using mu=0.5 and equal weights", path
-        )
+        log.warning("_load_baseline: %s not found — using mu=0.5 and equal weights", path)
         return _fallback_mu, _fallback_w0
 
     try:
@@ -209,9 +207,7 @@ def _build_sigma_delta(config: PipelineConfig) -> list[list[float]]:
         return cov.tolist()
 
     except Exception as exc:
-        log.warning(
-            "_build_sigma_delta: failed (%s) — using diagonal fallback σ=0.02", exc
-        )
+        log.warning("_build_sigma_delta: failed (%s) — using diagonal fallback σ=0.02", exc)
         return _fallback
 
 
@@ -266,9 +262,7 @@ def _write_artifacts(
         metadata={"shock": shock_id, "delta_eff": shock.delta_eff},
         data=shock.to_dict(),
     )
-    write_artifact(
-        f"{config.output_dir}/shock_{shock_id}.json", shock_envelope.to_dict()
-    )
+    write_artifact(f"{config.output_dir}/shock_{shock_id}.json", shock_envelope.to_dict())
 
     eq_envelope = StageArtifact(
         stage="equilibrium",
@@ -276,9 +270,7 @@ def _write_artifacts(
         metadata={"feasible": equilibrium.feasible, "target_met": equilibrium.target_met},
         data=equilibrium.to_dict(),
     )
-    write_artifact(
-        f"{config.output_dir}/equilibrium_{shock_id}.json", eq_envelope.to_dict()
-    )
+    write_artifact(f"{config.output_dir}/equilibrium_{shock_id}.json", eq_envelope.to_dict())
     log.info(
         "wrote shock_%s.json and equilibrium_%s.json to %s",
         shock_id,

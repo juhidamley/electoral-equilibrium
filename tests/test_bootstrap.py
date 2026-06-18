@@ -78,7 +78,7 @@ def test_weighted_higher_elasticity_dominates():
     blocs = ["african_american", "asian", "latino", "other_race", "white"]
 
     high_deltas = [(0.10, 0.10), (0.30, 0.30), (0.50, 0.50)]  # positively correlated
-    low_deltas = [(0.50, 0.10), (0.30, 0.30), (0.10, 0.50)]   # negatively correlated
+    low_deltas = [(0.50, 0.10), (0.30, 0.30), (0.10, 0.50)]  # negatively correlated
 
     rows = []
     for (aa, asian), cycle in zip(high_deltas, cycles_high):

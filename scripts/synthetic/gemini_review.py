@@ -44,8 +44,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("gemini_review")
 
 BIN_TOKENS = {
-    "strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral",
-    "slight_pos", "mild_pos", "mod_pos", "strong_pos",
+    "strong_neg",
+    "mod_neg",
+    "mild_neg",
+    "slight_neg",
+    "neutral",
+    "slight_pos",
+    "mild_pos",
+    "mod_pos",
+    "strong_pos",
 }
 GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -53,6 +60,7 @@ GEMINI_MODEL = "gemini-2.5-flash"
 def _load_env() -> None:
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except ImportError:
         pass
@@ -60,6 +68,7 @@ def _load_env() -> None:
 
 def _client():
     from google import genai
+
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not key:
         raise SystemExit("GEMINI_API_KEY / GOOGLE_API_KEY not set (check .env)")
@@ -144,12 +153,17 @@ def _apply_correction(rec: dict[str, Any], corrected: dict[str, Any]) -> dict[st
 
 
 def review(
-    candidates: Path, approved: Path, queue: Path, revisions: Path,
-    spotcheck_frac: float, seed: int,
+    candidates: Path,
+    approved: Path,
+    queue: Path,
+    revisions: Path,
+    spotcheck_frac: float,
+    seed: int,
 ) -> None:
     _load_env()
     model = _client()
     import random
+
     rng = random.Random(seed)
 
     recs = [json.loads(line) for line in candidates.read_text().splitlines() if line.strip()]
@@ -177,7 +191,10 @@ def review(
                 n_err += 1
 
             if verdict_obj is None:
-                rec["_review"] = {"verdict": "HUMAN_REVIEW", "reasoning": "review failed/unparseable"}
+                rec["_review"] = {
+                    "verdict": "HUMAN_REVIEW",
+                    "reasoning": "review failed/unparseable",
+                }
                 f_q.write(json.dumps(rec) + "\n")
                 n_hum += 1
                 continue
@@ -212,7 +229,15 @@ def review(
                 n_hum += 1
 
             if (i + 1) % 25 == 0:
-                log.info("…%d/%d  approve=%d revise=%d human=%d spot=%d", i + 1, len(recs), n_app, n_rev, n_hum, n_spot)
+                log.info(
+                    "…%d/%d  approve=%d revise=%d human=%d spot=%d",
+                    i + 1,
+                    len(recs),
+                    n_app,
+                    n_rev,
+                    n_hum,
+                    n_spot,
+                )
             time.sleep(0.2)  # gentle rate limiting
     finally:
         f_app.close()
@@ -221,7 +246,11 @@ def review(
 
     log.info(
         "DONE — approved=%d revised=%d human_queue=%d (incl %d spot-checks) errors=%d",
-        n_app, n_rev, n_hum + n_spot, n_spot, n_err,
+        n_app,
+        n_rev,
+        n_hum + n_spot,
+        n_spot,
+        n_err,
     )
     log.info("ready to merge: %s", approved)
     log.info("manual Opus/human pass needed on: %s", queue)
@@ -237,8 +266,12 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
     review(
-        Path(args.candidates), Path(args.approved), Path(args.queue),
-        Path(args.revisions), args.spotcheck_frac, args.seed,
+        Path(args.candidates),
+        Path(args.approved),
+        Path(args.queue),
+        Path(args.revisions),
+        args.spotcheck_frac,
+        args.seed,
     )
 
 

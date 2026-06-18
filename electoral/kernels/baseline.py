@@ -49,10 +49,10 @@ _ABSENT_MU: float = 0.50
 # electoral modeling. Do not substitute census shares here.
 DEFAULT_NEP_SHARES: dict[str, float] = {
     "african_american": 0.12,  # NEP 2024: 12% of electorate
-    "asian": 0.05,             # NEP 2024: 5% of electorate
-    "latino": 0.15,            # NEP 2024: 15% of electorate
-    "other_race": 0.05,        # NEP 2024: 5% of electorate
-    "white": 0.63,             # NEP 2024: 63% of electorate
+    "asian": 0.05,  # NEP 2024: 5% of electorate
+    "latino": 0.15,  # NEP 2024: 15% of electorate
+    "other_race": 0.05,  # NEP 2024: 5% of electorate
+    "white": 0.63,  # NEP 2024: 63% of electorate
 }
 
 
