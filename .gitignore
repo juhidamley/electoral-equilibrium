@@ -216,10 +216,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# LaTeX
+# LaTeX — build artifacts only; *.tex source and *.pdf output are tracked
 *.aux
-*.tex
-*.pdf
 *.out
 *.toc
 *.synctex.gz
@@ -254,6 +252,10 @@ configs/*.local.json  # local overrides that may contain API keys or IPs
 *.gguf
 *.ggml
 adapters/
+# fine-tuned adapters + full checkpoint dirs (HF Hub is source of truth)
+models/
+# training checkpoints (optimizer state, rng, scheduler)
+checkpoints/
 .cache/              # HuggingFace model download cache
 mlruns/              # MLflow experiment tracking
 
@@ -302,10 +304,7 @@ elec-equilibrium/*.lock
 # ── Devlog drafts (published separately at devlog.juhi.studio) ────────────────
 devlog/
 
-# ── markdown files ─────────────────────────────────────────
-# Markdown files are used for documentation and notes, but may contain sensitive info or be too verbose for version control.
-*.md
-
-# ── Docs ─────────────────────────────────────────
-#  Documentation may contain generated files, build artifacts, or sensitive info. Track source files but ignore build outputs.
-docs/
+# ── Docs ─────────────────────────────────────────────────────────────────────
+# Track source (docs/*.tex, CLAUDE.md, DECISIONS.md). Ignore only build output.
+# LaTeX build artifacts (*.aux, *.pdf, etc.) are already covered above.
+docs/_build/
