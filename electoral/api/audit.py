@@ -48,10 +48,16 @@ class AuditLogger:
                 llm_ms         INTEGER,
                 optimizer_ms   INTEGER,
                 montecarlo_ms  INTEGER,
-                backend        VARCHAR
+                backend        VARCHAR,
+                party          VARCHAR
             );
         """
         )
+        # Idempotent migration: add party to databases created before this column existed.
+        try:
+            self._con.execute("ALTER TABLE estimates ADD COLUMN IF NOT EXISTS party VARCHAR;")
+        except Exception:
+            pass
 
     def log_estimate(
         self,
@@ -66,6 +72,7 @@ class AuditLogger:
         optimizer_ms: int,
         montecarlo_ms: int,
         backend: str,
+        party: str | None = None,
     ) -> None:
         """Insert one audit row.  Non-finite floats are stored as NULL."""
 
@@ -78,8 +85,8 @@ class AuditLogger:
                     "INSERT INTO estimates "
                     "(timestamp, event_text, intensity, deltas_json, "
                     "feasible, target_met, win_prob, "
-                    "llm_ms, optimizer_ms, montecarlo_ms, backend) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "llm_ms, optimizer_ms, montecarlo_ms, backend, party) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     [
                         datetime.now(timezone.utc),
                         event_text,
@@ -92,22 +99,33 @@ class AuditLogger:
                         optimizer_ms,
                         montecarlo_ms,
                         backend,
+                        party,
                     ],
                 )
         except Exception:
             # Audit failures must never surface to the user.
             log.warning("AuditLogger.log_estimate failed", exc_info=True)
 
-    def recent(self, limit: int = 100) -> list[dict[str, Any]]:
+    def recent(self, limit: int = 100, search: str | None = None) -> list[dict[str, Any]]:
         """Return the most recent rows as a list of dicts.
+
+        If search is given, filters WHERE event_text LIKE %search% using a bound
+        parameter — never string-formatted into SQL to prevent injection.
 
         DuckDB NULL floats arrive as float('nan') from pandas fetch_df();
         convert them back to None so the JSON response is well-formed.
         """
         with self._lock:
-            rows = self._con.execute(
-                "SELECT * FROM estimates ORDER BY timestamp DESC LIMIT ?", [limit]
-            ).fetch_df()
+            if search:
+                rows = self._con.execute(
+                    "SELECT * FROM estimates WHERE event_text LIKE ? "
+                    "ORDER BY timestamp DESC LIMIT ?",
+                    [f"%{search}%", limit],
+                ).fetch_df()
+            else:
+                rows = self._con.execute(
+                    "SELECT * FROM estimates ORDER BY timestamp DESC LIMIT ?", [limit]
+                ).fetch_df()
         records = rows.to_dict(orient="records")
         for row in records:
             for k, v in row.items():

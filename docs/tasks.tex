@@ -3490,6 +3490,24 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       share-link feature lets strangers trigger \textasciitilde12\,s GPU
       calls. Add per-IP rate limit, Modal concurrency cap, and billing
       alert before going public.
+    \item[$\square$] \textbf{[correctness]} win\_probability CI measures
+      the wrong uncertainty --- both bootstrap variants compute Monte Carlo
+      sampling error (shrinks with $N$, not scientifically meaningful),
+      not covariance-propagated uncertainty ($\Sigma_\Delta$ sampling
+      distribution through ILR). Decide with Espinosa: (a) sample
+      $\Sigma_\Delta$ from a Wishart and propagate through full ILR MC,
+      or (b) explicitly redefine the fields as sampling-error bounds and
+      document that covariance uncertainty is out of scope. Do not present
+      a Bernoulli CI as the covariance-propagated interval the methodology
+      section claims.
+    \item[$\square$] \textbf{[correctness/security --- blocking for public
+      deploy]} Dashboard page auth (DASHBOARD\_PASSWORD) does not protect
+      the FastAPI backend routes (\texttt{/api/coverage},
+      \texttt{/api/sentiment-dist}, \texttt{/api/bio-coverage},
+      \texttt{/api/audit}) on the Modal URL --- anyone can call them
+      directly and read panel data and the full audit log. Add a shared
+      bearer token / signed header checked at the FastAPI boundary before
+      going public.
   \end{itemize}
   The SRP is not ``done'' until every box here is checked or has a written,
   Espinosa-approved deferral.}{2}

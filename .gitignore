@@ -283,7 +283,10 @@ run_*.log
 .stversions/
 
 # ── Next.js webapp (webapp/) ──────────────────────────────────────────────────
-webapp/.next/            # Next.js build output
+# .next/ guards against accidental `next dev` or `next build` run from the repo root
+.next/
+# webapp/.next/ is also covered by webapp/.gitignore (belt-and-suspenders)
+webapp/.next/
 webapp/out/              # next export static output
 webapp/node_modules/
 webapp/.env.local        # local dev overrides (NEXT_PUBLIC_API_URL etc.)
