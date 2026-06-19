@@ -68,12 +68,14 @@ const religionRecord = <T extends z.ZodTypeAny>(v: T) =>
     .strict();
 
 const genderRecord = <T extends z.ZodTypeAny>(v: T) =>
-  z.object(
-    Object.fromEntries(GENDER_BLOCS.map((b) => [b, v])) as Record<
-      (typeof GENDER_BLOCS)[number],
-      T
-    >,
-  );
+  z
+    .object(
+      Object.fromEntries(GENDER_BLOCS.map((b) => [b, v])) as Record<
+        (typeof GENDER_BLOCS)[number],
+        T
+      >,
+    )
+    .strict();
 
 export const ShockResponseDataSchema = z.object({
   shock: z.string(),
