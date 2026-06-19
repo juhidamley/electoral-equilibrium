@@ -676,6 +676,7 @@ class EquilibriumData:
     feasible: bool  # False if no w on the simplex can push μ̃_eff above V_eq
     target_met: bool  # True if the rebalanced μ̃_eff meets V_eq
     target: float  # V_eq threshold
+    mu_eff_shifted: float = 0.0  # λ-weighted scalar μ_eff across all three strata; 0.0 = not computed
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -691,6 +692,7 @@ class EquilibriumData:
             feasible=bool(payload["feasible"]),
             target_met=bool(payload["target_met"]),
             target=float(payload["target"]),
+            mu_eff_shifted=float(payload.get("mu_eff_shifted", 0.0)),
         )
 
     def validate(self) -> None:
@@ -732,6 +734,8 @@ class SimulationData:
     seed: int  # RNG seed used for this simulation run
     win_probability: float  # point estimate: fraction of draws meeting V_eq
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
+    win_probability_low: float = 0.0  # bootstrap CI 5th percentile; 0.0 = not computed
+    win_probability_high: float = 0.0  # bootstrap CI 95th percentile; 0.0 = not computed
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -743,6 +747,8 @@ class SimulationData:
             seed=int(payload["seed"]),
             win_probability=float(payload["win_probability"]),
             percentiles={k: [float(p) for p in v] for k, v in payload["percentiles"].items()},
+            win_probability_low=float(payload.get("win_probability_low", 0.0)),
+            win_probability_high=float(payload.get("win_probability_high", 0.0)),
         )
 
     def validate(self) -> None:

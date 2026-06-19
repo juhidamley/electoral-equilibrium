@@ -3470,6 +3470,17 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       overlay: loyalty and weight occupy distinct visual ranges on a shared
       [0,1] axis --- verify no per-bloc collision on real shock data before
       shipping as the SRP headline figure.
+    \item[$\square$] \textbf{[correctness]} WinGauge model-vs-market
+      juxtaposition: model answers a counterfactual-conditional question,
+      market answers an unconditional-current question --- UI must label
+      them as different, and must flag when the matched contract is the
+      generic election market (not event-conditioned). Confirm framing with
+      Espinosa.
+    \item[$\square$] \textbf{[correctness (reporting)]} SSE streaming
+      ``30\% latency improvement'' claim is wrong --- stages are sequential
+      so streaming improves time-to-first-content only, not total
+      round-trip. Update devplan/docs to claim perceived-latency
+      improvement, not throughput speedup.
   \end{itemize}
   The SRP is not ``done'' until every box here is checked or has a written,
   Espinosa-approved deferral.}{2}
@@ -3770,6 +3781,25 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   Do NOT ship the shared axis as the SRP headline figure until this is
   verified on real numbers. Severity: correctness --- the figure must not
   mislead.}{2}
+
+\task{Make the model-vs-market juxtaposition epistemically honest. The
+  WinGauge shows model $P(\text{win} \mid \text{hypothetical shock})$ next
+  to market $P(\text{win} \mid \text{everything currently true})$. These
+  answer DIFFERENT questions --- the model is counterfactual-conditional,
+  the market is unconditional-current --- and for most hypothetical events
+  no contract is actually conditioned on the event, so ``nearest relevant
+  contract'' returns the generic election market (the unconditional prior).
+  Presenting ``Model 62\% / Market 55\%'' as if they were the same question
+  is misleading. Required: (i) UI copy must label them as different
+  questions, not competing estimates --- e.g.\ ``Model: if this happens
+  $\to$'' vs ``Market (current, unconditional): $\to$''; (ii) when the
+  matched contract is NOT conditioned on the event (the common case), say
+  so explicitly (``nearest market is the general election winner, not this
+  scenario''); (iii) the \texttt{aggregator.py} match must return whether
+  the contract is event-conditional or generic, and the UI must surface
+  that. Severity: correctness --- this is the headline epistemic display
+  and must not imply a false comparison. Confirm framing with
+  Prof.\ Espinosa.}{2}
 
 \end{taskbox}
 

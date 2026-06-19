@@ -15,13 +15,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { EquilibriumData, Party, SimulationData } from "@/lib/types";
+import { estimateShockStream } from "@/lib/api";
 import CoalitionChart from "@/components/CoalitionChart";
 import ErrorBanner from "@/components/ErrorBanner";
 import ShockInput from "@/components/ShockInput";
 import ShockNarrative from "@/components/ShockNarrative";
 import WinGauge from "@/components/WinGauge";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Backend guard: event descriptions shorter than 10 chars receive a 422.
 // Mirror it here so the user gets immediate feedback instead of a round-trip.
@@ -62,47 +61,29 @@ export default function HomePage() {
     setEquilibrium(null);
     setSimulation(null);
 
-    const url = new URL(`${API_URL}/estimate/stream`);
-    url.searchParams.set("event", event);
-    url.searchParams.set("intensity", String(intensity));
-    url.searchParams.set("party", party);
-
-    const es = new EventSource(url.toString());
+    const es = estimateShockStream(event, intensity, party, {
+      onDeltas: (data) => {
+        // Merge all three strata bins for ShockNarrative (displays any bloc type).
+        setDeltaBins({
+          ...data.delta_bins_race,
+          ...data.delta_bins_religion,
+          ...data.delta_bins_gender,
+        });
+      },
+      onEquilibrium: (data) => setEquilibrium(data),
+      onSimulation: (data) => setSimulation(data),
+      onDone: () => {
+        setLoading(false);
+        esRef.current = null;
+      },
+      onError: (msg) => {
+        console.error("SSE stream error", msg);
+        setError("The estimation service is unavailable. Please try again.");
+        setLoading(false);
+        esRef.current = null;
+      },
+    });
     esRef.current = es;
-
-    es.addEventListener("deltas", (e) => {
-      const data = JSON.parse((e as MessageEvent).data);
-      // Merge all three strata bins for ShockNarrative (displays any bloc type).
-      setDeltaBins({
-        ...data.delta_bins_race,
-        ...data.delta_bins_religion,
-        ...data.delta_bins_gender,
-      });
-    });
-
-    es.addEventListener("equilibrium", (e) => {
-      const data = JSON.parse((e as MessageEvent).data) as EquilibriumData;
-      setEquilibrium(data);
-    });
-
-    es.addEventListener("simulation", (e) => {
-      const data = JSON.parse((e as MessageEvent).data) as SimulationData;
-      setSimulation(data);
-    });
-
-    es.addEventListener("done", () => {
-      setLoading(false);
-      es.close();
-      esRef.current = null;
-    });
-
-    es.onerror = (rawEvent) => {
-      console.error("SSE stream error", rawEvent);
-      setError("The estimation service is unavailable. Please try again.");
-      setLoading(false);
-      es.close();
-      esRef.current = null;
-    };
   };
 
   return (
@@ -157,7 +138,15 @@ export default function HomePage() {
             </div>
             <div className="lg:col-span-1">
               {/* WinGauge stays in skeleton state until "simulation" event arrives */}
-              <WinGauge simulation={simulation} loading={loading && !simulation} />
+              <WinGauge
+                winProbability={simulation?.win_probability ?? null}
+                winProbabilityLow={simulation?.win_probability_low}
+                winProbabilityHigh={simulation?.win_probability_high}
+                percentiles={simulation?.percentiles ?? null}
+                loading={loading && !simulation}
+                party={party}
+                event={event}
+              />
             </div>
           </div>
         </section>

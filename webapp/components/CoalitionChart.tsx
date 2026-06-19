@@ -130,42 +130,12 @@ export default function CoalitionChart({
       ? (muEffShifted - target) * 100
       : null;
 
-  // ── Skeleton ───────────────────────────────────────────────────────────────
-  if (shifted === null) {
-    return (
-      <div className="rounded-md border border-gray-100 bg-white p-4">
-        <div className="space-y-3 animate-pulse">
-          {RACE_BLOCS.map((b) => (
-            <div key={b} className="flex items-center gap-3">
-              <div className="h-3 w-28 rounded bg-gray-100" />
-              <div className="h-6 flex-1 rounded bg-gray-100" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const chartData: ChartEntry[] = RACE_BLOCS.map((bloc) => {
-    const s = shifted[bloc] ?? null;
-    const b = baseline?.[bloc] ?? null;
-    // weight is null for a bloc absent from rebalanced (omit translucent bar, not 0)
-    const w = hasRebalanced ? (rebalanced![bloc] ?? null) : null;
-    return {
-      bloc,
-      label: BLOC_LABEL[bloc] ?? bloc,
-      baseline: b,
-      shifted: s,
-      weight: w,
-      delta: s != null && b != null ? s - b : null,
-    };
-  }).sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
-
   // ── Custom bar shape ───────────────────────────────────────────────────────
-  // All three layers (opaque prediction, translucent rebalance, baseline tick)
-  // are drawn in one custom shape so they share a coordinate system and the
-  // translucent layer never causes the opaque bar to re-mount.
+  // useMemo is declared HERE — before the skeleton early return — so the hook
+  // call count is identical on every render regardless of whether shifted is
+  // null or not. Moving it after the early return causes a Rules-of-Hooks
+  // violation on the null→data transition (first render: 0 hooks; after SSE
+  // event: 1 hook — React throws "Rendered more hooks than previous render").
   const BarShape = useMemo(
     () =>
       (props: {
@@ -247,6 +217,37 @@ export default function CoalitionChart({
       },
     [partyColor, feasible, hasRebalanced],
   );
+
+  // ── Skeleton ───────────────────────────────────────────────────────────────
+  if (shifted === null) {
+    return (
+      <div className="rounded-md border border-gray-100 bg-white p-4">
+        <div className="space-y-3 animate-pulse">
+          {RACE_BLOCS.map((b) => (
+            <div key={b} className="flex items-center gap-3">
+              <div className="h-3 w-28 rounded bg-gray-100" />
+              <div className="h-6 flex-1 rounded bg-gray-100" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Chart data ─────────────────────────────────────────────────────────────
+  const chartData: ChartEntry[] = RACE_BLOCS.map((bloc) => {
+    const s = shifted[bloc] ?? null;
+    const b = baseline?.[bloc] ?? null;
+    const w = hasRebalanced ? (rebalanced![bloc] ?? null) : null;
+    return {
+      bloc,
+      label: BLOC_LABEL[bloc] ?? bloc,
+      baseline: b,
+      shifted: s,
+      weight: w,
+      delta: s != null && b != null ? s - b : null,
+    };
+  }).sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
 
   return (
     <div className="rounded-md border border-gray-100 bg-white p-4">

@@ -271,6 +271,23 @@ def run_ilr_montecarlo(
     win_flags = mu_eff_samples >= target
     win_probability = float(win_flags.mean())
 
+    # ── Bootstrap CI on win_probability via batch splitting ──────────────────
+    # Split draws into B batches and compute win_prob per batch; p5/p95 of
+    # batch estimates gives a 90% CI that accounts for simulation variance.
+    n_valid = len(win_flags)
+    n_batches = min(100, n_valid // 100)
+    if n_batches >= 2:
+        batch_size = n_valid // n_batches
+        batch_probs = [
+            float(win_flags[i * batch_size : (i + 1) * batch_size].mean())
+            for i in range(n_batches)
+        ]
+        win_probability_low = float(np.percentile(batch_probs, 5))
+        win_probability_high = float(np.percentile(batch_probs, 95))
+    else:
+        win_probability_low = win_probability
+        win_probability_high = win_probability
+
     # ── Compute per-bloc percentiles ──────────────────────────────────────────
     percentile_levels = [5, 25, 50, 75, 95]
     percentiles: dict[str, list[float]] = {}
@@ -283,4 +300,6 @@ def run_ilr_montecarlo(
         seed=seed,
         win_probability=win_probability,
         percentiles=percentiles,
+        win_probability_low=win_probability_low,
+        win_probability_high=win_probability_high,
     )

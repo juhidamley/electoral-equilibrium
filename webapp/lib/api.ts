@@ -9,7 +9,14 @@
 // partially-shaped data into the UI. When the endpoint is widened, this
 // client requires no changes.
 
-import { EstimateResponseSchema, type EstimateResponse } from "./schemas";
+import {
+  EstimateResponseSchema,
+  EquilibriumDataSchema,
+  ShockResponseDataSchema,
+  SimulationDataSchema,
+  type EstimateResponse,
+} from "./schemas";
+import type { EquilibriumData, Party, ShockResponseData, SimulationData } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -97,4 +104,98 @@ export async function healthCheck(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ── SSE streaming client ──────────────────────────────────────────────────────
+//
+// Opens an EventSource to GET /estimate/stream and dispatches named SSE events
+// to the provided callbacks. Zod-validates each payload at the API boundary —
+// parse failures call onError rather than propagating undefined/NaN into the UI.
+//
+// Returns the EventSource so the caller can close it on unmount:
+//   const es = estimateShockStream(...);
+//   useEffect(() => () => es.close(), []);
+//
+// Named SSE events from the backend:
+//   deltas       → ShockResponseData (LLM stage, ~2s)
+//   equilibrium  → EquilibriumData   (CVXPY DQCP optimizer, ~1s)
+//   simulation   → SimulationData    (Logistic-Normal ILR Monte Carlo, ~0.5s)
+//   done         → stream complete   (no data payload)
+//   stream_error → { stage, message } (stage failure; stream ends with "done")
+//
+// Note: the browser's built-in EventSource fires its own "error" event for
+// connection-level failures (network down, CORS, HTTP 4xx/5xx). This is
+// handled by es.onerror below and is distinct from the named "stream_error"
+// SSE frames emitted by the backend for stage-level failures.
+
+export function estimateShockStream(
+  event: string,
+  intensity: number,
+  party: Party,
+  callbacks: {
+    onDeltas?: (data: ShockResponseData) => void;
+    onEquilibrium?: (data: EquilibriumData) => void;
+    onSimulation?: (data: SimulationData) => void;
+    onError?: (message: string) => void;
+    onDone?: () => void;
+  },
+): EventSource {
+  const url = new URL(`${API_URL}/estimate/stream`);
+  url.searchParams.set("event", event);
+  url.searchParams.set("intensity", String(intensity));
+  url.searchParams.set("party", party);
+
+  const es = new EventSource(url.toString());
+
+  es.addEventListener("deltas", (e: MessageEvent) => {
+    const parsed = ShockResponseDataSchema.safeParse(JSON.parse(e.data));
+    if (parsed.success) {
+      callbacks.onDeltas?.(parsed.data);
+    } else {
+      const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      callbacks.onError?.(`deltas schema error: ${msg}`);
+    }
+  });
+
+  es.addEventListener("equilibrium", (e: MessageEvent) => {
+    const parsed = EquilibriumDataSchema.safeParse(JSON.parse(e.data));
+    if (parsed.success) {
+      callbacks.onEquilibrium?.(parsed.data);
+    } else {
+      const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      callbacks.onError?.(`equilibrium schema error: ${msg}`);
+    }
+  });
+
+  es.addEventListener("simulation", (e: MessageEvent) => {
+    const parsed = SimulationDataSchema.safeParse(JSON.parse(e.data));
+    if (parsed.success) {
+      callbacks.onSimulation?.(parsed.data);
+    } else {
+      const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      callbacks.onError?.(`simulation schema error: ${msg}`);
+    }
+  });
+
+  es.addEventListener("stream_error", (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data) as { stage?: string; message?: string };
+      callbacks.onError?.(`[${data.stage ?? "unknown"}] ${data.message ?? "stage failed"}`);
+    } catch {
+      callbacks.onError?.("stream_error: unparseable payload");
+    }
+  });
+
+  es.addEventListener("done", () => {
+    callbacks.onDone?.();
+    es.close();
+  });
+
+  // Connection-level errors (network failure, CORS, HTTP 4xx/5xx before stream starts).
+  es.onerror = () => {
+    callbacks.onError?.("SSE connection error");
+    es.close();
+  };
+
+  return es;
 }
