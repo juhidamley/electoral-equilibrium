@@ -158,7 +158,14 @@ export function estimateShockStream(
   });
 
   es.addEventListener("equilibrium", (e: MessageEvent) => {
-    const parsed = EquilibriumDataSchema.safeParse(JSON.parse(e.data));
+    let data: unknown;
+    try {
+      data = JSON.parse(e.data);
+    } catch {
+      callbacks.onError?.("equilibrium: invalid JSON payload");
+      return;
+    }
+    const parsed = EquilibriumDataSchema.safeParse(data);
     if (parsed.success) {
       callbacks.onEquilibrium?.(parsed.data);
     } else {
