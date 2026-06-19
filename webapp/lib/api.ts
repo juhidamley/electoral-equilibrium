@@ -182,7 +182,14 @@ export function estimateShockStream(
   });
 
   es.addEventListener("simulation", (e: MessageEvent) => {
-    const parsed = SimulationDataSchema.safeParse(JSON.parse(e.data));
+    let data: unknown;
+    try {
+      data = JSON.parse(e.data);
+    } catch {
+      callbacks.onError?.("simulation: invalid JSON payload");
+      return;
+    }
+    const parsed = SimulationDataSchema.safeParse(data);
     if (parsed.success) {
       callbacks.onSimulation?.(parsed.data);
     } else {
