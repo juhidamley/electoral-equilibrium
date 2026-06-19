@@ -676,7 +676,9 @@ class EquilibriumData:
     feasible: bool  # False if no w on the simplex can push μ̃_eff above V_eq
     target_met: bool  # True if the rebalanced μ̃_eff meets V_eq
     target: float  # V_eq threshold
-    mu_eff_shifted: float = 0.0  # λ-weighted scalar μ_eff across all three strata; 0.0 = not computed
+    mu_eff_shifted: float = (
+        0.0  # λ-weighted scalar μ_eff across all three strata; 0.0 = not computed
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)

@@ -259,8 +259,7 @@ def serve() -> Any:
     # user_middleware is populated by add_middleware(); middleware_stack is built
     # lazily on first request — modifying user_middleware here is safe.
     fastapi_app.user_middleware = [
-        m for m in fastapi_app.user_middleware
-        if m.cls is not CORSMiddleware
+        m for m in fastapi_app.user_middleware if m.cls is not CORSMiddleware
     ]
     # Reset cached stack so it's rebuilt from the updated user_middleware.
     fastapi_app.middleware_stack = None

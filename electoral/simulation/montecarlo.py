@@ -279,8 +279,7 @@ def run_ilr_montecarlo(
     if n_batches >= 2:
         batch_size = n_valid // n_batches
         batch_probs = [
-            float(win_flags[i * batch_size : (i + 1) * batch_size].mean())
-            for i in range(n_batches)
+            float(win_flags[i * batch_size : (i + 1) * batch_size].mean()) for i in range(n_batches)
         ]
         win_probability_low = float(np.percentile(batch_probs, 5))
         win_probability_high = float(np.percentile(batch_probs, 95))
