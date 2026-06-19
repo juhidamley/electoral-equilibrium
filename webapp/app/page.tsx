@@ -7,12 +7,15 @@
 //   3. "simulation"  → WinGauge win probability + CI strip
 //   4. "done"        → loading=false, EventSource closed
 //
-// Rendering contract:
-//   • CoalitionChart skeleton shows until "equilibrium" arrives; both layers render
-//     together from equilibrium.mu_shifted and equilibrium.weights.
-//   • WinGauge stays in skeleton state until "simulation" event arrives.
+// Layout:
+//   • Sticky header — project name, description, methodology link
+//   • Two-column on desktop (lg+): left sidebar = inputs, right = results
+//   • Single column on mobile (< lg)
+//   • Persistent footer disclaimer
 
 import { useEffect, useRef, useState } from "react";
+import * as Collapsible from "@radix-ui/react-collapsible";
+import { ChevronDown, Link2 } from "lucide-react";
 
 import type { EquilibriumData, Party, SimulationData } from "@/lib/types";
 import { estimateShockStream } from "@/lib/api";
@@ -22,8 +25,48 @@ import ShockInput from "@/components/ShockInput";
 import ShockNarrative from "@/components/ShockNarrative";
 import WinGauge from "@/components/WinGauge";
 
-// Backend guard: event descriptions shorter than 10 chars receive a 422.
-// Mirror it here so the user gets immediate feedback instead of a round-trip.
+// ── "How it works" collapsible ────────────────────────────────────────────────
+
+function HowItWorks() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible.Root
+      open={open}
+      onOpenChange={setOpen}
+      className="overflow-hidden rounded-md border border-gray-200 bg-white"
+    >
+      <Collapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
+        How it works
+        <ChevronDown
+          className={`h-4 w-4 flex-none text-gray-400 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </Collapsible.Trigger>
+      <Collapsible.Content>
+        <ol className="space-y-2.5 px-4 pb-4 pt-1 text-sm text-gray-600">
+          <li>
+            <span className="font-medium text-gray-800">1. Shock → delta bins.</span>{" "}
+            A fine-tuned Mistral model predicts how each demographic group's party loyalty
+            shifts (9-bin ordinal) after the hypothetical event.
+          </li>
+          <li>
+            <span className="font-medium text-gray-800">2. Optimizer.</span>{" "}
+            A CVXPY DQCP solver maximises the probability-of-winning Sharpe ratio by
+            reweighting coalition blocs under demographic constraints.
+          </li>
+          <li>
+            <span className="font-medium text-gray-800">3. Simulation.</span>{" "}
+            10,000 Logistic-Normal ILR Monte Carlo draws propagate covariance uncertainty
+            into a 90% win-probability confidence interval.
+          </li>
+        </ol>
+      </Collapsible.Content>
+    </Collapsible.Root>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const [party, setParty] = useState<Party>("democrat");
@@ -32,29 +75,52 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Populated by SSE "deltas" event — enables ShockNarrative.
   const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);
-
-  // Populated by SSE "equilibrium" event — adds translucent rebalance layer.
   const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);
-
-  // Populated by SSE "simulation" event — drives WinGauge.
   const [simulation, setSimulation] = useState<SimulationData | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Ref holds the active EventSource so handleSubmit can close a stale connection
-  // and the unmount cleanup can close any in-flight stream.
   const esRef = useRef<EventSource | null>(null);
 
+  // Pre-fill form from shared URL params (once on mount, no auto-submit).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const p = params.get("party");
+    if (p === "democrat" || p === "republican") setParty(p);
+
+    const e = params.get("event");
+    if (e) setEvent(e);
+
+    const iRaw = params.get("intensity");
+    if (iRaw !== null) {
+      const n = Number(iRaw);
+      if (!Number.isNaN(n) && n >= 0.5 && n <= 2.0) setIntensity(n);
+    }
+  }, []);
+
+  // Close in-flight EventSource on unmount.
   useEffect(() => {
     return () => {
       esRef.current?.close();
     };
   }, []);
 
-  const handleSubmit = () => {
-    // Close any in-flight stream before opening a new one.
-    esRef.current?.close();
+  const handleShare = () => {
+    const params = new URLSearchParams({
+      party,
+      event,
+      intensity: String(intensity),
+    });
+    const shareUrl = `${window.location.origin}${window.location.pathname}?${params}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
+  const handleSubmit = () => {
+    esRef.current?.close();
     setLoading(true);
     setError(null);
     setDeltaBins(null);
@@ -63,7 +129,6 @@ export default function HomePage() {
 
     const es = estimateShockStream(event, intensity, party, {
       onDeltas: (data) => {
-        // Merge all three strata bins for ShockNarrative (displays any bloc type).
         setDeltaBins({
           ...data.delta_bins_race,
           ...data.delta_bins_religion,
@@ -87,70 +152,127 @@ export default function HomePage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-semibold">Electoral Equilibrium</h1>
-
-      <ShockInput
-        party={party}
-        setParty={setParty}
-        event={event}
-        setEvent={setEvent}
-        intensity={intensity}
-        setIntensity={setIntensity}
-        loading={loading}
-        onSubmit={handleSubmit}
-      />
-
-      <ErrorBanner message={error} />
-
-      {/* Results region — shown as soon as loading starts so components can
-          display their own skeleton states before their SSE event arrives.
-          Gated on (deltaBins || loading) so nothing renders before first submit. */}
-      {(deltaBins || loading) && (
-        <section className="mt-8 space-y-6">
-          {/* ShockNarrative: populates on "deltas" (~2s) — first visible result */}
-          <ShockNarrative
-            deltaBins={deltaBins}
-            party={party}
-            loading={loading && !deltaBins}
-          />
-
-          {/* Grid: chart (2/3) + gauge (1/3) side-by-side on desktop, stacked on mobile.
-              CoalitionChart renders opaque baseline bars on "deltas"; the translucent
-              rebalance overlay is added IN PLACE on "equilibrium" via the rebalanced
-              prop — no key change, no remount, no re-animation of opaque bars. */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              {/* Both opaque (mu_shifted) and translucent (weights) layers arrive
-                  together on the "equilibrium" SSE event — chart shows skeleton
-                  until then. baseline=null until backend exposes pre-shock μ_i. */}
-              <CoalitionChart
-                baseline={null}
-                shifted={equilibrium?.mu_shifted ?? null}
-                rebalanced={equilibrium?.weights ?? null}
-                feasible={equilibrium?.feasible ?? true}
-                targetMet={equilibrium?.target_met ?? null}
-                muEffShifted={equilibrium?.mu_eff_shifted ?? null}
-                target={equilibrium?.target ?? null}
-                party={party}
-                loading={loading}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              {/* WinGauge stays in skeleton state until "simulation" event arrives */}
-              <WinGauge
-                winProbability={simulation?.win_probability ?? null}
-                winProbabilityLow={simulation?.win_probability_low}
-                winProbabilityHigh={simulation?.win_probability_high}
-                percentiles={simulation?.percentiles ?? null}
-                loading={loading && !simulation}
-                party={party}
-                event={event}
-              />
-            </div>
+    <div className="flex min-h-screen flex-col">
+      {/* ── Sticky header ──────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold leading-tight text-gray-900 sm:text-lg">
+              Electoral Equilibrium
+            </h1>
+            <p className="mt-0.5 hidden text-xs leading-snug text-gray-500 sm:block">
+              A bipartisan model of how electoral coalitions shift under hypothetical
+              political shocks.
+            </p>
           </div>
-        </section>
-      )}
-    </main>
+          <a
+            href="/devplan.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-none whitespace-nowrap text-xs text-blue-600 hover:text-blue-800 hover:underline sm:text-sm"
+          >
+            Methodology&nbsp;↗
+          </a>
+        </div>
+      </header>
+
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        {/*
+         * Two-column on desktop (lg+):
+         *   left  — fixed-width sidebar: ShockInput + collapsible
+         *   right — flex-1: error banner + results region
+         * Single column on mobile: sidebar stacks above results.
+         */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+
+          {/* ── Left sidebar — controls ─────────────────────────────────── */}
+          <aside className="w-full space-y-4 lg:w-80 xl:w-96 lg:flex-none">
+            <ShockInput
+              party={party}
+              setParty={setParty}
+              event={event}
+              setEvent={setEvent}
+              intensity={intensity}
+              setIntensity={setIntensity}
+              loading={loading}
+              onSubmit={handleSubmit}
+            />
+            <HowItWorks />
+
+            {/* Share button — disabled until event meets the backend's ≥10-char guard */}
+            <button
+              onClick={handleShare}
+              disabled={event.trim().length < 10}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {copied ? "Copied!" : "Share this result"}
+            </button>
+          </aside>
+
+          {/* ── Right column — results ──────────────────────────────────── */}
+          <div className="min-w-0 flex-1 space-y-6">
+            <ErrorBanner message={error} />
+
+            {/*
+             * Results region — shown as soon as loading starts so components
+             * can display their own skeleton states before their SSE event
+             * arrives. Gated on (deltaBins || loading) to suppress empty state
+             * before first submit.
+             */}
+            {(deltaBins || loading) && (
+              <>
+                {/* ShockNarrative: populates on "deltas" (~2s) */}
+                <ShockNarrative
+                  deltaBins={deltaBins}
+                  party={party}
+                  loading={loading && !deltaBins}
+                />
+
+                {/*
+                 * CoalitionChart: skeleton until "equilibrium" event.
+                 * Both opaque (mu_shifted) and translucent (weights) layers
+                 * arrive together — no key change, no remount.
+                 */}
+                <CoalitionChart
+                  baseline={null}
+                  shifted={equilibrium?.mu_shifted ?? null}
+                  rebalanced={equilibrium?.weights ?? null}
+                  feasible={equilibrium?.feasible ?? true}
+                  targetMet={equilibrium?.target_met ?? null}
+                  muEffShifted={equilibrium?.mu_eff_shifted ?? null}
+                  target={equilibrium?.target ?? null}
+                  party={party}
+                  loading={loading}
+                />
+
+                {/* WinGauge: skeleton until "simulation" event */}
+                <WinGauge
+                  winProbability={simulation?.win_probability ?? null}
+                  winProbabilityLow={simulation?.win_probability_low}
+                  winProbabilityHigh={simulation?.win_probability_high}
+                  percentiles={simulation?.percentiles ?? null}
+                  loading={loading && !simulation}
+                  party={party}
+                  event={event}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Persistent disclaimer ───────────────────────────────────────────── */}
+      <footer className="border-t border-gray-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-4">
+          <p className="text-xs leading-relaxed text-gray-400">
+            This is a research tool, not a forecast. It estimates the directional effect
+            of <em>hypothetical</em> events on coalition structure — it does not predict
+            real election outcomes. Built as a CMC Senior Research Project.
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 }
