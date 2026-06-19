@@ -114,7 +114,7 @@ export const SimulationDataSchema = z
     win_probability: z.number().min(0).max(1),
     win_probability_low: z.number().min(0).max(1),
     win_probability_high: z.number().min(0).max(1),
-    percentiles: raceRecord(z.array(z.number())), // [p5, p25, p50, p75, p95]
+    percentiles: raceRecord(z.array(z.number()).length(5)), // [p5, p25, p50, p75, p95]
   })
   .refine((d) => d.win_probability_low <= d.win_probability_high, {
     message: "win_probability_low must be <= win_probability_high",
