@@ -737,7 +737,7 @@ class SimulationData:
     win_probability: float  # point estimate: fraction of draws meeting V_eq
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
     win_probability_low: float = 0.0  # bootstrap CI 5th percentile; 0.0 = not computed
-    win_probability_high: float = 0.0  # bootstrap CI 95th percentile; 0.0 = not computed
+    win_probability_high: float = 1.0  # bootstrap CI 95th percentile; 1.0 = not computed
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -750,7 +750,7 @@ class SimulationData:
             win_probability=float(payload["win_probability"]),
             percentiles={k: [float(p) for p in v] for k, v in payload["percentiles"].items()},
             win_probability_low=float(payload.get("win_probability_low", 0.0)),
-            win_probability_high=float(payload.get("win_probability_high", 0.0)),
+            win_probability_high=float(payload.get("win_probability_high", 1.0)),
         )
 
     def validate(self) -> None:
@@ -780,6 +780,16 @@ class SimulationData:
                         f"SimulationData.percentiles[{bloc_id!r}] must be non-decreasing; "
                         f"got {pcts[i]} > {pcts[i + 1]} at positions [{i},{i + 1}]"
                     )
+        if not (0.0 <= self.win_probability_low <= self.win_probability_high <= 1.0):
+            raise ValueError(
+                f"SimulationData: win_probability_low={self.win_probability_low} "
+                f"must be <= win_probability_high={self.win_probability_high}, both in [0,1]"
+            )
+        if not (self.win_probability_low <= self.win_probability <= self.win_probability_high):
+            raise ValueError(
+                f"SimulationData: win_probability={self.win_probability} must lie within "
+                f"[{self.win_probability_low}, {self.win_probability_high}]"
+            )
 
 
 # ── Stage 7: Performance metrics tables ──────────────────────────────────────
