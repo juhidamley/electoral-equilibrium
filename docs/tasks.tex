@@ -3481,6 +3481,15 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       so streaming improves time-to-first-content only, not total
       round-trip. Update devplan/docs to claim perceived-latency
       improvement, not throughput speedup.
+    \item[$\square$] \textbf{[correctness]} Modal audit DuckDB is
+      ephemeral --- container restarts silently drop all audit rows.
+      Mount on a Modal Volume or external DB; confirm with a
+      deploy-restart-query test.
+    \item[$\square$] \textbf{[blocking --- public deploy]} No rate
+      limiting or spend cap on the unauthenticated GPU endpoint; the
+      share-link feature lets strangers trigger \textasciitilde12\,s GPU
+      calls. Add per-IP rate limit, Modal concurrency cap, and billing
+      alert before going public.
   \end{itemize}
   The SRP is not ``done'' until every box here is checked or has a written,
   Espinosa-approved deferral.}{2}
@@ -3530,6 +3539,16 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   \texttt{module load cuda/13.2} and
   \texttt{LD\_LIBRARY\_PATH=/hopper/software/cuda/13.2/lib64} in every
   \texttt{srun}.}{2}
+
+\task{Persist the audit DuckDB across Modal container restarts.
+  \texttt{data/audit.duckdb} is a local file; Modal's container filesystem
+  is ephemeral, so audit rows are silently lost on every cold start /
+  redeploy. Mount the DuckDB file on a Modal Volume (or move audit storage
+  to an external persistent DB). Until then the audit log works locally
+  but is decorative in production --- confirm persistence with a
+  deploy-restart-query test (log an estimate, force a container restart,
+  confirm the row survives). Severity: correctness --- an audit trail that
+  doesn't persist is not an audit trail.}{2}
 \end{taskbox}
 
 \begin{taskbox}{Training Pipeline}
