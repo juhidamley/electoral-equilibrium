@@ -3201,10 +3201,32 @@ DuckDB, password auth, and six data-backed panels is a two-day build, not one.
 \dayhead{3}{Wed --- Feedback, Integration Tests \& Replication Package}
 
 \begin{taskbox}
-\done \task{Implement any domain feedback from Prof.\ Espinosa's Week~7
-  supervision check-in. Common changes: bloc display name corrections,
-  chart axis relabeling, disclaimer rewording. Re-run the manual end-to-end
-  test after each change. Commit as \texttt{fix: incorporate-supervision-feedback}.}{2}
+\done \task{Resolve substantive open questions at the Week~7 supervision
+  check-in with Prof.\ Espinosa. Three flag-log items cannot close without
+  his answers; get them on record before touching the code:
+  \begin{itemize}[leftmargin=1.6em, itemsep=1pt]
+    \item \textbf{What does \texttt{target=0.5066} represent?} Popular-vote
+      share? EC threshold? Effective-loyalty cutoff? The answer determines
+      whether win\_probability=1.0 saturation is a bug or a modeling choice,
+      and whether the current value is defensible.
+    \item \textbf{What should win\_probability\_low/high measure?} Monte
+      Carlo sampling error (the current code) or $\Sigma_\Delta$
+      covariance-propagated uncertainty (what the methodology section
+      implies)? These are different intervals with different scientific
+      meanings; the choice must be explicit and documented.
+    \item \textbf{Is the model-vs-market juxtaposition framed honestly?}
+      The model answers $P(\text{win} \mid \text{hypothetical shock})$; the
+      market answers $P(\text{win} \mid \text{current reality})$. Confirm
+      the UI copy and methodology text distinguish these, and that no
+      generic election contract is presented as event-conditioned.
+  \end{itemize}
+  Capture his answers in \texttt{DECISIONS.md} and mark the three
+  corresponding flag-log checkboxes ``resolved per Espinosa \textit{<date>}''
+  or ``deferred per Espinosa \textit{<date>}''. Cosmetic feedback (bloc
+  display names, axis labels, disclaimer wording) is the easy part of
+  this task; the three above are the substantive gate. Re-run the manual
+  end-to-end test after each cosmetic change. Commit as
+  \texttt{fix: incorporate-supervision-feedback}.}{3}
 
 \done \task{Write \texttt{tests/test\_integration\_end\_to\_end.py}: run the
   full pipeline on the smoke config from a clean state. Assert all stage
@@ -3508,6 +3530,13 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       directly and read panel data and the full audit log. Add a shared
       bearer token / signed header checked at the FastAPI boundary before
       going public.
+    \item[$\square$] \textbf{[security --- blocking for public deploy]}
+      \texttt{/api/audit} search term is interpolated into SQL
+      (\texttt{LIKE \%search\%} via f-string/concatenation) --- SQL
+      injection on a public endpoint hitting the audit store. Use a
+      DuckDB placeholder (\texttt{ILIKE ?} with wildcards in the bound
+      parameter). Clamp \texttt{limit}. Audit every other DuckDB query
+      for the same pattern.
   \end{itemize}
   The SRP is not ``done'' until every box here is checked or has a written,
   Espinosa-approved deferral.}{2}

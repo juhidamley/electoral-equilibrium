@@ -106,21 +106,32 @@ class AuditLogger:
             # Audit failures must never surface to the user.
             log.warning("AuditLogger.log_estimate failed", exc_info=True)
 
+    def count(self) -> int:
+        """Return total number of estimate rows (lightweight — no full scan)."""
+        with self._lock:
+            result = self._con.execute("SELECT COUNT(*) FROM estimates").fetchone()
+            return int(result[0]) if result else 0
+
     def recent(self, limit: int = 100, search: str | None = None) -> list[dict[str, Any]]:
         """Return the most recent rows as a list of dicts.
 
-        If search is given, filters WHERE event_text LIKE %search% using a bound
-        parameter — never string-formatted into SQL to prevent injection.
+        If search is given, filters with WHERE event_text ILIKE ? (case-insensitive).
+        The search value is passed as a bound parameter — "%" + search + "%" —
+        never f-string interpolated into SQL (SQL injection guard).
 
-        DuckDB NULL floats arrive as float('nan') from pandas fetch_df();
+        limit is clamped to 500 as a defence-in-depth measure; the route layer
+        also clamps before calling here.
+
+        DuckDB NULL floats arrive as float('nan') from fetch_df();
         convert them back to None so the JSON response is well-formed.
         """
+        limit = min(max(1, limit), 500)
         with self._lock:
             if search:
                 rows = self._con.execute(
-                    "SELECT * FROM estimates WHERE event_text LIKE ? "
+                    "SELECT * FROM estimates WHERE event_text ILIKE ? "
                     "ORDER BY timestamp DESC LIMIT ?",
-                    [f"%{search}%", limit],
+                    ["%" + search + "%", limit],
                 ).fetch_df()
             else:
                 rows = self._con.execute(

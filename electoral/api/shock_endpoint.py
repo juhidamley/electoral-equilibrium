@@ -22,11 +22,13 @@ Concurrency pools (stored on app.state):
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -685,6 +687,9 @@ def _lookup_market_artifact(event_text: str, party: str) -> float | None:
     return best_prob
 
 
+_AUDIT_MAX_LIMIT = 500
+
+
 @app.get("/api/audit")
 def get_audit(
     limit: int = 100,
@@ -693,9 +698,21 @@ def get_audit(
 ) -> list[dict[str, Any]]:
     """Return the most recent estimate audit rows (newest first).
 
-    search filters event_text with a LIKE %search% — parameterized, not interpolated.
+    limit is clamped to _AUDIT_MAX_LIMIT to prevent full-table scans.
+    search filters event_text case-insensitively (ILIKE) — parameterized, never
+    string-interpolated, to prevent SQL injection.
+    Returns all columns including party.
     """
+    limit = min(max(1, limit), _AUDIT_MAX_LIMIT)
     return app.state.audit.recent(limit, search=search)
+
+
+@app.get("/api/audit/count")
+def get_audit_count(
+    _: None = Depends(_require_dashboard_auth),
+) -> dict[str, int]:
+    """Return the total number of estimate rows without fetching all data."""
+    return {"count": app.state.audit.count()}
 
 
 @app.get("/api/coverage")
@@ -908,96 +925,175 @@ def api_bio_coverage(
     return {"status": "ok", "shocks": counts}
 
 
-# ── Training-log helpers ───────────────────────────────────────────────────────
+# ── HPC training-log helpers ──────────────────────────────────────────────────
+# Logs are trainer stdout synced from the HPC via Syncthing into rawdata/hpc_logs/.
+# Files are SLURM stdout (.out) or plain .log files from the fine-tuning job.
 
-_TRAINING_LOG_BASES = [
-    Path("models"),
-    Path("checkpoints"),
-    Path(__file__).parent.parent.parent / "models",
-    Path(__file__).parent.parent.parent / "checkpoints",
+_HPC_LOGS_CANDIDATES = [
+    Path("rawdata") / "hpc_logs",
+    Path(__file__).parent.parent.parent / "rawdata" / "hpc_logs",
 ]
 
+# Regex to extract dict-like substrings from log lines.
+# Matches the HF Trainer repr() output: {'loss': 0.356, 'epoch': 0.08, ...}
+# Also handles eval-log dicts: {'eval_loss': 0.234, ...}
+_LOG_DICT_RE = re.compile(r"\{[^{}]+\}")
 
-def _find_training_log_paths() -> list[tuple[str, Path]]:
-    """Return [(run_name, trainer_state_path), ...] from models/ and checkpoints/."""
-    seen: set[Path] = set()
-    results: list[tuple[str, Path]] = []
-    for base in _TRAINING_LOG_BASES:
-        if not base.is_dir():
-            continue
-        for ts_path in sorted(base.rglob("trainer_state.json")):
-            resolved = ts_path.resolve()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            results.append((ts_path.parent.name, ts_path))
-    return results
-
-
-def _parse_trainer_state(raw: dict[str, Any]) -> dict[str, Any]:
-    """Normalise a trainer_state.json dict into a run summary for the dashboard."""
-    if "log_history" in raw:
-        # HuggingFace Trainer checkpoint format
-        log_history: list[dict[str, Any]] = []
-        for entry in raw.get("log_history", []):
-            step = entry.get("step")
-            if step is None:
-                continue
-            # Loss key: standard HF uses "loss"; our QLoRA trainer uses "embedding_loss"
-            train_loss = next(
-                (entry[k] for k in ("loss", "train_loss", "embedding_loss") if k in entry),
-                None,
-            )
-            eval_loss = next(
-                (entry[k] for k in ("eval_loss", "eval_mae") if k in entry),
-                None,
-            )
-            log_history.append(
-                {
-                    "step": step,
-                    "epoch": entry.get("epoch"),
-                    "train_loss": train_loss,
-                    "eval_loss": eval_loss,
-                    "lr": entry.get("learning_rate"),
-                }
-            )
-        train_entries = [e for e in log_history if e["train_loss"] is not None]
-        return {
-            "type": "checkpoint",
-            "log_history": log_history,
-            "summary": {
-                "n_steps": raw.get("global_step"),
-                "epochs": raw.get("epoch") or raw.get("num_train_epochs"),
-                "final_train_loss": train_entries[-1]["train_loss"] if train_entries else None,
-                "base_model": raw.get("base_model"),
-            },
-        }
-    else:
-        # Summary format written by our fine-tuning script on completion
-        return {
-            "type": "summary",
-            "log_history": [],
-            "summary": {
-                k: raw[k]
-                for k in (
-                    "epochs",
-                    "training_loss",
-                    "eval_mae",
-                    "n_train",
-                    "n_eval",
-                    "lora_rank",
-                    "lora_alpha",
-                    "base_model",
-                    "seed",
-                )
-                if k in raw
-            },
-        }
+# Completion markers that indicate a run finished normally (not OOM/quota crash).
+_COMPLETION_MARKERS = frozenset(
+    [
+        "training completed",
+        "train metrics",  # HF Trainer's final summary block header
+        "fine-tuning complete",
+        "model saved",
+        "saved model to",
+    ]
+)
 
 
-# ── Convergence helper ────────────────────────────────────────────────────────
+def _find_hpc_logs_dir() -> Path | None:
+    for p in _HPC_LOGS_CANDIDATES:
+        if p.is_dir():
+            return p
+    return None
+
+
+def _safe_log_path(base: Path, run_id: str) -> Path | None:
+    """Resolve base/run_id and reject if it escapes base — no ../ traversal."""
+    try:
+        target = (base / run_id).resolve()
+        target.relative_to(base.resolve())  # raises ValueError if outside
+        return target
+    except (ValueError, OSError):
+        return None
+
+
+def _safe_float_log(val: Any) -> float | None:
+    """Float conversion that maps inf/NaN → None.  Never serialises as JSON Infinity."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        return None if not math.isfinite(f) else f
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_hpc_log_file(path: Path) -> dict[str, Any]:
+    """Parse one HPC training log file into a normalised run dict.
+
+    Reads the file line-by-line so a truncated/crashed log returns whatever
+    epochs were completed rather than failing the whole request.
+
+    Handles:
+      HF Trainer step logs:  {'loss': X, 'epoch': Y, 'step': Z, 'learning_rate': W}
+      HF Trainer eval logs:  {'eval_loss': X, 'epoch': Y, 'step': Z}
+      inf values in dicts    — Python repr() emits 'inf'; replaced before ast.literal_eval
+    """
+    log_history: list[dict[str, Any]] = []
+    complete = False
+    had_eval_entry = False  # any eval line seen (even if val=inf)
+    had_finite_val = False  # at least one finite val_loss
+
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for raw_line in fh:
+                line_lower = raw_line.lower().strip()
+
+                # Completion detection — set once, never cleared
+                if not complete and any(m in line_lower for m in _COMPLETION_MARKERS):
+                    complete = True
+
+                # Try to parse every {...} fragment on the line
+                for m in _LOG_DICT_RE.finditer(raw_line):
+                    fragment = m.group()
+                    # Python repr() emits bare 'inf'; replace with 1e999 (→ float inf)
+                    # so ast.literal_eval can parse it without SyntaxError.
+                    fragment_safe = re.sub(r"\binf\b", "1e999", fragment)
+                    try:
+                        d = ast.literal_eval(fragment_safe)
+                    except (ValueError, SyntaxError):
+                        continue
+                    if not isinstance(d, dict):
+                        continue
+
+                    step = d.get("step")
+                    if step is None:
+                        continue
+
+                    epoch = _safe_float_log(d.get("epoch"))
+
+                    # Training loss — our QLoRA trainer logs as "embedding_loss"
+                    train_loss = next(
+                        (
+                            _safe_float_log(d[k])
+                            for k in ("loss", "train_loss", "embedding_loss")
+                            if k in d
+                        ),
+                        None,
+                    )
+
+                    # Eval loss — may be inf if in-loop eval was broken
+                    raw_val = next((d[k] for k in ("eval_loss", "eval_mae") if k in d), None)
+                    eval_loss: float | None = None
+                    if raw_val is not None:
+                        had_eval_entry = True
+                        eval_loss = _safe_float_log(raw_val)
+                        if eval_loss is not None:
+                            had_finite_val = True
+
+                    if train_loss is None and eval_loss is None:
+                        continue
+
+                    log_history.append(
+                        {
+                            "step": int(step),
+                            "epoch": epoch,
+                            "train_loss": train_loss,
+                            "val_loss": eval_loss,  # null when inf/NaN (never JSON Infinity)
+                            "lr": _safe_float_log(d.get("learning_rate")),
+                        }
+                    )
+    except OSError:
+        log.debug("_parse_hpc_log_file: could not read %s", path, exc_info=True)
+
+    # Deduplicate by step (keep last occurrence in case of log restarts)
+    seen_steps: dict[int, dict[str, Any]] = {}
+    for entry in log_history:
+        seen_steps[entry["step"]] = entry
+    log_history = sorted(seen_steps.values(), key=lambda e: e["step"])
+
+    train_entries = [e for e in log_history if e["train_loss"] is not None]
+    eval_entries = [e for e in log_history if e["val_loss"] is not None]
+
+    return {
+        "run_id": path.stem,
+        "complete": complete,
+        # val_available = False means Panel 4 should show "val n/a" rather than
+        # an empty chart that looks like missing data.
+        "val_available": had_finite_val,
+        "val_attempted": had_eval_entry,  # eval ran but may have produced inf
+        "log_history": log_history,
+        "summary": {
+            "n_steps_parsed": log_history[-1]["step"] if log_history else 0,
+            "n_epochs_parsed": round(max((e["epoch"] or 0 for e in log_history), default=0), 3),
+            "final_train_loss": train_entries[-1]["train_loss"] if train_entries else None,
+            "final_val_loss": eval_entries[-1]["val_loss"] if eval_entries else None,
+        },
+    }
+
+
+# ── Convergence helpers ───────────────────────────────────────────────────────
 
 _MC_CONVERGENCE_N = (1_000, 5_000, 10_000)
+
+_SIMULATION_PATTERNS = [
+    "sim_*.json",
+    "*/sim_*.json",
+    "smoke/sim_*.json",
+    "simulation.json",
+    "smoke/simulation.json",
+]
 
 _EQUILIBRIUM_PATTERNS = [
     "equilibrium_*.json",
@@ -1006,51 +1102,69 @@ _EQUILIBRIUM_PATTERNS = [
 ]
 
 
-def _find_equilibrium_path(artifact_dir: Path) -> Path | None:
-    """Return the first equilibrium artifact found, preferring shock-specific ones."""
-    for pattern in _EQUILIBRIUM_PATTERNS:
-        candidates = sorted(artifact_dir.glob(pattern))
-        if candidates:
-            return candidates[0]
-    return None
+def _find_most_recent_artifact(artifact_dir: Path, patterns: list[str]) -> Path | None:
+    """Return the newest file matching any of the glob patterns."""
+    candidates: list[Path] = []
+    for pat in patterns:
+        candidates.extend(artifact_dir.glob(pat))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-# ── New dashboard data routes ─────────────────────────────────────────────────
+# ── Dashboard data routes ─────────────────────────────────────────────────────
 
 
 @app.get("/api/training-logs")
 def api_training_logs(
+    run_id: str | None = None,
     _: None = Depends(_require_dashboard_auth),
 ) -> dict[str, Any]:
-    """Per-step train/eval loss history for every model run found in models/ and checkpoints/.
+    """Per-epoch train/val loss parsed from HPC SLURM stdout logs in rawdata/hpc_logs/.
 
-    Two formats are handled transparently:
-      HuggingFace checkpoint: has log_history → per-step series (step, epoch, train_loss, eval_loss, lr)
-      Summary format: our fine-tuning script's end-of-run summary → single-point totals
+    Reads *.log and *.out files synced from the HPC via Syncthing.  Parses
+    HuggingFace Trainer dict-style log lines defensively — a run that crashed
+    mid-epoch (OOM, quota timeout) returns whatever steps were logged, with
+    complete=false.
 
-    Returns {"status": "no_data"} when neither source is found.
+    val_loss is null (not JSON Infinity) whenever the in-loop eval produced
+    inf or NaN (the eval_mae=inf bug); val_available=false signals Panel 4
+    to show "val n/a" rather than an empty chart.
+
+    Path traversal: if run_id is given, it is resolved under rawdata/hpc_logs/
+    only — any ../ attempt returns 400.
     """
-    paths = _find_training_log_paths()
-    if not paths:
-        return {"status": "no_data", "runs": []}
+    hpc_dir = _find_hpc_logs_dir()
+    if hpc_dir is None:
+        return {"status": "no_data", "runs": [], "note": "rawdata/hpc_logs/ not found"}
+
+    # Collect target files
+    if run_id is not None:
+        safe = _safe_log_path(hpc_dir, run_id)
+        if safe is None:
+            raise HTTPException(status_code=400, detail="Invalid run_id — path traversal rejected")
+        # Accept the run_id as a bare filename or with a known extension
+        candidates: list[Path] = []
+        for ext in ("", ".log", ".out", ".txt"):
+            p = safe if ext == "" else hpc_dir / (run_id + ext)
+            if p.is_file():
+                candidates.append(p)
+        if not candidates:
+            return {"status": "no_data", "runs": [], "note": f"run_id {run_id!r} not found"}
+    else:
+        candidates = sorted(
+            p for p in hpc_dir.iterdir() if p.is_file() and p.suffix in (".log", ".out", ".txt", "")
+        )
 
     runs: list[dict[str, Any]] = []
-    for run_name, ts_path in paths:
+    for log_path in candidates:
+        # Double-check traversal even for directory scan (symlinks etc.)
         try:
-            raw = json.loads(ts_path.read_text(encoding="utf-8"))
-        except Exception:
-            log.debug("api_training_logs: skipping %s", ts_path, exc_info=True)
+            log_path.resolve().relative_to(hpc_dir.resolve())
+        except ValueError:
+            log.warning("api_training_logs: skipping %s (outside hpc_logs)", log_path)
             continue
-        if not isinstance(raw, dict):
-            continue
-        parsed = _parse_trainer_state(raw)
-        runs.append(
-            {
-                "run_name": run_name,
-                "path": str(ts_path.parent),
-                **parsed,
-            }
-        )
+        runs.append(_parse_hpc_log_file(log_path))
 
     if not runs:
         return {"status": "no_data", "runs": []}
@@ -1061,20 +1175,26 @@ def api_training_logs(
 def api_convergence(
     _: None = Depends(_require_dashboard_auth),
 ) -> dict[str, Any]:
-    """Win-probability convergence at N=1k/5k/10k with 90% bootstrap CI bounds.
+    """Win-probability convergence at N=1k/5k/10k with 90% bootstrap CI.
 
-    Reads the first available EquilibriumData artifact and runs the ILR Monte Carlo
-    at each sample size in _MC_CONVERGENCE_N.  Returns a series of
-    {n, win_probability, p5, p95} points — intended for a convergence line chart
-    that verifies the MC estimate stabilises before production N=10k.
+    Loads the most recent SimulationData artifact for shock/party context, then
+    re-runs run_ilr_montecarlo at N=1 000, 5 000, 10 000 from the corresponding
+    EquilibriumData.  Each N is an independent MC run — win-flag draws are not
+    retained between calls, so this is NOT a subsample of the production N=10k
+    run; the response includes a note to that effect.
 
-    Returns {"status": "no_data"} if no equilibrium artifact exists or MC fails.
+    Returns {"status": "no_data"} if artifacts are absent or MC fails.
     """
     artifact_dir = _find_artifact_dir()
     if artifact_dir is None:
         return {"status": "no_data"}
 
-    eq_path = _find_equilibrium_path(artifact_dir)
+    # ── Load most-recent SimulationData for shock/party context ──────────────
+    sim_path = _find_most_recent_artifact(artifact_dir, _SIMULATION_PATTERNS)
+    sim_payload = _load_json_artifact(sim_path) if sim_path else None
+
+    # ── Load most-recent EquilibriumData for MC input ─────────────────────────
+    eq_path = _find_most_recent_artifact(artifact_dir, _EQUILIBRIUM_PATTERNS)
     if eq_path is None:
         return {"status": "no_data"}
 
@@ -1090,6 +1210,7 @@ def api_convergence(
         log.warning("api_convergence: could not parse EquilibriumData", exc_info=True)
         return {"status": "no_data"}
 
+    # ── Re-run MC at each N ───────────────────────────────────────────────────
     try:
         from electoral.core.rng import derive_seed
         from electoral.simulation.montecarlo import run_ilr_montecarlo
@@ -1116,11 +1237,26 @@ def api_convergence(
         log.warning("api_convergence: MC failed", exc_info=True)
         return {"status": "no_data"}
 
+    # Extract shock/party from sim artifact if available, else from equilibrium
+    shock = (sim_payload or {}).get("shock") or equilibrium.shock
+    party = (sim_payload or {}).get("party") or equilibrium.party
+
     return {
         "status": "ok",
-        "shock": equilibrium.shock,
-        "party": equilibrium.party,
+        "shock": shock,
+        "party": party,
         "series": series,
+        # Transparency: all three runs share derive_seed("monte_carlo") so the N=1k
+        # and N=5k draws are prefix-nested within the N=10k draw — they are NOT
+        # independent. This makes the convergence curve smoother/monotone but is
+        # less statistically rigorous than varying seeds. Documented here so the
+        # panel caption can be accurate.
+        "note": (
+            "N=1k, 5k, and 10k runs share the same ILR Monte Carlo seed "
+            "(derive_seed('monte_carlo')), so the smaller runs are prefix-nested "
+            "subsamples of the N=10k draw — not independent. Convergence will "
+            "appear smoother than true repeated sampling."
+        ),
     }
 
 

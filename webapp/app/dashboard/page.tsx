@@ -5,6 +5,10 @@ import DashboardNav from "@/components/DashboardNav";
 import CoverageMatrix from "@/components/dashboard/CoverageMatrix";
 import SentimentDistribution from "@/components/dashboard/SentimentDistribution";
 import BioCoverage from "@/components/dashboard/BioCoverage";
+import LossCurves from "@/components/dashboard/LossCurves";
+import Convergence from "@/components/dashboard/Convergence";
+import AuditTable from "@/components/dashboard/AuditTable";
+import EstimateCount from "@/components/dashboard/EstimateCount";
 
 // Server component — cookie verification happens on the server before any
 // HTML is sent to the client. A devtools-injected cookie with a forged value
@@ -27,19 +31,41 @@ export default async function DashboardPage() {
     <div className="flex min-h-screen bg-gray-50">
       <DashboardNav />
       <main className="flex-1 p-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Analyst Dashboard</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Pipeline internals — select a panel from the sidebar.
-        </p>
-        {/* Row 1 — Data Coverage Matrix (full width) */}
-        <div className="mt-8">
-          <CoverageMatrix />
+        {/* Page header with live estimate count */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Electoral Equilibrium — Analyst Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Pipeline internals ·{" "}
+            <EstimateCount />
+          </p>
         </div>
 
-        {/* Row 2 — Sentiment + Bio coverage (two-column grid) */}
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Row 1 — two-column: Coverage Matrix + Sentiment Distribution */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <CoverageMatrix />
           <SentimentDistribution />
+        </div>
+
+        {/* Row 2 — full-width: Bio Classification Coverage */}
+        <div className="mt-6">
           <BioCoverage />
+        </div>
+
+        {/* Row 3 — full-width: Training Loss Curves */}
+        <div className="mt-6">
+          <LossCurves />
+        </div>
+
+        {/* Row 4 — full-width: MC Convergence Audit */}
+        <div className="mt-6">
+          <Convergence />
+        </div>
+
+        {/* Row 5 — full-width: Estimate Audit Log */}
+        <div className="mt-6 pb-8">
+          <AuditTable />
         </div>
       </main>
     </div>
