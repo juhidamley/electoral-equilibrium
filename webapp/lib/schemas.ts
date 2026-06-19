@@ -58,12 +58,14 @@ const raceRecord = <T extends z.ZodTypeAny>(v: T) =>
     .strict();
 
 const religionRecord = <T extends z.ZodTypeAny>(v: T) =>
-  z.object(
-    Object.fromEntries(RELIGION_BLOCS.map((b) => [b, v])) as Record<
-      (typeof RELIGION_BLOCS)[number],
-      T
-    >,
-  );
+  z
+    .object(
+      Object.fromEntries(RELIGION_BLOCS.map((b) => [b, v])) as Record<
+        (typeof RELIGION_BLOCS)[number],
+        T
+      >,
+    )
+    .strict();
 
 const genderRecord = <T extends z.ZodTypeAny>(v: T) =>
   z.object(
