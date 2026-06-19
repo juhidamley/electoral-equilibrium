@@ -735,6 +735,8 @@ class SimulationData:
     n_simulations: int  # number of Monte Carlo draws (≥10,000 for production)
     seed: int  # RNG seed used for this simulation run
     win_probability: float  # point estimate: fraction of draws meeting V_eq
+    win_probability_low: float  # 5th percentile of bootstrap distribution of win_probability
+    win_probability_high: float  # 95th percentile of bootstrap distribution of win_probability
     percentiles: dict[str, list[float]]  # bloc_id → [p5, p25, p50, p75, p95]
     win_probability_low: float = 0.0  # bootstrap CI 5th percentile; 0.0 = not computed
     win_probability_high: float = 1.0  # bootstrap CI 95th percentile; 1.0 = not computed
@@ -748,6 +750,8 @@ class SimulationData:
             n_simulations=int(payload["n_simulations"]),
             seed=int(payload["seed"]),
             win_probability=float(payload["win_probability"]),
+            win_probability_low=float(payload.get("win_probability_low", 0.0)),
+            win_probability_high=float(payload.get("win_probability_high", 1.0)),
             percentiles={k: [float(p) for p in v] for k, v in payload["percentiles"].items()},
             win_probability_low=float(payload.get("win_probability_low", 0.0)),
             win_probability_high=float(payload.get("win_probability_high", 1.0)),
@@ -761,6 +765,17 @@ class SimulationData:
         if not (0.0 <= self.win_probability <= 1.0):
             raise ValueError(
                 f"SimulationData.win_probability = {self.win_probability} must be in [0.0, 1.0]"
+            )
+        if not (0.0 <= self.win_probability_low <= self.win_probability_high <= 1.0):
+            raise ValueError(
+                f"SimulationData: win_probability_low={self.win_probability_low} "
+                f"must be <= win_probability_high={self.win_probability_high} "
+                "and both in [0.0, 1.0]"
+            )
+        if not (self.win_probability_low <= self.win_probability <= self.win_probability_high):
+            raise ValueError(
+                f"SimulationData: win_probability={self.win_probability} must be within "
+                f"CI bounds [{self.win_probability_low}, {self.win_probability_high}]"
             )
         for bloc_id, pcts in self.percentiles.items():
             if len(pcts) != 5:

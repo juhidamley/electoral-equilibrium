@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import pytest
+from unittest.mock import MagicMock
 
 from electoral.simulation.montecarlo import (
     helmert_matrix,
@@ -13,6 +15,8 @@ from electoral.simulation.montecarlo import (
 )
 from electoral.artifacts import EquilibriumData
 from electoral.core.types import CANONICAL_RACES
+
+log = logging.getLogger(__name__)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -247,3 +251,77 @@ def test_low_loyalty_win_prob_near_zero():
     cfg = _FakeConfig()
     result = run_ilr_montecarlo(eq, cfg, n_simulations=1000)
     assert result.win_probability < 0.10
+
+
+def test_ci_width_shrinks_with_more_simulations():
+    # Bootstrap CI width is O(1/sqrt(N)); more draws → tighter interval.
+    # mu=0.57, target=0.535, sigma_default=0.05 → win_prob ≈ 0.19 (non-trivial).
+    eq = _make_equilibrium(mu_shifted={b: 0.57 for b in CANONICAL_RACES}, target=0.535)
+    cfg = _FakeConfig()
+    r_small = run_ilr_montecarlo(eq, cfg, n_simulations=200, sigma_default=0.05)
+    r_large = run_ilr_montecarlo(eq, cfg, n_simulations=5000, sigma_default=0.05)
+    width_small = r_small.win_probability_high - r_small.win_probability_low
+    width_large = r_large.win_probability_high - r_large.win_probability_low
+    assert (
+        width_large < width_small
+    ), f"CI did not shrink: small={width_small:.4f}, large={width_large:.4f}"
+
+
+def test_ci_bounds_are_not_trivially_zero_and_one():
+    # Bootstrap CI must be strictly interior to [0, 1] at intermediate win prob.
+    # mu=0.57, target=0.535, sigma_default=0.05 → win_prob ≈ 0.19.
+    eq = _make_equilibrium(mu_shifted={b: 0.57 for b in CANONICAL_RACES}, target=0.535)
+    cfg = _FakeConfig()
+    result = run_ilr_montecarlo(eq, cfg, n_simulations=2000, sigma_default=0.05)
+    assert result.win_probability_low > 0.0, "CI lower bound is trivially 0"
+    assert result.win_probability_high < 1.0, "CI upper bound is trivially 1"
+
+
+def test_mc_convergence():
+    """Win probability estimates must converge as N increases.
+
+    N=5 000 and N=10 000 must differ by < 0.005.
+    N=1 000 must be within 0.02 of N=10 000 (looser bound).
+
+    mu=0.535 sits right at target but lambda_1=1/3 scaling pulls
+    mu_eff ≈ 0.511 below it, pinning wp near 0.  Using mu=0.57 with
+    sigma_default=0.05 gives wp ≈ 0.19 — clearly non-degenerate.
+    """
+    races = list(CANONICAL_RACES)
+    eq = EquilibriumData(
+        method="test",
+        party="democrat",
+        shock="convergence_test",
+        weights={r: 0.2 for r in races},
+        mu_shifted={r: 0.57 for r in races},
+        feasible=True,
+        target_met=False,
+        target=0.535,
+    )
+
+    config = MagicMock()
+    config.derive_seed.return_value = 42
+
+    wp_1k = run_ilr_montecarlo(eq, config, n_simulations=1_000, sigma_default=0.05).win_probability
+    wp_5k = run_ilr_montecarlo(eq, config, n_simulations=5_000, sigma_default=0.05).win_probability
+    wp_10k = run_ilr_montecarlo(
+        eq, config, n_simulations=10_000, sigma_default=0.05
+    ).win_probability
+
+    log.info(
+        "Convergence: N=1k → %.4f  N=5k → %.4f  N=10k → %.4f",
+        wp_1k,
+        wp_5k,
+        wp_10k,
+    )
+    print(
+        f"\nConvergence estimates:\n"
+        f"  N= 1,000: {wp_1k:.4f}\n"
+        f"  N= 5,000: {wp_5k:.4f}\n"
+        f"  N=10,000: {wp_10k:.4f}\n"
+        f"  |5k - 10k| = {abs(wp_5k - wp_10k):.4f}  (must be < 0.005)\n"
+        f"  |1k - 10k| = {abs(wp_1k - wp_10k):.4f}  (must be < 0.02)"
+    )
+
+    assert abs(wp_5k - wp_10k) < 0.005, f"5k vs 10k diff {abs(wp_5k - wp_10k):.4f} exceeds 0.005"
+    assert abs(wp_1k - wp_10k) < 0.02, f"1k vs 10k diff {abs(wp_1k - wp_10k):.4f} exceeds 0.02"

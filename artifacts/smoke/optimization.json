@@ -1,21 +1,30 @@
 {
   "data": {
     "feasible": true,
-    "method": "placeholder",
+    "method": "cvxpy_dqcp",
     "mu_shifted": {
-      "african_american": 0.5,
-      "white": 0.5
+      "african_american": 0.8,
+      "asian": 0.54,
+      "latino": 0.5800000000000001,
+      "other_race": 0.48000000000000004,
+      "white": 0.33999999999999997
     },
     "party": "democrat",
-    "shock": "supreme_court_overturns_roe_v_",
+    "shock": "ayatollah_khamenei_assassinate",
     "target": 0.535,
-    "target_met": false,
+    "target_met": true,
     "weights": {
-      "african_american": 0.5,
-      "white": 0.5
+      "african_american": 0.6000001778142323,
+      "asian": 0.09681501904423262,
+      "latino": 0.20318436051931027,
+      "other_race": 0.05000030063388694,
+      "white": 0.05000014198833785
     }
   },
-  "metadata": {},
+  "metadata": {
+    "feasible": true,
+    "target_met": true
+  },
   "run_key": "smoke_test",
   "stage": "optimization"
 }

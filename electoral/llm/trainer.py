@@ -27,6 +27,7 @@ import dataclasses
 import json
 import logging
 import math
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -318,15 +319,11 @@ def train(
             "Install with: pip install transformers peft bitsandbytes datasets"
         ) from exc
 
-    try:
-        from transformers import BitsAndBytesConfig
-        import bitsandbytes  # noqa: F401
-
-        use_4bit = True
-        log.info("bitsandbytes available — using 4-bit NF4 quantization")
-    except ImportError:
-        use_4bit = False
-        log.warning("bitsandbytes not available — training in full precision (slower)")
+    use_4bit = os.environ.get("ELECTORAL_NO_4BIT", "0") != "1"
+    if use_4bit:
+        log.info("4-bit NF4 quantization enabled (ELECTORAL_NO_4BIT not set)")
+    else:
+        log.info("bf16 full-precision mode (ELECTORAL_NO_4BIT=1)")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     log.info("Training on device: %s", device)
@@ -356,23 +353,31 @@ def train(
     tokenized = hf_dataset.map(tokenize, remove_columns=["text"])
 
     # ── Load model ────────────────────────────────────────────────────────────
-    quant_config = None
     if use_4bit:
         from transformers import BitsAndBytesConfig
 
-        quant_config = BitsAndBytesConfig(
+        bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
         )
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            quantization_config=bnb_config,
+            device_map="auto",
+        )
+        from peft import prepare_model_for_kbit_training
 
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        quantization_config=quant_config,
-        device_map="auto" if device == "cuda" else None,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-    )
+        model = prepare_model_for_kbit_training(model)
+    else:
+        # bf16 full-precision LoRA — for nodes where bitsandbytes hangs
+        # (e.g. USC Laguna kernel 4.18.0). L40S 46GB fits 7B bf16 easily.
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
 
     # ── LoRA config ───────────────────────────────────────────────────────────
     lora_config = LoraConfig(
@@ -401,6 +406,8 @@ def train(
         seed=derive_seed(seed, "llm_finetune"),
         report_to="none",
         dataloader_drop_last=False,
+        dataloader_num_workers=0,
+        dataloader_pin_memory=False,
     )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)

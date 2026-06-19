@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 #SBATCH --time=4:00:00
 #SBATCH --output=/scratch/JDamley28@cmc.edu/electoralData/logs/finetune_%j.log
@@ -21,6 +21,8 @@ REPO_DIR=/home1/JDamley28@cmc.edu/electoral-equilibrium
 export TRANSFORMERS_CACHE=${SCRATCH}/hf_cache
 export HF_HOME=${SCRATCH}/hf_cache
 export TOKENIZERS_PARALLELISM=false
+export OMP_NUM_THREADS=1
+export CUDA_LAUNCH_BLOCKING=1
 
 mkdir -p "${SCRATCH}/logs" "${SCRATCH}/hf_cache"
 
