@@ -1,81 +1,102 @@
 "use client";
 
 import type { Party } from "@/lib/types";
+import { BLOC_LABEL } from "@/lib/blocs";
 
 interface ShockNarrativeProps {
   deltaBins: Record<string, string> | null;
   party: Party;
-  loading: boolean;
+  loading?: boolean;
 }
 
-// ── Token → phrase mapping ────────────────────────────────────────────────────
+// ── Bin → direction + magnitude ───────────────────────────────────────────────
 
-type Direction = "help" | "hurt" | "neutral";
+type Dir = "hurt" | "help" | "neutral";
 
-const BIN_META: Record<string, { direction: Direction; magnitude: string }> = {
-  strong_neg: { direction: "hurt",    magnitude: "significant" },
-  mod_neg:    { direction: "hurt",    magnitude: "moderate"    },
-  mild_neg:   { direction: "hurt",    magnitude: "mild"        },
-  slight_neg: { direction: "hurt",    magnitude: "slight"      },
-  neutral:    { direction: "neutral", magnitude: ""            },
-  slight_pos: { direction: "help",    magnitude: "slight"      },
-  mild_pos:   { direction: "help",    magnitude: "mild"        },
-  mod_pos:    { direction: "help",    magnitude: "moderate"    },
-  strong_pos: { direction: "help",    magnitude: "significant" },
+const BIN_PHRASE: Record<string, { dir: Dir; mag: string }> = {
+  strong_neg: { dir: "hurt",    mag: "significant" },
+  mod_neg:    { dir: "hurt",    mag: "moderate"    },
+  mild_neg:   { dir: "hurt",    mag: "mild"        },
+  slight_neg: { dir: "hurt",    mag: "slight"      },
+  neutral:    { dir: "neutral", mag: ""             },
+  slight_pos: { dir: "help",    mag: "slight"       },
+  mild_pos:   { dir: "help",    mag: "mild"         },
+  mod_pos:    { dir: "help",    mag: "moderate"     },
+  strong_pos: { dir: "help",    mag: "significant"  },
 };
 
-// ── Bloc → readable label ─────────────────────────────────────────────────────
-
-const BLOC_LABELS: Record<string, string> = {
-  african_american: "Black voters",
-  asian:            "Asian voters",
-  latino:           "Latino voters",
-  other_race:       "other racial groups",
-  white:            "white voters",
-  evangelical:      "Evangelicals",
-  catholic:         "Catholics",
-  protestant:       "Protestants",
-  secular:          "secular voters",
-  jewish:           "Jewish voters",
-  muslim:           "Muslim voters",
-  other_rel:        "other religious groups",
-  women:            "women",
-  men:              "men",
-  other_gender:     "other gender groups",
+// Sort order: significant > moderate > mild > slight
+const MAG_RANK: Record<string, number> = {
+  significant: 0,
+  moderate:    1,
+  mild:        2,
+  slight:      3,
 };
 
-function label(blocId: string): string {
-  return BLOC_LABELS[blocId] ?? blocId.replace(/_/g, " ");
+// BLOC_LABEL imported from lib/blocs.ts — single source of truth shared with CoalitionChart.
+
+const PARTY_LABEL: Record<Party, string> = {
+  democrat:    "Democratic",
+  republican:  "Republican",
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+interface BlocEntry { label: string; mag: string }
+
+function sortBySeverity(entries: BlocEntry[]): BlocEntry[] {
+  return [...entries].sort(
+    (a, b) => (MAG_RANK[a.mag] ?? 99) - (MAG_RANK[b.mag] ?? 99),
+  );
+}
+
+function formatList(entries: BlocEntry[]): React.ReactNode[] {
+  return entries.map((e, i) => (
+    <span key={e.label}>
+      {i > 0 && ", "}
+      {e.label}
+      {e.mag && <span className="text-gray-500"> ({e.mag})</span>}
+    </span>
+  ));
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ShockNarrative({ deltaBins, party, loading }: ShockNarrativeProps) {
-  if (loading && !deltaBins) {
+import React from "react";
+
+export default function ShockNarrative({
+  deltaBins,
+  party,
+  loading,
+}: ShockNarrativeProps) {
+  // Loading state — no bins yet.
+  if (loading && deltaBins === null) {
     return (
-      <div className="space-y-2 animate-pulse">
-        <div className="h-4 w-3/4 rounded bg-gray-200" />
-        <div className="h-4 w-1/2 rounded bg-gray-200" />
-      </div>
+      <p className="text-sm italic text-gray-400 animate-pulse">
+        Analyzing event…
+      </p>
     );
   }
 
-  if (!deltaBins) return null;
+  // Nothing to show before first submit.
+  if (deltaBins === null) return null;
 
-  // Group blocs by direction, collecting (label, magnitude) pairs.
-  const hurt: { name: string; magnitude: string }[] = [];
-  const help: { name: string; magnitude: string }[] = [];
+  // Partition into hurt / help, skipping neutral and unknown tokens.
+  const hurt: BlocEntry[] = [];
+  const help: BlocEntry[] = [];
 
   for (const [bloc, bin] of Object.entries(deltaBins)) {
-    const meta = BIN_META[bin];
-    if (!meta || meta.direction === "neutral") continue;
-    const entry = { name: label(bloc), magnitude: meta.magnitude };
-    if (meta.direction === "hurt") hurt.push(entry);
+    const phrase = BIN_PHRASE[bin]; // undefined if unexpected token → skip
+    if (!phrase || phrase.dir === "neutral") continue;
+    const entry: BlocEntry = {
+      label: BLOC_LABEL[bloc] ?? bloc, // raw id as fallback
+      mag: phrase.mag,
+    };
+    if (phrase.dir === "hurt") hurt.push(entry);
     else help.push(entry);
   }
 
-  const partyLabel = party === "democrat" ? "Democratic" : "Republican";
-
+  // All-neutral case.
   if (hurt.length === 0 && help.length === 0) {
     return (
       <p className="text-sm text-gray-600">
@@ -84,39 +105,23 @@ export default function ShockNarrative({ deltaBins, party, loading }: ShockNarra
     );
   }
 
+  const partyLabel = PARTY_LABEL[party];
+  const sortedHurt = sortBySeverity(hurt);
+  const sortedHelp = sortBySeverity(help);
+
   return (
-    <div className="space-y-1.5 text-sm text-gray-700">
-      {hurt.length > 0 && (
-        <p>
+    <div className="space-y-1.5 text-sm leading-relaxed">
+      {sortedHurt.length > 0 && (
+        <p className="text-red-800">
           This shock is predicted to{" "}
-          <strong className="text-red-700">hurt</strong> the {partyLabel}{" "}
-          coalition&apos;s standing with:{" "}
-          {hurt.map((e, i) => (
-            <span key={e.name}>
-              {i > 0 && ", "}
-              {e.name}
-              {e.magnitude && (
-                <span className="text-gray-500"> ({e.magnitude})</span>
-              )}
-            </span>
-          ))}
-          .
+          <strong>hurt</strong> the {partyLabel} coalition&apos;s standing
+          with: {formatList(sortedHurt)}.
         </p>
       )}
-      {help.length > 0 && (
-        <p>
-          {hurt.length > 0 ? "And " : "This shock is predicted to "}
-          <strong className="text-green-700">help</strong> with:{" "}
-          {help.map((e, i) => (
-            <span key={e.name}>
-              {i > 0 && ", "}
-              {e.name}
-              {e.magnitude && (
-                <span className="text-gray-500"> ({e.magnitude})</span>
-              )}
-            </span>
-          ))}
-          .
+      {sortedHelp.length > 0 && (
+        <p className="text-green-800">
+          {sortedHurt.length > 0 ? "And " : "This shock is predicted to "}
+          <strong>help</strong> with: {formatList(sortedHelp)}.
         </p>
       )}
     </div>

@@ -1,18 +1,16 @@
 "use client";
 
 // Progressive reveal via SSE — three named events populate the UI sequentially:
-//   1. "deltas"      → ShockNarrative + opaque CoalitionChart bars (immediate, ~2s)
-//   2. "equilibrium" → translucent rebalance overlay added IN PLACE to CoalitionChart
+//   1. "deltas"      → ShockNarrative (delta bins for all strata)
+//   2. "equilibrium" → CoalitionChart (mu_shifted opaque bars + weights translucent overlay,
+//                       target_met, mu_eff_shifted for gap display)
 //   3. "simulation"  → WinGauge win probability + CI strip
 //   4. "done"        → loading=false, EventSource closed
 //
 // Rendering contract:
-//   • When deltaBins+shifted are set but equilibrium is null, CoalitionChart
-//     renders ONLY the opaque baseline bars. No translucent layer yet.
-//   • When equilibrium arrives, CoalitionChart adds the translucent layer without
-//     remounting — pass it as a separate prop so the chart uses conditional layer
-//     rendering, not a key change that would re-animate the opaque bars.
-//   • WinGauge stays in a skeleton/loading state until simulation is non-null.
+//   • CoalitionChart skeleton shows until "equilibrium" arrives; both layers render
+//     together from equilibrium.mu_shifted and equilibrium.weights.
+//   • WinGauge stays in skeleton state until "simulation" event arrives.
 
 import { useEffect, useRef, useState } from "react";
 
@@ -35,9 +33,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Populated by SSE "deltas" event — enables ShockNarrative and opaque bars.
+  // Populated by SSE "deltas" event — enables ShockNarrative.
   const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);
-  const [shifted, setShifted] = useState<Record<string, number> | null>(null);
 
   // Populated by SSE "equilibrium" event — adds translucent rebalance layer.
   const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);
@@ -62,7 +59,6 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     setDeltaBins(null);
-    setShifted(null);
     setEquilibrium(null);
     setSimulation(null);
 
@@ -76,14 +72,12 @@ export default function HomePage() {
 
     es.addEventListener("deltas", (e) => {
       const data = JSON.parse((e as MessageEvent).data);
-      // delta_bins_race is a Record<RaceBloc, DeltaBin>; merge all three
-      // strata for ShockNarrative which may display any bloc type.
+      // Merge all three strata bins for ShockNarrative (displays any bloc type).
       setDeltaBins({
         ...data.delta_bins_race,
         ...data.delta_bins_religion,
         ...data.delta_bins_gender,
       });
-      setShifted(data.deltas_race);
     });
 
     es.addEventListener("equilibrium", (e) => {
@@ -146,17 +140,19 @@ export default function HomePage() {
               prop — no key change, no remount, no re-animation of opaque bars. */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              {/* baseline=μ (pre-shock loyalty) is not yet in the SSE payload —
-                  the deltas event carries Δ (deltas_race), not μ. Until the
-                  backend widens the stream to include μ, baseline is null and
-                  CoalitionChart renders only the shifted layer. */}
+              {/* Both opaque (mu_shifted) and translucent (weights) layers arrive
+                  together on the "equilibrium" SSE event — chart shows skeleton
+                  until then. baseline=null until backend exposes pre-shock μ_i. */}
               <CoalitionChart
                 baseline={null}
-                shifted={shifted}
+                shifted={equilibrium?.mu_shifted ?? null}
                 rebalanced={equilibrium?.weights ?? null}
                 feasible={equilibrium?.feasible ?? true}
+                targetMet={equilibrium?.target_met ?? null}
+                muEffShifted={equilibrium?.mu_eff_shifted ?? null}
+                target={equilibrium?.target ?? null}
                 party={party}
-                loading={loading && !deltaBins}
+                loading={loading}
               />
             </div>
             <div className="lg:col-span-1">

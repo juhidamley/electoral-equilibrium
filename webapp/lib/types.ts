@@ -60,7 +60,8 @@ export interface EquilibriumData {
   party: Party;
   shock: string;
   weights: Record<RaceBloc, number>;
-  mu_shifted: Record<RaceBloc, number>;
+  mu_shifted: Record<RaceBloc, number>;   // per-bloc post-shock loyalty μ̃_i (for bar rendering)
+  mu_eff_shifted: number;                 // λ-weighted scalar across all three strata (for gap display)
   feasible: boolean;
   target_met: boolean;
   target: number;

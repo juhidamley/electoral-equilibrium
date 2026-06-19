@@ -3418,6 +3418,64 @@ feature sprints. Tasks are ordered by whether they block the SRP deliverable
 Infrastructure and training pipeline fixes are prerequisites; model quality
 and data pipeline tasks can proceed in parallel once training is unblocked.
 
+\begin{taskbox}{Standing Process --- Flag Capture}
+
+\task{Maintain a running flag log for the remainder of the project. Every
+  time a development session surfaces a bug, an unverified assumption, an
+  ``it should work but isn't confirmed'', a ``decide with Prof.\ Espinosa'',
+  or a ``this contradicts that'' --- it gets appended here as a checkbox
+  item with a one-line description and a severity (blocking / correctness /
+  hardening / polish). Nothing gets fixed silently and nothing gets
+  forgotten by living only in a chat transcript. New flags append to the
+  end; resolved flags are checked off, not deleted, so the audit trail
+  survives.}{1}
+
+\task{Flag-log entries captured so far (append below as new ones arise):
+  \begin{itemize}[leftmargin=1.6em, itemsep=1pt]
+    \item[$\square$] \textbf{[correctness]} Meaning of \texttt{target}
+      (0.5066) undefined --- popular vote? EC threshold? Drives
+      win\_prob=1.0 saturation. Resolve with Espinosa.
+    \item[$\square$] \textbf{[blocking]} Retrained model must be confirmed
+      to fix the Newsom all-minorities-slight\_pos directional error.
+    \item[$\square$] \textbf{[correctness]} Party-neutral preset text +
+      separate \texttt{party} field: confirm model reads the field and
+      flips deltas by party.
+    \item[$\square$] \textbf{[correctness]} ShockNarrative (pre-rebalance
+      sentiment) vs CoalitionChart (post-rebalance weights) must not read
+      as contradictory.
+    \item[$\square$] \textbf{[blocking]} Laguna bitsandbytes hang ---
+      bf16 fallback written but never confirmed working.
+    \item[$\square$] \textbf{[hardening]} Hopper 50\,GB quota: HF cache,
+      checkpoint bloat, 3.8\,GB \texttt{.git} with committed weights.
+    \item[$\square$] \textbf{[correctness]} Confirm Ledoit-Wolf covariance
+      used in production, not the degenerate diagonal fallback.
+    \item[$\square$] \textbf{[correctness]} No artifact may serialize
+      \texttt{Infinity}/\texttt{NaN} --- shared sanitizer + test.
+    \item[$\square$] \textbf{[correctness]} Apply + verify all six Copilot
+      PR fixes (binomial bootstrap, field comments, dual artifact
+      filenames $\times$3, fallback method label).
+    \item[$\square$] \textbf{[hardening]} Green test suite on a clean
+      checkout after mid-development schema churn.
+    \item[$\square$] \textbf{[hardening]} Cross-machine hardcoded paths
+      audit (Mac / Laguna / Hopper).
+    \item[$\square$] \textbf{[hardening]} 647-record Gemini human-review
+      queue: adjudicate or explicitly defer.
+    \item[$\square$] \textbf{[polish]} candidates.jsonl overwrite guard;
+      DeepSeek truncation handling; malformed-JSONL defensive parsing.
+    \item[$\square$] \textbf{[hardening]} Backfill or document 60--66
+      missing (cycle, bloc) survey panel cells.
+    \item[$\square$] \textbf{[correctness]} Data-provenance audit: every
+      ``real'' number traces to a documented source.
+    \item[$\square$] \textbf{[correctness]} CoalitionChart dual-axis
+      overlay: loyalty and weight occupy distinct visual ranges on a shared
+      [0,1] axis --- verify no per-bloc collision on real shock data before
+      shipping as the SRP headline figure.
+  \end{itemize}
+  The SRP is not ``done'' until every box here is checked or has a written,
+  Espinosa-approved deferral.}{2}
+
+\end{taskbox}
+
 \begin{taskbox}{HPC \& Infrastructure}
 \task{Resolve USC Laguna \texttt{bitsandbytes} hang. Laguna GPU nodes (both c22
   and c23) run kernel 4.18.0, below the 5.5.0 minimum. QLoRA 4-bit
@@ -3679,6 +3737,104 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   one is dropped. If both stay, the Zod \texttt{EstimateResponseSchema}
   should also validate the assembled-from-stream object so the streamed
   path gets the same runtime safety as the single-shot path.}{2}
+
+\task{Verify ShockNarrative and CoalitionChart tell the same story. The
+  narrative renders plain-language ``hurt/help'' sentences from raw
+  \texttt{delta\_bins} (the model's pre-rebalance sentiment prediction),
+  while CoalitionChart shows both the baseline bars AND the
+  post-optimization rebalanced overlay. These are two different layers ---
+  sentiment movement vs.\ campaign resource reallocation --- and must not
+  be read as contradicting each other. Confirm: (i) the narrative
+  explicitly describes direction-of-movement (``standing with''), never
+  final level (``the party is winning X''); (ii) a code comment marks
+  ShockNarrative as intentionally pre-rebalance so no one later rewires it
+  to equilibrium weights; (iii) for a test shock, the blocs the narrative
+  says are ``hurt'' are not simultaneously shown gaining weight in the
+  chart in a way a layperson would read as contradictory --- and if they
+  can be (a bloc whose sentiment drops but whose optimal campaign weight
+  rises), add a one-line chart caption explaining the distinction. The
+  plain-language layer is the one a reader takes at face value, so it must
+  be faithful to exactly what the number means.}{2}
+
+\task{Pressure-test the CoalitionChart dual-axis overlay on real result
+  data. The chart overlays within-bloc loyalty ($\mu_i$, $\sim$0.15--0.90)
+  and coalition weight ($w_i$, $\sim$0.03--0.30) on one shared [0,1] axis,
+  relying on them occupying distinct ranges to stay visually unambiguous.
+  This breaks when a bloc's loyalty and weight land near the same value
+  (e.g.\ White loyalty 0.30 vs weight 0.28) --- the two bars overlap and a
+  layperson reads the translucent bar as a loyalty drop, not a different
+  quantity. Render the chart for the 3--4 most consequential real shocks
+  and check for this collision. If it occurs, either (a) split into two
+  stacked sub-charts sharing a Y axis (loyalty panel + weight panel), or
+  (b) move weight to a secondary top X axis with its own scale and label.
+  Do NOT ship the shared axis as the SRP headline figure until this is
+  verified on real numbers. Severity: correctness --- the figure must not
+  mislead.}{2}
+
+\end{taskbox}
+
+\begin{taskbox}{Final Sweep --- Ambiguities \& Loose Ends}
+
+\task{Resolve the meaning of \texttt{target}. The win threshold is set to
+  0.5066 but it is unclear whether this represents the national two-party
+  popular-vote share needed to win the Electoral College, a weighted
+  effective-loyalty threshold, or something else. Democrats are
+  structurally disadvantaged in the EC (need $\sim$52--54\% popular vote),
+  so 0.5066 may be too low and is the likely cause of the
+  win\_probability=1.0 saturation. Pin down the exact definition with
+  Prof.\ Espinosa, document it in DECISIONS.md, and adjust the value if
+  the current one is wrong.}{2}
+
+\task{Apply all six Copilot PR review fixes that were accepted but may not
+  all be committed: (i) Bernoulli-binomial bootstrap in montecarlo.py
+  (avoid the 50k$\times$500 index matrix), (ii) corrected
+  win\_probability\_low/high field comments in artifacts.py (bootstrap of
+  the estimator, not ``across ILR draws''), (iii)+(iv)+(v) shock.py must
+  write BOTH legacy \texttt{shock\_response.json}/\texttt{equilibrium.json}
+  AND per-shock \texttt{shock\_\{id\}.json}/\texttt{equilibrium\_\{id\}.json},
+  restoring the ``event'' metadata key (fixes test\_stages.py and
+  test\_shock\_kernel.py), (vi) the equal-weight fallback in cvx.py must
+  use \texttt{method="equal\_weight\_fallback"}, not ``cvxpy\_dqcp''. Verify
+  each is committed and its test passes.}{3}
+
+\task{Run the full test suite on a clean checkout and fix every failure.
+  Many tests were written against schemas and artifact filenames that
+  changed mid-development (SimulationData gained win\_probability fields;
+  shock.py changed artifact names; cvx fallback method label changed).
+  Enumerate failures, fix the code or the test as appropriate, and
+  confirm a green suite. Do not leave any test xfail/skip without a
+  documented reason.}{3}
+
+\task{Reconcile every cross-machine path and config assumption. The repo
+  has hardcoded paths for three environments (M5 Mac \texttt{.venv} Py3.9,
+  Laguna scratch, Hopper home). Audit for hardcoded \texttt{/Volumes/},
+  \texttt{/Users/juhidamley/}, \texttt{/scratch/\ldots},
+  \texttt{/hopper/home/\ldots} that will break when run elsewhere. Move them
+  to config or env vars. Confirm \texttt{configs/base.json}
+  vs \texttt{smoke.json} data\_path behavior is documented.}{2}
+
+\task{Confirm the production covariance path. Verify
+  \texttt{run\_ilr\_montecarlo} uses the Ledoit-Wolf $\Sigma_\Delta$ from
+  14 real cycle-deltas in production runs, not the near-zero diagonal
+  fallback (which produces degenerate [1.0,1.0]/[0.0,0.0] CIs). Add an
+  explicit log line stating which covariance source was used, and a test
+  asserting the fallback is NOT silently used when real panel data is
+  present.}{2}
+
+\task{Final data-provenance audit. Confirm every ``real'' number traces to
+  a documented source: NEP 2024 voter shares (Edison Research), ANES/CES
+  panel mu values, the 1,136-record synthetic training set (577 original
+  + 559 Gemini-approved, with the 647-record human-review queue either
+  adjudicated or explicitly marked as deferred). No silently-imputed value
+  should be presentable as empirical. Produce a one-page provenance table
+  for the SRP appendix.}{3}
+
+\task{Verify no JSON artifact can contain \texttt{Infinity}/\texttt{NaN}.
+  The \texttt{eval\_mae=inf} bug already produced one invalid-JSON parse
+  failure. Audit every \texttt{write\_artifact} / \texttt{to\_dict} path
+  and the \texttt{TrainingRun} serializer to guarantee non-finite floats
+  become \texttt{null}. Add a single shared sanitizer and a test feeding
+  it \texttt{inf}/\texttt{-inf}/\texttt{nan}.}{2}
 
 \end{taskbox}
 

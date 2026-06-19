@@ -97,6 +97,7 @@ export const EquilibriumDataSchema = z.object({
   shock: z.string(),
   weights: raceRecord(z.number()),
   mu_shifted: raceRecord(z.number()),
+  mu_eff_shifted: z.number(),
   feasible: z.boolean(),
   target_met: z.boolean(),
   target: z.number(),

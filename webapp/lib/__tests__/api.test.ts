@@ -38,6 +38,7 @@ const validResponse = {
     shock: "test_shock",
     weights: rec(RACES, 0.2),
     mu_shifted: rec(RACES, 0.5),
+    mu_eff_shifted: 0.498,
     feasible: true,
     target_met: false,
     target: 0.5066,
