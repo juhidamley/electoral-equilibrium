@@ -1,4 +1,4 @@
-.# FINDINGS.md — Electoral Equilibrium
+# FINDINGS.md — Electoral Equilibrium
 
 Empirical results and methodological findings produced by this pipeline.
 Each entry states what was found, what it means, its limitations, and
