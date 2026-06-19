@@ -148,7 +148,14 @@ export function estimateShockStream(
   const es = new EventSource(url.toString());
 
   es.addEventListener("deltas", (e: MessageEvent) => {
-    const parsed = ShockResponseDataSchema.safeParse(JSON.parse(e.data));
+    let data: unknown;
+    try {
+      data = JSON.parse(e.data);
+    } catch {
+      callbacks.onError?.("deltas: invalid JSON payload");
+      return;
+    }
+    const parsed = ShockResponseDataSchema.safeParse(data);
     if (parsed.success) {
       callbacks.onDeltas?.(parsed.data);
     } else {
