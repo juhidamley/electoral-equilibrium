@@ -48,12 +48,14 @@ const GENDER_BLOCS = ["women", "men", "other_gender"] as const;
 // Build a record schema requiring exactly the given keys — any missing or extra
 // key will cause a parse error, matching Python's assert_required_keys checks.
 const raceRecord = <T extends z.ZodTypeAny>(v: T) =>
-  z.object(
-    Object.fromEntries(RACE_BLOCS.map((b) => [b, v])) as Record<
-      (typeof RACE_BLOCS)[number],
-      T
-    >,
-  );
+  z
+    .object(
+      Object.fromEntries(RACE_BLOCS.map((b) => [b, v])) as Record<
+        (typeof RACE_BLOCS)[number],
+        T
+      >,
+    )
+    .strict();
 
 const religionRecord = <T extends z.ZodTypeAny>(v: T) =>
   z.object(
