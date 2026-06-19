@@ -6,6 +6,7 @@ dependencies = [
     "cvxpy>=1.7.5",
     "numpy>=1.24",
     "pandas>=2.3.3",
+    "pyarrow>=12.0",
     "pydantic>=2.0",
     "scikit-learn>=1.6.1",
 ]
@@ -25,6 +26,7 @@ llm = [
     "transformers>=4.40",
     "peft>=0.10",
     "outlines>=0.0.46",
+    "sentencepiece>=0.1.99",
 ]
 orchestration = [
     "prefect>=2.14",
@@ -54,6 +56,9 @@ packages = ["electoral"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "timeout: mark a test with a maximum time in seconds (requires pytest-timeout)",
+]
 
 [tool.ruff]
 line-length = 100

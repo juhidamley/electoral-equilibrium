@@ -40,7 +40,22 @@ if not _ADAPTER_PATH.exists():
         allow_module_level=True,
     )
 
-from electoral.llm.inference import ShockEstimator  # noqa: E402 (after skip guard)
+# Skip if the LLM stack (torch + sentencepiece) is not installed.
+# This guards machines that have the adapter path available (e.g. JUHIDRIVE
+# mounted) but haven't installed the llm extras.
+try:
+    import sentencepiece  # noqa: F401
+    import torch  # noqa: F401
+    import transformers  # noqa: F401
+except ImportError as _llm_exc:
+    pytest.skip(
+        f"LLM stack not fully installed ({_llm_exc}) — "
+        "install [llm] extra to run constrained-output tests: "
+        "pip install -e '.[llm]'",
+        allow_module_level=True,
+    )
+
+from electoral.llm.inference import ShockEstimator  # noqa: E402 (after skip guards)
 
 # ── Event fixtures ────────────────────────────────────────────────────────────
 

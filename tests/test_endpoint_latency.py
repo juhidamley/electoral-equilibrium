@@ -13,12 +13,10 @@ import sys
 import time
 
 import pytest
-import requests
 
-from electoral.artifacts import ShockResponseData
-from electoral.core.types import BIN_MIDPOINTS, CANONICAL_RACES
-
-# ── Config ────────────────────────────────────────────────────────────────────
+# ── Skip guard (before any optional-dep imports) ──────────────────────────────
+# Must come before `import requests` so the module can be collected on machines
+# where the requests package is not installed (e.g., plain `pip install -e .`).
 
 PORT = os.environ.get("API_PORT", "8315")
 BASE_URL = f"http://127.0.0.1:{PORT}"
@@ -29,6 +27,11 @@ if not _ADAPTER_PATH:
         "ADAPTER_PATH env var not set — skipping endpoint latency test.",
         allow_module_level=True,
     )
+
+import requests  # noqa: E402 (intentionally after skip guard)
+
+from electoral.artifacts import ShockResponseData
+from electoral.core.types import BIN_MIDPOINTS, CANONICAL_RACES
 
 _REQUEST_BODY = {
     "event": {
