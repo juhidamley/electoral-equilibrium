@@ -140,10 +140,14 @@ export default function CoalitionChart({
     () =>
       (props: {
         x?: number; y?: number; width?: number; height?: number;
-        shifted?: number | null; weight?: number | null;
-        baseline?: number | null; delta?: number | null;
+        value?: number;
+        payload?: ChartEntry;
       }) => {
-        const { x = 0, y = 0, width = 0, height = 0, shifted: sv, weight: wv, baseline: bv, delta: dv } = props;
+        const { x = 0, y = 0, width = 0, height = 0, value, payload } = props;
+        const sv = typeof value === "number" ? value : payload?.shifted;
+        const wv = payload?.weight ?? null;
+        const bv = payload?.baseline ?? null;
+        const dv = payload?.delta ?? null;
         if (sv == null || width <= 0) return <g />;
 
         // pixels per unit on the shared [0,1] x-axis
