@@ -350,8 +350,7 @@ async def estimate_stream(
     nominal_mu = _NOMINAL_MU_RACE[party]
 
     async def _generate() -> AsyncGenerator[str, None]:
-        loop = asyncio.get_event_loop()
-
+        loop = asyncio.get_running_loop()
         # ── Stage 1: LLM (thread pool) ────────────────────────────────────────
         t0 = time.perf_counter()
         try:
