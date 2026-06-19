@@ -1,0 +1,26 @@
+# Next.js — auto-generated; never commit these
+/.next/
+/out/
+
+# Dependencies
+/node_modules
+
+# Build artifacts
+/build
+/coverage
+
+# Local env overrides
+.env*.local
+
+# TypeScript build info (auto-regenerated)
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Turbopack
+.turbo/
+
+# macOS
+.DS_Store
