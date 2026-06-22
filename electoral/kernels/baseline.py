@@ -1,17 +1,35 @@
 """Baseline portfolio kernel — Week 2.
 
-build_baseline_portfolio() orchestrates:
-  1. Moment estimation (mu_race/religion/gender, Sigma) from the voter panel
-  2. NEP×loyalty population-weighted coalition shares → baseline race weights
-  3. mu_eff scalar via the three-stratum formula from CLAUDE.md
-  4. BaselinePortfolioData payload construction
+WHAT THIS STAGE COMPUTES: the "baseline" is the STEADY STATE — the coalition and
+its effective loyalty BEFORE any shock is applied. It's the reference point that
+later stages measure shifts against ("after the shock, the coalition moved from
+THIS to that"). It is produced once from the historical voter panel.
 
-w0_i = (nep_share_i × loyalty_i) / Σ_j(nep_share_j × loyalty_j)
-solve_baseline (min-variance QP) is for post-shock rebalancing only
-(kernels/shock.py → optimization/cvx.py), not for computing the baseline.
+build_baseline_portfolio() orchestrates:
+  1. Moment estimation (mu_race/religion/gender, Sigma) from the voter panel —
+     i.e. each bloc's average vote share, computed by models/ml_baseline.py.
+  2. NEP×loyalty population-weighted coalition shares → baseline race weights.
+  3. mu_eff scalar via the three-stratum formula from CLAUDE.md.
+  4. BaselinePortfolioData payload construction + validation.
+
+HOW THE BASELINE RACE WEIGHTS ARE SET (NEP×loyalty):
+    w0_i = (nep_share_i × loyalty_i) / Σ_j(nep_share_j × loyalty_j)
+In words: weight each race bloc by (how big it is in the electorate) × (how
+loyal it is to our party), then normalize so the five weights sum to 1. A bloc
+that is both large AND loyal gets the most weight. This is a simple population-
+weighted starting point — NOT an optimization. (solve_baseline, the min-variance
+QP, is only used later for post-shock REBALANCING in kernels/shock.py →
+optimization/cvx.py, never for this baseline.)
 
 Equal stratum weights (1/N) are used for religion and gender in the mu_eff
 formula until kernels/raking.py produces IPF-calibrated v_R and g_G values.
+
+⚠️ CONSISTENCY NOTE (tracked in Week 8): this baseline mu_eff uses the REAL
+religion/gender vote shares (mu_religion, mu_gender), but the post-shock optimizer
+(optimization/dqcp.py, cvx.py) and Monte Carlo (simulation/montecarlo.py) treat
+those two strata as NEUTRAL 0.50. So baseline mu_eff and post-shock mu_eff are
+computed on slightly different bases — comparing them mixes the genuine shock
+effect with that 0.5-vs-real difference. Resolve which convention is canonical.
 """
 
 from __future__ import annotations
@@ -132,8 +150,11 @@ def build_baseline_portfolio(
     # Population-weighted coalition shares. solve_baseline is for
     # post-shock rebalancing only, not for computing the baseline.
     target = config.target
+    # Population shares come from config if provided, else the NEP 2024 defaults.
     pop_shares = getattr(config, "bloc_population_shares", None) or DEFAULT_NEP_SHARES
+    # raw_i = size_i × loyalty_i (the unnormalized weight for each race bloc).
     raw = {r: pop_shares[r] * mu_race[r] for r in CANONICAL_RACES}
+    # Normalize so the five weights sum to exactly 1 (the simplex constraint).
     total = sum(raw.values())
     weights = {r: raw[r] / total for r in raw}
     method = "nep_loyalty_weighted"
@@ -142,6 +163,13 @@ def build_baseline_portfolio(
     # ── 5. mu_eff — three-stratum formula (CLAUDE.md §Demographic architecture) ─
     # v_R = 1/N_R and g_G = 1/N_G (equal stratum weights) until raking.py
     # produces IPF-calibrated weights.
+    # mu_eff = λ₁·(race term) + λ₂·(religion term) + λ₃·(gender term).
+    #   • Race term:     Σ w_i·μ_race_i      — weighted by the coalition weights.
+    #   • Religion term: Σ (1/n_rel)·μ_rel_R — equal weight per bloc (placeholder
+    #                    for raking's v_R), i.e. the simple average vote share.
+    #   • Gender term:   Σ (1/n_gen)·μ_gen_G — likewise.
+    # np.clip(..., 0, 1) guards against any out-of-range result before the
+    # artifact's validate() insists mu_eff is a valid share.
     lam = layer_weights
     n_rel = len(CANONICAL_RELIGIONS)
     n_gen = len(CANONICAL_GENDERS)

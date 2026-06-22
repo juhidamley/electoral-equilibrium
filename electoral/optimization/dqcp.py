@@ -1,5 +1,43 @@
 """DQCP Sharpe-ratio optimizer: maximize P(win) for a post-shock coalition.
 
+═══════════════════════════════════════════════════════════════════════════════
+PLAIN-ENGLISH OVERVIEW (read this before the math below)
+═══════════════════════════════════════════════════════════════════════════════
+THE QUESTION this file answers: after a shock has shifted each bloc's vote share,
+how should a campaign split its reliance across the 5 race blocs (the "coalition
+weights" w, which sum to 1) to MAXIMIZE THE PROBABILITY OF WINNING?
+
+THE PORTFOLIO ANALOGY: this is borrowed from finance. An investor splits money
+across stocks to maximize return while controlling risk. Here:
+    • each race bloc is a "stock",
+    • its vote share μ is the "expected return",
+    • our uncertainty about the shock's effect (the covariance Σ_Δ) is the "risk",
+    • the coalition weights w are the "portfolio allocation".
+The best portfolio maximizes the **Sharpe ratio** = (reward − threshold) / risk.
+Here reward is the coalition's effective loyalty μ_eff, the threshold is the win
+bar V_eq, and risk is the spread of outcomes. A higher Sharpe ratio literally
+means a higher probability of clearing V_eq (winning), because — assuming a
+roughly normal spread of outcomes — P(win) = Φ(Sharpe ratio), where Φ is the
+normal CDF (an increasing function). So maximizing the Sharpe ratio == maximizing
+P(win). That is why we never use plain "minimize variance": in a losing scenario
+you must take on risk to have any chance of clearing V_eq.
+
+WHY THIS IS HARD: the Sharpe ratio is a FRACTION (reward on top, risk on bottom).
+Fractions are not "convex", so ordinary convex optimizers can't solve it directly.
+But it IS "quasi-concave" (a weaker, well-behaved property). Two standard tricks
+turn it into something a solver can handle exactly:
+    1. DQCP bisection — guess a target Sharpe value t, ask "is t achievable?"
+       (a convex check), and binary-search for the best t. (Diamond & Boyd 2019.)
+    2. An SOCP reformulation (Charnes–Cooper / Lobo et al.) — a clever change of
+       variables that converts the fraction into a single-pass convex program.
+We use trick #2 by default: it is faster and more numerically stable. The two
+give the same answer. The detailed math for both is documented below.
+
+If the math notation below is unfamiliar, you do not need it to USE this module:
+call solve_dqcp(...) and read the parameter docs. The notation is here so the
+result is auditable and reproducible for the paper.
+
+═══════════════════════════════════════════════════════════════════════════════
 Objective (quasi-concave Sharpe-ratio form):
     max Φ( (μ_eff(w) - V_eq) / (λ₁ · √(w^T Σ_Δ w)) )
 
@@ -76,7 +114,9 @@ def solve_dqcp(
     spec:
         Per-bloc weight bounds.  When None, unconstrained simplex is used.
     solver:
-        CVXPY solver to use.  ECOS handles SOC problems efficiently.
+        CVXPY solver to use.  Defaults to CLARABEL (a modern interior-point
+        solver that handles second-order-cone problems efficiently and ships
+        with CVXPY).  ECOS is a fine alternative if you pass it explicitly.
     verbose:
         Pass solver verbosity through to CVXPY.
 
@@ -216,9 +256,26 @@ def compute_mu_eff(
     lambda_1: float,
     fixed_loyalty: float,
 ) -> float:
-    """Compute the scalar effective loyalty for a given race coalition.
+    """Compute the scalar "effective loyalty" μ_eff for a given race coalition.
 
-    μ_eff = λ₁ · Σ(w_i · μ_race_i) + fixed_loyalty
+    This collapses a whole coalition down to ONE number you can compare against
+    the win threshold V_eq: if μ_eff ≥ V_eq the coalition wins (on the point
+    estimate). It blends the three strata:
+
+        μ_eff = λ₁ · Σ(w_i · μ_race_i)        ← the race part we optimize
+                + fixed_loyalty               ← religion + gender, precomputed
+
+    `fixed_loyalty` already bundles λ₂·(religion contribution) + λ₃·(gender
+    contribution); those strata aren't optimized, so we pass them in as a single
+    constant rather than recomputing them here.
+
+    Args:
+        weights:       race_id → coalition weight (the w being evaluated).
+        mu_race:       race_id → post-shock vote share (the μ).
+        lambda_1:      race-stratum layer weight.
+        fixed_loyalty: precomputed religion+gender contribution to μ_eff.
     """
+    # Weighted sum of per-bloc vote shares = the coalition's race-only loyalty.
+    # (Iterating `weights` keys assumes mu_race has every bloc weights does.)
     race_eff = sum(weights[b] * mu_race[b] for b in weights)
     return lambda_1 * race_eff + fixed_loyalty

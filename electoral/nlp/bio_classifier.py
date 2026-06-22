@@ -1,5 +1,31 @@
 """bio_classifier: 3-stage author demographic inference.
 
+═══════════════════════════════════════════════════════════════════════════════
+BEGINNER ORIENTATION: what this does and why
+═══════════════════════════════════════════════════════════════════════════════
+To aggregate social-media sentiment PER demographic bloc (see scorer.py), we
+first need to guess each author's bloc(s) — their race/religion/gender — from
+whatever signal we have, usually their profile bio. That guess is what this file
+produces: a BioClassification giving probability weights over blocs.
+
+It tries cheap-and-certain methods first, expensive-and-fuzzy last (first hit
+wins):
+  1. KEYWORD LEXICON — does the bio literally contain telling words? (fast, exact)
+  2. LANGUAGE PRIOR  — if the post isn't English, fall back to demographic priors
+                       for that language. (Marked, and EXCLUDED from estimation
+                       per CLAUDE.md — used only as held-out validation.)
+  3. SETFIT (on the Pi) — a small ML classifier that turns the bio into an
+                       "embedding" (a numeric vector capturing meaning) and
+                       predicts blocs from it. Runs on the Raspberry Pi over the
+                       network. (Slower, fuzzier, but catches what keywords miss.)
+  4. null            — no signal → the post is dropped from estimation.
+
+Some posts are pre-labeled upstream by the collector ("platform_proxy",
+"subreddit_proxy" — e.g. a post from r/Catholicism), which short-circuits all of
+the above.
+
+─── original technical summary ───
+
 Inference hierarchy (first successful stage wins):
   1. Keyword lexicon  — scans bio text against race/religion/gender lexicons
   2. Language prior   — language_priors.json when post is non-English

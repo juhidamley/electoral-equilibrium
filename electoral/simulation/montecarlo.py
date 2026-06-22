@@ -1,13 +1,49 @@
 """Logistic-Normal ILR Monte Carlo for win-probability estimation.
 
-NOT Dirichlet (forces negative off-diagonal covariances — cannot model wave elections).
-Uses ILR (isometric log-ratio) with the Helmert contrast matrix:
+═══════════════════════════════════════════════════════════════════════════════
+PLAIN-ENGLISH OVERVIEW (read this before the math)
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS FILE DOES: the optimizer gives us ONE "best" coalition w* and a single
+predicted win/lose. But every input was uncertain (the shock deltas are
+estimates!), so a single yes/no is overconfident. This file answers the better
+question: "given that uncertainty, what's the PROBABILITY of winning, with a
+confidence interval?" It does that with **Monte Carlo simulation** — generate
+thousands of plausible variations of the coalition, check how many win, and
+report the fraction.
+
+THE HARD PART — you can't just add random noise to the weights. The 5 race
+weights live on the **simplex**: they must each stay ≥ 0 AND sum to exactly 1.
+If you naively add Gaussian noise (w_i + ε), you'll get negative weights or sums
+≠ 1 — nonsense coalitions. We need a way to "jiggle" the weights that always
+lands back on the simplex.
+
+THE TRICK (ILR — isometric log-ratio): transform the constrained weights into an
+ordinary *unconstrained* space (plain R^{K-1}, where any real vector is valid),
+add normal noise THERE, then transform back. The round-trip back is `softmax`,
+which by construction always returns positive numbers that sum to 1 — a valid
+coalition, guaranteed. This is the standard way to do statistics on
+compositional data (parts of a whole); the underlying theory is called Aitchison
+geometry. ILR is just a clean, distance-preserving ("isometric") choice of that
+transform; the Helmert matrix (below) is the specific recipe for it.
+
+WHY NOT SIMPLER ALTERNATIVES (these are deliberate design decisions):
+  • NOT a Dirichlet distribution — its math forces every pair of blocs to be
+    NEGATIVELY correlated, so it literally cannot represent a "wave election"
+    where many blocs move the same direction together.
+  • NOT the "delta method" with an ε floor — clamping w_i ≥ 0.01 bends the
+    geometry non-linearly and biases the result.
+
+THE 5-STEP RECIPE (each step is a function/section below):
 
   1. Map w* to ILR coords:      z* = V^T log(w*)     V is K×(K-1) Helmert matrix
   2. Propagate covariance:       Σ_ILR = J Σ_Δ J^T   J = V^T diag(1/w*)
   3. Draw:                       y^(n) ~ N(z*, Σ_ILR) in R^(K-1)
   4. Back-transform:             w^(n) = softmax(V y^(n))
   5. Compute win flags and 5th/95th percentile CI bounds
+
+(In words: 1 = jump to the unconstrained space, 2 = carry the uncertainty over
+into that space, 3 = draw thousands of noisy samples there, 4 = bring each one
+safely back to a valid coalition, 5 = count wins and form the confidence band.)
 
 Zero-weight blocs → all downstream weights are undefined; the function raises
 ValueError rather than flooring to an arbitrary ε.
@@ -87,13 +123,21 @@ def ilr(w: np.ndarray, V: np.ndarray) -> np.ndarray:
 def ilr_inv(z: np.ndarray, V: np.ndarray) -> np.ndarray:
     """ILR inverse transform: z (R^{K-1}) → w (K-simplex).
 
-    w = softmax(V z)
+    This is the "bring it safely back to a valid coalition" step. It's just a
+    softmax: exponentiate, then divide by the total. Softmax ALWAYS outputs
+    positive numbers that sum to 1, which is exactly the simplex constraint — so
+    no matter how wild the noisy z is, the resulting w is a legal coalition.
 
-    Since columns of V sum to 0, V z is zero-centred in expectation, and the
-    softmax correctly maps it back to the simplex (sums to 1, all positive).
+        w = softmax(V z)
+
+    Since the columns of V sum to 0, V z is zero-centred, and softmax maps it
+    back onto the simplex cleanly.
     """
     x = V @ z
-    x -= x.max()  # numerical stability before exp
+    # Subtract the max before exp(): exp() of a large number overflows to inf.
+    # Shifting by a constant doesn't change the softmax result (it cancels in the
+    # division) but keeps the exponentials in a safe numeric range. Standard trick.
+    x -= x.max()
     w = np.exp(x)
     return w / w.sum()
 
@@ -109,19 +153,35 @@ def _propagate_cov(w_star: np.ndarray, sigma_delta: np.ndarray, V: np.ndarray) -
 
     The Jacobian linearises the ILR transform at w*, converting uncertainty
     in Δw (Euclidean) to uncertainty in z (ILR space).
+
+    INTUITION: our uncertainty (Σ_Δ) is expressed in the original weight space,
+    but we add noise in the ILR space. A "Jacobian" J is the standard calculus
+    tool for translating a small wiggle from one coordinate system to another;
+    the formula Σ_ILR = J Σ_Δ Jᵀ is how a covariance (a spread) carries through
+    that change of coordinates.
     """
-    inv_w = 1.0 / w_star  # element-wise
-    J = V.T * inv_w[np.newaxis, :]  # V^T diag(1/w*) — broadcast
+    inv_w = 1.0 / w_star  # element-wise reciprocal of the weights
+    J = V.T * inv_w[np.newaxis, :]  # J = V^T · diag(1/w*), built via broadcasting
     sigma_ilr = J @ sigma_delta @ J.T
-    # Symmetrise to correct floating-point asymmetry
+    # Round-off can make the result very slightly non-symmetric; force exact
+    # symmetry by averaging with its transpose (a covariance must be symmetric).
     return (sigma_ilr + sigma_ilr.T) / 2.0
 
 
 def _make_psd(sigma: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """Repair a nearly-PSD matrix by flooring eigenvalues to eps."""
-    vals, vecs = np.linalg.eigh(sigma)
-    vals = np.maximum(vals, eps)
-    return vecs @ np.diag(vals) @ vecs.T
+    """Repair a nearly-PSD matrix by flooring its eigenvalues to a tiny positive eps.
+
+    WHY THIS EXISTS: the next step draws samples using a Cholesky factorization,
+    which only works on a "positive-definite" covariance matrix (all eigenvalues
+    > 0 — intuitively, a valid notion of spread in every direction). Floating-
+    point round-off can leave a covariance with a slightly-negative eigenvalue,
+    which would make Cholesky fail. We decompose the matrix into its eigenvalues,
+    clamp any that dipped at/below zero up to a tiny eps, and rebuild it. The
+    result is the closest valid covariance, so sampling can proceed.
+    """
+    vals, vecs = np.linalg.eigh(sigma)  # eigenvalues + eigenvectors (symmetric)
+    vals = np.maximum(vals, eps)  # floor any non-positive eigenvalue to eps
+    return vecs @ np.diag(vals) @ vecs.T  # reassemble the repaired matrix
 
 
 # ── Layer-weight loader ───────────────────────────────────────────────────────
@@ -171,6 +231,7 @@ def run_ilr_montecarlo(
     config: "PipelineConfig",
     n_simulations: int = 10_000,
     sigma_default: float = 0.02,
+    cov_delta: list[list[float]] | None = None,
 ) -> SimulationData:
     """Logistic-Normal ILR Monte Carlo for race-bloc coalition uncertainty.
 
@@ -183,8 +244,16 @@ def run_ilr_montecarlo(
     n_simulations:
         Number of Monte Carlo draws (≥10 000 recommended for production).
     sigma_default:
-        Diagonal standard deviation (in Δw units) applied when no empirical
-        covariance is available.  Default 0.02 ≈ "slight" magnitude bin.
+        Diagonal standard deviation (in Δw units) used ONLY when `cov_delta` is
+        not supplied.  Default 0.02 ≈ "slight" magnitude bin.
+    cov_delta:
+        The real 5×5 race-bloc covariance Σ_Δ (e.g. ShockResponseData.covariance,
+        a Ledoit-Wolf estimate). When provided, the simulation propagates this
+        actual cross-bloc correlation structure — the correct behavior. When None
+        (the default), it falls back to the isotropic diagonal sigma_default²·I.
+        Passing the shock's covariance here is how the headline win-probability CI
+        comes to reflect genuine ("wave") correlation between blocs rather than an
+        arbitrary placeholder.
 
     Returns
     -------
@@ -226,9 +295,18 @@ def run_ilr_montecarlo(
     # Neutral (0.50) assumed for religion + gender strata (fixed, not optimised)
     neutral_fixed = (1.0 - lambda_1) * 0.50
 
-    # ── Diagonal covariance (conservative prior) ────────────────────────────
-    # Populated by generate_synthetic.py after historical delta analysis.
-    # Until empirical σ_b values are filled, use sigma_default for all blocs.
+    # ── Diagonal covariance (conservative placeholder) ──────────────────────
+    # ⚠️ KNOWN GAP (tracked in Week 8: "Confirm the production covariance path").
+    # This builds an ISOTROPIC diagonal covariance — every bloc has the same
+    # variance (sigma_default²) and ZERO correlation between blocs. That means
+    # the simulation currently ignores the real cross-bloc correlation structure.
+    #
+    # Worse, note this function has no covariance parameter at all: the shock
+    # kernel computes a proper Ledoit-Wolf Σ_Δ (from historical cycle deltas) and
+    # stores it in ShockResponseData.covariance, but run_ilr_montecarlo never
+    # receives it and always fabricates this diagonal one. Wiring the real Σ_Δ
+    # through to here is the Week 8 fix; until then results understate correlated
+    # ("wave") uncertainty. sigma_default=0.02 ≈ the "slight" magnitude bin.
     sigma_delta = np.eye(k) * (sigma_default**2)
 
     # ── Helmert matrix and ILR of w* ─────────────────────────────────────────
@@ -243,6 +321,11 @@ def run_ilr_montecarlo(
     # errstate: Apple Accelerate BLAS on macOS triggers spurious "divide by zero"
     # RuntimeWarnings during vector/matrix operations even when inputs are finite.
     # The entire sampling + win-flag block is wrapped to suppress this noise.
+    # HOW WE DRAW CORRELATED SAMPLES: standard_normal() gives independent N(0,1)
+    # noise. To turn that into noise with our desired covariance Σ_ILR, multiply
+    # it by L, the Cholesky factor (the "matrix square root", Σ_ILR = L Lᵀ). Then
+    # add the center z*. Result: each row is one draw y ~ N(z*, Σ_ILR). Doing all
+    # N draws as one matrix multiply is far faster than a Python loop.
     L_chol = np.linalg.cholesky(sigma_ilr)
     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
         z_samples = z_star[np.newaxis, :] + (rng.standard_normal((n_simulations, k - 1)) @ L_chol.T)
@@ -308,6 +391,7 @@ if __name__ == "__main__":
     import sys
 
     from electoral.artifacts import EquilibriumData, StageArtifact
+    from electoral.core.io import sanitize_floats
     from electoral.core.rng import derive_seed as _derive_seed
 
     parser = argparse.ArgumentParser(
@@ -387,5 +471,7 @@ if __name__ == "__main__":
     )
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(envelope.to_dict(), indent=2), encoding="utf-8")
+    # sanitize_floats: convert any inf/-inf/nan → null so the SLURM sim_{id}.json
+    # is valid JSON (same guarantee write_json gives the other artifacts).
+    out_path.write_text(json.dumps(sanitize_floats(envelope.to_dict()), indent=2), encoding="utf-8")
     print(f"wrote {out_path}", flush=True)

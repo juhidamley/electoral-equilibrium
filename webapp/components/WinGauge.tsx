@@ -1,5 +1,16 @@
 "use client";
 
+// ============================================================================
+// WinGauge — a speedometer-style dial showing the win probability.
+// ============================================================================
+// HOW TO READ IT: the needle sweeps left (0% = certain loss) → up (50% = toss-up)
+// → right (100% = certain win) over a red/yellow/green arc. Below it: the 90%
+// confidence interval and, for comparison, the live betting-market consensus.
+// The number comes from the Monte Carlo simulation (the "simulation" SSE event).
+//
+// It's an SVG drawing computed by hand (the geometry math is below). It also uses
+// React state/effects (useState/useEffect) to fetch the market price on its own.
+//
 // Semicircular gauge — win probability from Logistic-Normal Monte Carlo.
 //
 // Arc geometry: center (100,100), radius 80, viewBox "0 0 200 110".

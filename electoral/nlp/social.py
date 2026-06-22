@@ -1,5 +1,13 @@
 """Platform-agnostic social media collector interface.
 
+BIG PICTURE: the LIVE-collection counterpart to archive.py. Where archive.py
+ingests pre-existing data, these collectors pull fresh posts from each platform.
+The design trick is the abstract base class SocialCollector: every platform is a
+subclass that knows how to fetch from its own API, but they ALL emit the identical
+posts.jsonl format. That uniformity means the rest of the pipeline (the scorer,
+merge_posts) never needs platform-specific code — add a new platform by writing
+one subclass. (This is the classic "program to an interface" / Strategy pattern.)
+
 SocialCollector is the abstract base class. All concrete subclasses write
 identically-formatted posts.jsonl so the scorer and merge_posts() are
 blind to platform. Add new platforms by subclassing SocialCollector and

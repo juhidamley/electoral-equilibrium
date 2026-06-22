@@ -1,4 +1,14 @@
-"""Panel cleaning — coerce, normalise, drop, sort, and dedup a raw survey panel."""
+"""Panel cleaning — coerce, normalise, drop, sort, and dedup a raw survey panel.
+
+This is the "T" (Transform) of the data ETL described in kernels/data.py. After
+the loaders pull raw survey rows in, raw bloc labels are messy ("Black or African
+American", "afr-amer", "BLACK") and rows may be malformed. The functions here make
+everything uniform and trustworthy:
+  • normalise_bloc — squash a raw label to snake_case and map it to one of the 15
+    canonical bloc IDs (using _BLOC_SUBS + _BLOC_MAP below). Unmappable → dropped.
+  • coerce types, drop rows missing required fields, sort, and remove duplicates.
+The output is a tidy panel that validate_panel() (data/panel.py) will accept.
+"""
 
 from __future__ import annotations
 

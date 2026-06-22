@@ -1,3 +1,21 @@
+// ============================================================================
+// WHAT THIS FILE IS (frontend data contracts)
+// ============================================================================
+// This is the TypeScript MIRROR of electoral/artifacts.py. The Python backend
+// sends JSON; the browser receives it. TypeScript can't read Python, so we
+// re-declare the same shapes here as `interface`s/`type`s. That gives us
+// compile-time safety: if you try to read `simulation.win_prob` when the field
+// is actually `win_probability`, the TypeScript compiler catches it before the
+// app ever runs.
+//
+// TWO LAYERS, DON'T CONFUSE THEM:
+//   • types.ts (this file) = COMPILE-TIME shapes. They vanish at runtime — they
+//     only help the editor and the type-checker. They do NOT verify that data
+//     actually arriving from the network matches.
+//   • schemas.ts (Zod)     = RUNTIME validation. It actually inspects incoming
+//     JSON and throws if a field is missing or out of range. Use that at the
+//     network boundary (see lib/api.ts).
+//
 // Mirror of electoral/artifacts.py frozen dataclasses.
 // These types MUST be kept in sync with the Python definitions manually —
 // there is no codegen step. Any field added to artifacts.py must be added here.

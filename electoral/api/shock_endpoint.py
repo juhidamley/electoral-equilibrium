@@ -1,10 +1,44 @@
-"""FastAPI service: ShockEstimator inference endpoint.
+"""FastAPI service: the web backend that the dashboard and webapp talk to.
+
+═══════════════════════════════════════════════════════════════════════════════
+BEGINNER ORIENTATION: what a "web backend" / FastAPI is
+═══════════════════════════════════════════════════════════════════════════════
+This file is the SERVER. The browser (the Next.js webapp) sends HTTP requests to
+it ("estimate this shock", "give me the audit log") and it sends back JSON.
+
+FastAPI concepts you'll see below:
+  • ROUTE / ENDPOINT — a Python function decorated with @app.get("/path") or
+    @app.post(...). When a request hits that URL, FastAPI calls the function and
+    turns whatever it returns into a JSON HTTP response.
+  • LIFESPAN — a startup/shutdown hook. We load the (large, slow) ML model ONCE
+    when the server boots and stash it on `app.state`, instead of reloading it on
+    every request. Cleanup (closing the worker pools) runs at shutdown.
+  • DEPENDENCY (Depends(...)) — a function FastAPI runs before your route, e.g.
+    _require_dashboard_auth, which rejects the request with 401 if the caller
+    isn't logged in. Reusable, declarative "run this check first" plumbing.
+  • async / await — FastAPI runs on an event loop (one thread juggling many
+    requests). An `async def` route can `await` slow work WITHOUT blocking other
+    requests. But CPU-heavy work (the optimizer, Monte Carlo, the LLM) would hog
+    that single thread — so we hand it off to worker pools (see below).
+  • SSE (Server-Sent Events) — a way to stream results to the browser
+    incrementally over one long-lived HTTP response, instead of making it wait
+    for everything. /estimate/stream sends each stage's result the moment it's
+    ready (deltas → equilibrium → simulation → done), so the UI fills in
+    progressively. The wire format is plain text: "event: <name>\\ndata: <json>".
 
 Routes:
-  POST /estimate              — run ShockEstimator.estimate() and return ShockResponseData
+  POST /estimate              — run the LLM once → ShockResponseData (JSON)
   GET  /estimate/stream       — SSE streaming: deltas → equilibrium → simulation → done
+  GET  /api/market-prior      — market consensus price for calibration display
+  GET  /api/audit[/count]     — recent estimate log rows / total count (dashboard)
+  GET  /api/coverage          — panel data-coverage matrix (dashboard)
+  GET  /api/sentiment-dist    — per-bloc sentiment distributions (dashboard)
+  GET  /api/bio-coverage      — bio-classifier method counts (dashboard)
+  GET  /api/training-logs     — per-epoch train/val loss from HPC logs (dashboard)
+  GET  /api/convergence       — win-prob convergence at N=1k/5k/10k (dashboard)
   GET  /health                — liveness check with device info
   GET  /blocs                 — canonical bloc names for all three strata
+(The /api/* dashboard routes require a valid session cookie via _require_dashboard_auth.)
 
 ShockEstimator is loaded once at startup via the FastAPI lifespan context and
 stored in app.state.estimator.
@@ -35,7 +69,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 
 import numpy as np
 import torch
@@ -46,6 +80,7 @@ from pydantic import BaseModel
 
 from electoral.api.audit import AuditLogger
 from electoral.artifacts import EquilibriumData, ShockResponseData, ShockResponseSchema
+from electoral.core.io import sanitize_floats
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.llm.inference import ShockEstimator
 
@@ -84,15 +119,25 @@ _V_EQ_DEFAULT: dict[str, float] = {"democrat": 0.521, "republican": 0.495}
 
 
 # ── Dashboard auth ────────────────────────────────────────────────────────────
-# Token format mirrors webapp/lib/session.ts: "{expiry_ms}.{hmac_hex}"
-# HMAC-SHA256(key=DASHBOARD_SESSION_SECRET, msg=expiry_ms_string)
-# crypto.subtle uses the same byte encoding, so Python and TS agree exactly.
+# HOW THE LOGIN WORKS: when a user logs in (in the webapp), the server hands them
+# a signed "session token" stored in a cookie. On every later dashboard request
+# the browser sends that cookie back, and we re-check the signature here. The
+# token is "{expiry_ms}.{hmac_hex}":
+#   • expiry_ms = when the session expires (Unix milliseconds).
+#   • hmac_hex  = an HMAC-SHA256 signature of the expiry, keyed by a SECRET only
+#     the server knows (DASHBOARD_SESSION_SECRET).
+# Because the attacker doesn't know the secret, they can't forge a valid
+# signature — they can't just edit the expiry to extend their session. The TS
+# side (webapp/lib/session.ts) builds tokens the exact same way, so both agree.
 
 
 def _verify_session_token(token: str, secret: str) -> bool:
     """Return True iff the dashboard_session token is valid and unexpired."""
+    # Fail closed: a missing token or (critically) a missing server secret means
+    # "not authenticated", never "allow". Never default-allow on misconfiguration.
     if not token or not secret:
         return False
+    # Split "{expiry}.{signature}" on the first dot.
     dot = token.find(".")
     if dot == -1:
         return False
@@ -102,24 +147,37 @@ def _verify_session_token(token: str, secret: str) -> bool:
         expiry_ms = int(expiry_str)
     except ValueError:
         return False
+    # Reject expired sessions (current time past the token's expiry).
     if time.time() * 1000 > expiry_ms:
         return False
     try:
         sig_bytes = bytes.fromhex(sig_hex)
     except ValueError:
         return False
+    # Recompute what the signature SHOULD be from the expiry + our secret...
     expected = hmac.new(
         secret.encode("utf-8"),
         expiry_str.encode("utf-8"),
         hashlib.sha256,
     ).digest()
+    # ...and compare. compare_digest is a CONSTANT-TIME comparison: it always
+    # takes the same time regardless of where two byte strings first differ. A
+    # naive `==` can leak the secret via timing (an attacker measures how long
+    # comparisons take to guess the signature byte by byte). This is the secure way.
     return hmac.compare_digest(expected, sig_bytes)
 
 
 def _require_dashboard_auth(
-    dashboard_session: str | None = Cookie(default=None),
+    dashboard_session: Optional[str] = Cookie(default=None),
 ) -> None:
-    """FastAPI dependency — 401 unless the signed dashboard_session cookie is valid."""
+    """FastAPI DEPENDENCY — gate a route behind login.
+
+    Declaring `_: None = Depends(_require_dashboard_auth)` on a route makes
+    FastAPI run this FIRST and raise 401 (Unauthorized) if the session cookie is
+    missing or invalid — so the route body only runs for authenticated callers.
+    `Cookie(default=None)` tells FastAPI to pull the value from the request's
+    `dashboard_session` cookie.
+    """
     secret = os.environ.get("DASHBOARD_SESSION_SECRET", "")
     if not secret or not dashboard_session or not _verify_session_token(dashboard_session, secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -137,21 +195,21 @@ _CONFIG_CANDIDATES = [
 ]
 
 
-def _find_artifact_dir() -> Path | None:
+def _find_artifact_dir() -> Optional[Path]:
     for p in _ARTIFACT_CANDIDATES:
         if p.is_dir():
             return p
     return None
 
 
-def _find_config_dir() -> Path | None:
+def _find_config_dir() -> Optional[Path]:
     for p in _CONFIG_CANDIDATES:
         if p.is_dir():
             return p
     return None
 
 
-def _load_json_artifact(path: Path) -> dict[str, Any] | None:
+def _load_json_artifact(path: Path) -> Optional[dict[str, Any]]:
     """Load a JSON artifact file; return None on any parse or IO error."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -348,15 +406,27 @@ def _run_mc_thread(
 
 
 def _sse(name: str, payload: Any) -> str:
-    """Format a named SSE frame."""
-    return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+    """Format a named SSE frame.
+
+    sanitize_floats first: a non-finite value (inf/nan) would serialize to the
+    invalid-JSON token Infinity/NaN, which the browser's JSON.parse rejects —
+    breaking the whole stream. Mapping them to null keeps every frame parseable.
+    """
+    return f"event: {name}\ndata: {json.dumps(sanitize_floats(payload))}\n\n"
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 
+# @asynccontextmanager turns this generator into a startup/shutdown handler.
+# Everything BEFORE `yield` runs once when the server boots; everything AFTER
+# runs once when it shuts down. FastAPI is told to use it via FastAPI(lifespan=...)
+# below. The pattern: set up expensive shared resources on app.state, hand
+# control to the running server (yield), then tear them down cleanly.
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Load the fine-tuned LLM ONCE at startup (it's seconds-to-load and GBs in
+    # memory). Every request reuses this one instance via app.state.estimator.
     app.state.estimator = ShockEstimator(
         adapter_path=_ADAPTER_PATH,
         base_model=_BASE_MODEL,
@@ -371,12 +441,14 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # and avoids the process spawn / pickling overhead of ProcessPoolExecutor.
     app.state.thread_pool = ThreadPoolExecutor(max_workers=2)
 
-    app.state.party_config = _load_party_config()
-    app.state.seed = _GLOBAL_SEED
-    app.state.audit = AuditLogger()
+    app.state.party_config = _load_party_config()  # V_eq thresholds per party
+    app.state.seed = _GLOBAL_SEED  # global RNG seed for reproducible Monte Carlo
+    app.state.audit = AuditLogger()  # opens the DuckDB audit log (one shared instance)
 
-    yield
+    yield  # ← server runs here, handling requests, until it's told to stop
 
+    # Shutdown: close the worker pools cleanly. wait=True lets any in-flight
+    # optimizer/MC job finish before the process exits (no half-done work).
     app.state.process_pool.shutdown(wait=True)
     app.state.thread_pool.shutdown(wait=True)
 
@@ -509,8 +581,15 @@ async def estimate_stream(
     nominal_mu = _NOMINAL_MU_RACE[party]
 
     async def _generate() -> AsyncGenerator[str, None]:
+        # This async generator yields SSE frames one at a time; FastAPI streams
+        # each `yield`ed string to the browser immediately. Between stages we run
+        # the heavy work in a worker pool so the event loop stays free.
         loop = asyncio.get_running_loop()
         # ── Stage 1: LLM (thread pool) ────────────────────────────────────────
+        # loop.run_in_executor(pool, fn, *args) runs the blocking fn(*args) on a
+        # SEPARATE worker (in `pool`) and `await`s its result without freezing the
+        # event loop — so other requests keep being served while the LLM thinks.
+        # Here: estimator.estimate({"description": event, "party": party}, intensity).
         t0 = time.perf_counter()
         try:
             shock: ShockResponseData = await loop.run_in_executor(
@@ -632,7 +711,7 @@ def market_prior(party: str = "democrat", event: str = "") -> dict[str, Any]:
         return {"probability": None}
 
 
-def _lookup_market_artifact(event_text: str, party: str) -> float | None:
+def _lookup_market_artifact(event_text: str, party: str) -> Optional[float]:
     """Find a pre-computed market probability matching event_text and party.
 
     Searches artifacts/markets/*.json (written by the offline collector).
@@ -661,7 +740,7 @@ def _lookup_market_artifact(event_text: str, party: str) -> float | None:
         return None
 
     best_overlap = 0
-    best_prob: float | None = None
+    best_prob: Optional[float] = None
 
     for json_path in artifacts_dir.glob("*.json"):
         shock_id = json_path.stem
@@ -693,7 +772,7 @@ _AUDIT_MAX_LIMIT = 500
 @app.get("/api/audit")
 def get_audit(
     limit: int = 100,
-    search: str | None = None,
+    search: Optional[str] = None,
     _: None = Depends(_require_dashboard_auth),
 ) -> list[dict[str, Any]]:
     """Return the most recent estimate audit rows (newest first).
@@ -750,7 +829,7 @@ def api_coverage(
     panel_df = _try_load_panel_df(panel_dir)
 
     # Build lookup {(cycle, bloc): (vote_share, source)}
-    lookup: dict[tuple[int, str], tuple[float | None, str | None]] = {}
+    lookup: dict[tuple[int, str], tuple[Optional[float], Optional[str]]] = {}
     if panel_df is not None:
         for _, row in panel_df.iterrows():
             try:
@@ -786,7 +865,7 @@ def api_coverage(
 
 @app.get("/api/sentiment-dist")
 def api_sentiment_dist(
-    category: str | None = None,
+    category: Optional[str] = None,
     _: None = Depends(_require_dashboard_auth),
 ) -> dict[str, Any]:
     """Per-bloc RoBERTa elasticity score arrays, optionally filtered by shock category.
@@ -811,7 +890,7 @@ def api_sentiment_dist(
         return {"status": "no_data", "blocs": {}}
 
     # ── Category validation ────────────────────────────────────────────────────
-    note: str | None = None
+    note: Optional[str] = None
     valid_categories = _load_taxonomy_categories()
     if category is not None:
         if valid_categories and category not in valid_categories:
@@ -869,7 +948,7 @@ def api_bio_coverage(
         Path("rawdata") / "social",
         Path(__file__).parent.parent.parent / "rawdata" / "social",
     ]
-    rawdata_dir: Path | None = None
+    rawdata_dir: Optional[Path] = None
     for candidate in rawdata_candidates:
         if candidate.is_dir():
             rawdata_dir = candidate
@@ -951,14 +1030,14 @@ _COMPLETION_MARKERS = frozenset(
 )
 
 
-def _find_hpc_logs_dir() -> Path | None:
+def _find_hpc_logs_dir() -> Optional[Path]:
     for p in _HPC_LOGS_CANDIDATES:
         if p.is_dir():
             return p
     return None
 
 
-def _safe_log_path(base: Path, run_id: str) -> Path | None:
+def _safe_log_path(base: Path, run_id: str) -> Optional[Path]:
     """Resolve base/run_id and reject if it escapes base — no ../ traversal."""
     try:
         target = (base / run_id).resolve()
@@ -968,7 +1047,7 @@ def _safe_log_path(base: Path, run_id: str) -> Path | None:
         return None
 
 
-def _safe_float_log(val: Any) -> float | None:
+def _safe_float_log(val: Any) -> Optional[float]:
     """Float conversion that maps inf/NaN → None.  Never serialises as JSON Infinity."""
     if val is None:
         return None
@@ -1035,7 +1114,7 @@ def _parse_hpc_log_file(path: Path) -> dict[str, Any]:
 
                     # Eval loss — may be inf if in-loop eval was broken
                     raw_val = next((d[k] for k in ("eval_loss", "eval_mae") if k in d), None)
-                    eval_loss: float | None = None
+                    eval_loss: Optional[float] = None
                     if raw_val is not None:
                         had_eval_entry = True
                         eval_loss = _safe_float_log(raw_val)
@@ -1102,7 +1181,7 @@ _EQUILIBRIUM_PATTERNS = [
 ]
 
 
-def _find_most_recent_artifact(artifact_dir: Path, patterns: list[str]) -> Path | None:
+def _find_most_recent_artifact(artifact_dir: Path, patterns: list[str]) -> Optional[Path]:
     """Return the newest file matching any of the glob patterns."""
     candidates: list[Path] = []
     for pat in patterns:
@@ -1117,7 +1196,7 @@ def _find_most_recent_artifact(artifact_dir: Path, patterns: list[str]) -> Path 
 
 @app.get("/api/training-logs")
 def api_training_logs(
-    run_id: str | None = None,
+    run_id: Optional[str] = None,
     _: None = Depends(_require_dashboard_auth),
 ) -> dict[str, Any]:
     """Per-epoch train/val loss parsed from HPC SLURM stdout logs in rawdata/hpc_logs/.

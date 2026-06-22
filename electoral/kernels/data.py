@@ -1,4 +1,31 @@
-"""Voter panel kernel — loads all survey sources, aggregates, cleans, and validates."""
+"""Voter panel kernel (Stage 1) — loads all survey sources, aggregates, cleans, validates.
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS STAGE DOES (the project's "ETL" step)
+═══════════════════════════════════════════════════════════════════════════════
+"ETL" = Extract, Transform, Load — the standard name for turning messy raw data
+into one clean, analysis-ready table. Here the raw data is FIVE different voter
+surveys (NEP exit polls, ANES, GSS, CES, …), each with its own file format and
+its own spelling for the same groups — one calls a bloc "Black non-Hispanic",
+another "black or african american", another just "Black". This kernel:
+
+  1. EXTRACT  — read each survey from disk (the _from_nep/_from_anes/… helpers).
+  2. TRANSFORM:
+       a. REMAP every survey's raw labels to our canonical bloc IDs (the big
+          _ANES_RACE / _GSS_RELIGION / … dictionaries below). Anything not in a
+          remap dict becomes NaN and is dropped — we only keep what we can place.
+       b. AGGREGATE individual survey responses up to a single weighted
+          "vote_share" per (cycle, bloc) — see _agg_stratum.
+       c. RESOLVE CONFLICTS when two surveys disagree about the same cell
+          (resolve_conflicts), then CLEAN and IMPUTE structurally-missing cells.
+  3. LOAD     — emit a tidy DataFrame (cycle, bloc, vote_share, source) plus a
+                validated VoterPanelData artifact for downstream stages.
+
+The output of this stage is what every later stage builds on: the baseline
+portfolio, the optimizer's covariance, the win threshold V_eq — all trace back
+to this panel. Get this wrong and everything downstream is wrong, which is why it
+ends with a strict validate_panel() call.
+"""
 
 from __future__ import annotations
 
@@ -136,11 +163,18 @@ def _agg_stratum(
     weight_col: str | None,
     source: str,
 ) -> pd.DataFrame:
-    """Aggregate individual survey responses to weighted bloc-level vote_share.
+    """Aggregate individual survey responses to a weighted bloc-level vote_share.
 
-    dem_series must be 1.0 (Democratic vote), 0.0 (non-Democratic vote), or NaN (excluded).
-    Rows with NaN dem or unmapped bloc are dropped before aggregation.
+    Turns thousands of individual respondents into one number per (cycle, bloc):
+    the share who voted Democratic. Surveys come with per-respondent SAMPLING
+    WEIGHTS (`w`) that correct for who was over/under-sampled, so we take a
+    *weighted* average, not a plain one.
+
+    dem_series must be 1.0 (Democratic vote), 0.0 (non-Democratic vote), or NaN
+    (excluded). Rows with NaN dem or an unmapped bloc are dropped first.
     """
+    # Build a tidy 4-column frame: cycle, canonical bloc (via remap), the 0/1 dem
+    # indicator, and the sampling weight (default 1.0 if this survey has none).
     sub = pd.DataFrame(
         {
             "cycle": df[cycle_col].values,
@@ -160,14 +194,23 @@ def _agg_stratum(
         return pd.DataFrame(columns=["cycle", "bloc", "vote_share", "se", "source"])
 
     def _stats(g: pd.DataFrame) -> pd.Series:
+        # For one (cycle, bloc) group, compute the weighted vote share and its
+        # standard error (how uncertain that share is).
         w = g["w"]
         w_sum = w.sum()
+        # Weighted mean of the 0/1 dem indicator = weighted Democratic vote share.
         vs = (g["dem"] * w).sum() / w_sum
-        # Kish (1965) effective sample size for weighted surveys
+        # KISH EFFECTIVE SAMPLE SIZE (Kish 1965): when responses are weighted,
+        # you effectively have FEWER independent observations than the raw count,
+        # because unequal weights concentrate influence in fewer people. n_eff is
+        # the "as-good-as" unweighted sample size; using it (not the raw count)
+        # gives an honest, slightly larger standard error.
         n_eff = w_sum**2 / (w**2).sum()
+        # Standard error of a proportion: sqrt(p(1-p)/n). max(n_eff,1) avoids /0.
         se = (vs * (1.0 - vs) / max(n_eff, 1.0)) ** 0.5
         return pd.Series({"vote_share": vs, "se": se})
 
+    # Apply _stats to each (cycle, bloc) group → one row per group.
     result = sub.groupby(["cycle", "bloc"]).apply(_stats, include_groups=False).reset_index()
     result["source"] = source
     return result[["cycle", "bloc", "vote_share", "se", "source"]]
@@ -422,6 +465,11 @@ def resolve_conflicts(panel: pd.DataFrame) -> pd.DataFrame:
 
     This is the rule documented in DECISIONS.md §Data Ingest.
 
+    WHY INVERSE-SE: a source with a smaller standard error (se) gave a more
+    precise estimate, so it should count more. Weighting by 1/se does exactly
+    that — the most trustworthy survey dominates the blend, the noisiest one
+    barely moves it. (This is the standard way to combine independent estimates.)
+
     The merged row's ``source`` field is the sorted, "+"-joined names of the
     contributing sources (e.g. ``"ANES+CES+GSS+NEP"``).
     The ``se`` column is consumed internally and dropped from the output.
@@ -434,9 +482,12 @@ def resolve_conflicts(panel: pd.DataFrame) -> pd.DataFrame:
         panel = panel.copy()
         panel["se"] = float("nan")
 
+    # Split the panel into cells covered by ONE source (keep as-is) vs cells
+    # covered by MULTIPLE sources (need blending). key_counts labels each row
+    # with how many sources reported its (cycle, bloc).
     key_counts = panel.groupby(["cycle", "bloc"])["vote_share"].transform("count")
-    single = panel[key_counts == 1]
-    multi = panel[key_counts > 1].copy()
+    single = panel[key_counts == 1]  # no conflict — pass through unchanged
+    multi = panel[key_counts > 1].copy()  # conflicting — blend below
 
     if multi.empty:
         return panel.drop(columns=["se"], errors="ignore")

@@ -1,13 +1,25 @@
 // Runtime validation schemas for all FastAPI response shapes.
 //
+// WHAT IS ZOD / WHY THIS EXISTS:
+// types.ts gives COMPILE-TIME types, but those disappear at runtime — they can't
+// check that data actually arriving over the network is well-formed. If the
+// backend has a bug and sends win_probability = 5, or omits a bloc, TypeScript
+// won't notice; the bad value just flows into the charts and corrupts the UI.
+// Zod fixes that: each `z.object({...})` below is a SCHEMA you can run against
+// real data at runtime. `Schema.parse(json)` returns the value if it's valid or
+// THROWS a detailed ZodError if not. We run these at the network boundary (see
+// lib/api.ts), so malformed responses are rejected loudly at the door instead of
+// silently breaking something three components deep. It's the TypeScript analog
+// of the Python validate() methods in artifacts.py.
+//
 // These mirror webapp/lib/types.ts and electoral/artifacts.py — all three files
 // must be updated together whenever a field is added, removed, or retyped.
 // See the Week 8 contract-sync task in docs/tasks.tex.
 //
 // The constraints here deliberately duplicate the Python validate() invariants
-// (covariance.length(5), win_probability ordering) so a malformed backend
-// response throws a ZodError at the API boundary rather than propagating
-// NaN or undefined into the UI.
+// (covariance is 5×5, win_probability ordering) so a malformed backend response
+// throws a ZodError at the API boundary rather than propagating NaN or undefined
+// into the UI.
 
 import { z } from "zod";
 

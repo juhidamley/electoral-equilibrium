@@ -1,5 +1,31 @@
 """sentiment kernel: orchestrates bio classification → RoBERTa scoring → aggregation.
 
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS STAGE DOES (Stage 3 — turning text into per-bloc sentiment signals)
+═══════════════════════════════════════════════════════════════════════════════
+Stages 1–2 used survey numbers. This stage uses TEXT — news articles and social
+media posts about each shock event — and converts it into a per-bloc "sentiment"
+signal. Those signals later become input FEATURES for the LLM fine-tuning
+(they're not the final shock prediction themselves).
+
+It's an ORCHESTRATION kernel: it doesn't do the heavy lifting itself, it wires
+together three specialist components and runs them in order:
+
+  • RoBERTaScorer — a sentiment model: given a piece of text, how positive or
+    negative is it (toward the party)? This is the "scoring" step.
+  • BioClassifier — for SOCIAL posts we also need to know WHICH demographic bloc
+    the author belongs to (you can't aggregate sentiment "per bloc" without it).
+    The bio classifier guesses the author's bloc from their profile/bio. (News
+    articles don't need this — they're attributed to outlets, not demographics.)
+  • Archive/News loaders — fetch the raw text to score.
+
+So the flow is: load text → score its sentiment → (for social) attach a bloc to
+each author → average the scores within each bloc → emit the sentiment artifacts.
+
+NEWS vs SOCIAL produce two different artifacts:
+  • SentimentData              — from news, covers all blocs × all shocks.
+  • SocialMediaSentimentData   — from social posts, one per shock.
+
 Wires together:
   1. BioClassifier (from bio_classifier.py) — demographic inference per author
   2. RoBERTaScorer (from scorer.py) — sentiment scoring per text
@@ -79,7 +105,11 @@ def _load_social_posts(
                         except _json.JSONDecodeError as exc:
                             logger.warning("%s line %d: JSON error (%s)", jsonl_path, lineno, exc)
                             continue
-                        # Unwrap envelope if present
+                        # Collectors write each post inside an envelope:
+                        # {schema_version, created_at, stage, seed, payload:{text,...}}.
+                        # We want the inner payload; .get("payload", record) unwraps
+                        # it if present, or falls back to the record itself for any
+                        # already-flat lines. Skip posts with no text to score.
                         payload = record.get("payload", record)
                         if payload.get("text"):
                             posts.append(payload)

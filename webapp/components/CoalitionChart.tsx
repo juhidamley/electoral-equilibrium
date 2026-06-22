@@ -1,8 +1,25 @@
 "use client";
 
-// Three layers rendered as a single horizontal bar per race bloc:
-//   1. Opaque bar    — shifted (equilibrium.mu_shifted per-bloc loyalty μ̃_i ∈ [0,1])
-//   2. Translucent   — rebalanced (equilibrium.weights w̃_i, fillOpacity=0.35)
+// ============================================================================
+// CoalitionChart — the main visualization: one horizontal bar per race bloc.
+// ============================================================================
+// BEGINNER ORIENTATION (React + recharts):
+//   • This file exports a React COMPONENT — a function that takes `props` (its
+//     inputs) and returns JSX (a description of what to draw). React re-runs the
+//     function and updates the screen whenever the props change. Here the props
+//     arrive from the parent page as SSE events stream in.
+//   • "use client" (top line) marks this as a browser component (Next.js renders
+//     some components on the server; charts need the browser, hence this).
+//   • We draw with `recharts`, a charting library. The unusual part: instead of
+//     letting recharts draw plain bars, we give it a CUSTOM `shape` (BarShape
+//     below) that hand-draws three layers per row as raw SVG. That's how we get
+//     prediction + rebalance + baseline into a single bar.
+//
+// WHAT THE USER SEES — three layers per race bloc:
+//   1. Opaque bar    — shifted (equilibrium.mu_shifted per-bloc loyalty μ̃_i ∈ [0,1]):
+//                      "how loyal this bloc is to the party after the shock."
+//   2. Translucent   — rebalanced (equilibrium.weights w̃_i, fillOpacity=0.35):
+//                      "how much the optimizer says to lean on this bloc."
 //   3. Baseline tick — thin dashed gray line at μ_i (pre-shock), when available.
 //
 // All three layers arrive together on the "equilibrium" SSE event. The chart shows a
@@ -124,7 +141,13 @@ export default function CoalitionChart({
   const partyColor = PARTY_COLOR[party];
   const hasRebalanced = rebalanced !== null;
 
-  // Gap in pp — derived from backend scalar to avoid client-side λ/stratum recomputation.
+  // Gap in percentage points = how far the coalition's effective loyalty is above
+  // (+) or below (−) the win threshold V_eq. We use the BACKEND's μ_eff scalar
+  // (muEffShifted) and only subtract the target here. We deliberately do NOT
+  // recompute μ_eff in the browser: the true formula needs the λ layer weights
+  // and the religion/gender strata, which the frontend doesn't have — an earlier
+  // version tried a race-only recompute and produced a wrong gap. Trust the
+  // backend's authoritative number (and equilibrium.target_met) instead.
   const gapPP =
     muEffShifted !== null && target !== null
       ? (muEffShifted - target) * 100

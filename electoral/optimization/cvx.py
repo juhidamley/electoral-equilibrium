@@ -1,7 +1,30 @@
 """CVXPY optimizers for the electoral coalition rebalancing pipeline.
 
-Re-exports solve_baseline (min-variance QP) from portfolios.cvx, and provides
-solve_rebalanced (max P(win) Sharpe ratio) as the primary production optimizer.
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS FILE IS (and how it relates to dqcp.py)
+═══════════════════════════════════════════════════════════════════════════════
+This solves the SAME "maximize probability of winning" problem described in
+optimization/dqcp.py (read that file's portfolio-analogy overview first — blocs
+= stocks, μ = return, Σ = risk, Sharpe ratio → P(win)). The difference is purely
+mechanical: this file uses a slightly different but mathematically equivalent
+reformulation (Charnes–Cooper, explained below) and a different solver path.
+
+⚠️ NOTE: having two implementations of the same optimizer (this `solve_rebalanced`
+and dqcp.py's `solve_dqcp`) is a maintenance hazard — they can drift apart. A
+Week 8 task ("Consolidate the two duplicate optimizer code paths") tracks merging
+them into one canonical solver. Until then, this is the version the
+build_shock_response *kernel* uses; the FastAPI route uses dqcp.solve_dqcp.
+
+This module also re-exports solve_baseline (a plain min-variance QP) from
+portfolios.cvx for callers that want the conservative baseline portfolio.
+
+─── THE CHARNES–COOPER TRICK ───────────────────────────────────────────────────
+The Sharpe objective is a fraction, which ordinary convex solvers can't optimize
+directly. Charnes–Cooper is a classic change of variables that clears the
+denominator: substitute y = w·tau where tau = 1/√(wᵀΣw). The fraction becomes a
+plain linear objective subject to one "second-order cone" (norm) constraint —
+something a standard solver handles in a single pass. At the end we recover the
+real weights as w = y / tau.
 
 solve_rebalanced uses the Charnes-Cooper SOCP transformation of the Sharpe ratio:
 
@@ -78,14 +101,23 @@ def solve_rebalanced(
         )
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
-    # Regularize covariance to ensure positive definiteness for Cholesky
+    # Regularize the covariance so Cholesky (needed below) succeeds. Cholesky
+    # requires a "positive-definite" matrix (every eigenvalue > 0). Real
+    # estimated covariances can have a near-zero or slightly-negative smallest
+    # eigenvalue from round-off; if so, we nudge the whole diagonal up just
+    # enough to lift the smallest eigenvalue to a tiny positive floor (1e-8).
+    # Adding a constant to the diagonal raises every eigenvalue by that constant.
     min_eig = np.linalg.eigvalsh(Sigma).min()
     if min_eig < 1e-8:
         Sigma += np.eye(n) * (1e-8 - min_eig)
 
     try:
+        # L is the Cholesky factor (a "matrix square root": L Lᵀ = Sigma). The
+        # SOCP constraint ‖Lᵀ y‖₂ ≤ 1 below is how we encode "risk ≤ 1" linearly.
         L = np.linalg.cholesky(Sigma)
     except np.linalg.LinAlgError:
+        # Should be rare after the regularization above; if it still fails, give
+        # up gracefully with the equal-weight fallback rather than crashing.
         logger.warning("solve_rebalanced: Cholesky failed — returning infeasible")
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
@@ -110,34 +142,50 @@ def solve_rebalanced(
         logger.error("Problem is not DQCP — cannot guarantee global optimum")
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
+    # SOLVE WITH RETRIES: numerical solvers can occasionally report "infeasible"
+    # or error out on an ill-conditioned (numerically borderline) covariance.
+    # Each retry adds a little more to the diagonal (_RETRY_REG) — this "smooths"
+    # the problem, trading a touch of accuracy for numerical stability — and
+    # rebuilds. If all retries fail, we fall back to equal weights.
     for attempt in range(_MAX_RETRIES):
         try:
             problem.solve(qcp=True, solver=cp.SCS)
             if problem.status not in _INFEASIBLE:
-                break
-            # Relax regularization and rebuild with updated Cholesky factor
+                break  # solved successfully — leave the retry loop
+            # Reported infeasible: relax regularization and rebuild, then retry.
             Sigma += np.eye(n) * _RETRY_REG
             L = np.linalg.cholesky(Sigma)
             problem = _build_problem(L)
         except cp.SolverError:
+            # The solver threw rather than returning a status. On the last
+            # attempt, give up to the fallback; otherwise relax and retry.
             if attempt == _MAX_RETRIES - 1:
                 return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
             Sigma += np.eye(n) * _RETRY_REG
             L = np.linalg.cholesky(Sigma)
             problem = _build_problem(L)
     else:
+        # for/else: runs only if the loop finished WITHOUT hitting `break`,
+        # i.e. every attempt was infeasible. Fall back to equal weights.
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
     if problem.status in _INFEASIBLE:
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
+    # RECOVER THE REAL WEIGHTS: undo the Charnes–Cooper substitution, w = y / tau.
+    # If tau collapsed to ~0 the recovery would blow up (divide by zero), so guard
+    # against that degenerate solution and fall back.
     tau_val = float(tau.value) if tau.value is not None else 0.0
     if tau_val < 1e-9 or y.value is None:
         logger.warning("solve_rebalanced: degenerate solution (tau≈0)")
         return solve_equal_weight_rebalanced(blocs, mu_tilde, party, shock, target)
 
     w_opt = y.value / tau_val
-    w_opt = w_opt / w_opt.sum()  # normalize: Charnes-Cooper recovery is only approximate
+    # sum(w) should already be ~1 (the sum(y)=tau constraint guarantees it), but
+    # tiny solver round-off can leave it at 0.9999…; renormalize so the weights
+    # sum to exactly 1.0 and satisfy the project's strict invariant.
+    w_opt = w_opt / w_opt.sum()
+    # μ_eff here is the race-only weighted vote share, used to set target_met.
     mu_eff = float(mu @ w_opt)
 
     return EquilibriumData(

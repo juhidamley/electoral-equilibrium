@@ -251,6 +251,122 @@ This codebase is the implementation for the SRP research paper. Required methodo
 
 ---
 
+## How to Reproduce This Run
+
+This section documents how to reproduce the paper-baseline artifacts frozen at `artifacts/paper_baseline/`. The canonical run was executed on CMC Hopper (A100) under Python 3.11. Local development uses Python 3.9 (system) — numeric results across Python minor versions are expected to match within `atol=1e-9` for seeded operations; the 3.11 HPC run is the paper's ground truth.
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/jdamley28/electoral-equilibrium
+cd electoral-equilibrium
+git checkout feature/week5-llm-finetune   # branch the paper baseline was tagged from
+
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+pip install -e ".[dev]"       # core + dev extras (pytest, black, ruff)
+pip install -e ".[llm]"       # LLM stack: transformers, peft, outlines, sentencepiece
+pip install -e ".[data]"      # pandas, pyarrow, vaderSentiment, zstandard
+```
+
+Verify the suite is green before proceeding:
+
+```bash
+pytest -x -q
+```
+
+### 2. Obtain the trained adapter
+
+The LoRA adapter is **not checked into git** (binary, ~300 MB). It lives on JUHIDRIVE and the HPC:
+
+| Location | Path |
+|---|---|
+| M5 MacBook (local) | `/Volumes/JUHIDRIVE/electoralData/models/mistral-r16/` |
+| CMC Hopper | `/hopper/home/jdamley28/electoral-equilibrium/models/mistral-r16/` |
+
+To copy to a new machine from the HPC:
+```bash
+scp -r jdamley28@hopper.hpc.cmc.edu:/hopper/home/jdamley28/electoral-equilibrium/models/mistral-r16 \
+    ./models/mistral-r16
+```
+
+Then set the environment variable so inference picks it up:
+```bash
+export ADAPTER_PATH="$(pwd)/models/mistral-r16"
+```
+
+### 3. HPC setup (CMC Hopper, A100)
+
+The paper baseline was run on the `main` partition (A100, 32 GB VRAM). All SLURM details are in `scripts/hpc/hopper_submit.sh`. To replicate the environment manually on a Hopper login shell:
+
+```bash
+module load cuda/13.2
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/hopper/software/cuda/13.2/lib64
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate electoral
+
+export HF_HOME=/hopper/home/jdamley28/electoral-equilibrium/.hf_cache
+export TRANSFORMERS_CACHE=/hopper/home/jdamley28/electoral-equilibrium/.hf_cache
+export TOKENIZERS_PARALLELISM=false
+export PYTHONPATH="/hopper/home/jdamley28/electoral-equilibrium:${PYTHONPATH:-}"
+```
+
+rsync data to the HPC before submitting:
+```bash
+rsync -avz --exclude='.venv' --exclude='rawdata' \
+    ./data/ jdamley28@hopper.hpc.cmc.edu:/hopper/home/jdamley28/electoral-equilibrium/data/
+```
+
+### 4. Run the paper baseline
+
+> **Preconditions:** The adapter must have been retrained on the augmented fine-tune dataset (post-Newsom synthetic data) and validated to fix the Newsom-2028 direction error. The `configs/paper_baseline.json` config must exist with Espinosa-confirmed `target` and `V_eq` semantics. Run `pytest -x -q` first to confirm the green clean-checkout suite.
+
+```bash
+# Once configs/paper_baseline.json exists and preconditions are met:
+python -m electoral.pipeline --config configs/paper_baseline.json \
+    --output-dir artifacts/paper_baseline/
+```
+
+Or via the Justfile target (once added):
+```bash
+just paper-baseline
+```
+
+### 5. Expected per-stage runtimes
+
+> **Note:** Runtimes below are placeholders. They will be filled in after the first successful paper baseline run on Hopper. The run is currently blocked on the adapter retraining precondition.
+
+| Stage | Expected runtime | Notes |
+|---|---|---|
+| voter_panel | ~5 s | Parquet reads, raking |
+| baseline_portfolio | ~10 s | GP classifier + LOCO CV |
+| sentiment_data | ~2 min | RoBERTa scoring on all archives |
+| llm_finetune | ~3 h (HPC) | QLoRA on A100; skipped in `historical` mode if adapter exists |
+| shock_response | ~30 s | Constrained decoding, Ledoit-Wolf |
+| optimization | ~5 s | CVXPY DQCP solve |
+| simulation | ~20 s | 10,000 ILR Monte Carlo draws |
+
+If a stage hangs beyond 2× the expected time, check GPU utilization (`nvidia-smi`) and the SLURM log (`logs/finetune_<jobid>.log`).
+
+### 6. Verify reproducibility
+
+After producing a fresh run, compare it field-by-field against the frozen baseline:
+
+```bash
+python scripts/verify_artifacts.py artifacts/paper_baseline/ <fresh_output_dir>/
+```
+
+The script exits 0 on full match, 1 on any mismatch. All data-payload fields are compared; the only unconditionally skipped key is the envelope-level `metadata` (which may contain a creation timestamp). Any numeric diff larger than `atol=1e-9` is logged as a finding.
+
+To adjust the float tolerance (e.g., for cross-BLAS comparison):
+```bash
+python scripts/verify_artifacts.py --atol 1e-6 artifacts/paper_baseline/ <fresh_dir>/
+```
+
+---
+
 ## License
 
 Academic research use. Contact jdamley28@cmc.edu before reuse.

@@ -1,5 +1,16 @@
 """collector: fetch prediction market prices for each shock event.
 
+BIG PICTURE — and a CRITICAL rule: a "prediction market" lets people bet on
+outcomes (e.g. "will the Democrat win?"); the live price ≈ the crowd's implied
+probability. We fetch those prices ONLY to display alongside our model and to
+check our calibration after a shock resolves — they are NEVER training inputs.
+Why never inputs: a market price is a probability of WINNING (Δπ), which is a
+different quantity from our model's vote-share margins (Δμ). Mixing them up
+(Δπ ≠ Δμ) would corrupt the model. Markets are a yardstick, not an ingredient.
+
+Contract IDs are read from configs/market_contracts.json (never resolved live) so
+runs are reproducible — each shock maps to a fixed {platform: contract_id}.
+
 Contract identifiers are loaded from configs/market_contracts.json — never
 resolved dynamically. Every shock maps to {platform: contract_id_or_null}.
 

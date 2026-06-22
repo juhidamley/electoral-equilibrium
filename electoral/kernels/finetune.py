@@ -1,7 +1,23 @@
-"""Kernel: LLM fine-tuning stage.
+"""Kernel: LLM fine-tuning stage (Stage 3c).
 
-build_llm_finetune() is idempotent — if an adapter already exists at the
-configured path it returns immediately without re-training.
+═══════════════════════════════════════════════════════════════════════════════
+WHAT "FINE-TUNING" MEANS HERE (beginner orientation)
+═══════════════════════════════════════════════════════════════════════════════
+A base language model (Mistral-7B) already "knows English" but knows nothing
+about our specific task: "given a shock, output a delta bin per bloc."
+FINE-TUNING = continuing to train that model a little more on OUR examples
+(data/finetune/*.jsonl) so it learns our task and output format.
+
+Training all 7 billion weights would need huge GPUs, so we use QLoRA:
+  • LoRA ("Low-Rank Adaptation") freezes the giant base model and trains only a
+    small set of extra weights — the "ADAPTER". The adapter is tiny (~MBs) and is
+    what gets saved/loaded. `lora_rank` controls how big the adapter is.
+  • The "Q" = quantized: the frozen base model is stored in low precision to fit
+    in memory. Together this lets us fine-tune a 7B model on one modest GPU.
+
+IDEMPOTENT means: calling this twice does no extra work. If a trained adapter
+already exists on disk, we skip training and just return its metadata — so
+re-running the pipeline doesn't burn hours retraining an existing model.
 """
 
 from __future__ import annotations
@@ -16,8 +32,12 @@ from electoral.config import PipelineConfig
 log = logging.getLogger(__name__)
 
 _DEFAULT_BASE_MODEL = "mistralai/Mistral-7B-v0.3"
-_DEFAULT_ADAPTER = "models/mistral-r16"
+_DEFAULT_ADAPTER = "models/mistral-r16"  # where the trained LoRA adapter lives
 _DEFAULT_LORA_RANK = 16
+# ⚠️ Hardcoded metadata: the reported n_examples is fixed at 557 and does NOT
+# reflect the actual training file size (the synthetic set has since grown). This
+# is cosmetic (it only labels the artifact), but ideally n_examples should be
+# counted from the train file instead of being a constant. Low-priority cleanup.
 _DEFAULT_N_EXAMPLES = 557
 
 
@@ -31,8 +51,11 @@ def build_llm_finetune(config: PipelineConfig) -> LLMFineTuneData:
     base_model: str = getattr(config, "base_model", None) or _DEFAULT_BASE_MODEL
     lora_rank: int = int(getattr(config, "lora_rank", _DEFAULT_LORA_RANK))
 
+    # The presence of adapter_config.json is our "already trained" marker — it's
+    # the small file PEFT writes alongside a finished LoRA adapter.
     adapter_config_file = adapter_path / "adapter_config.json"
 
+    # ── IDEMPOTENT FAST PATH: adapter already on disk → skip the (slow) training.
     if adapter_path.exists() and adapter_config_file.exists():
         log.info("adapter found at %s, skipping training", adapter_path)
         _log_eval_mae(adapter_path)

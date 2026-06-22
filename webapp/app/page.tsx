@@ -67,19 +67,39 @@ function HowItWorks() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+//
+// This is the top-level page component and the frontend's "state machine". A few
+// React fundamentals to read it:
+//   • useState(initial) → returns [value, setValue]. Calling setValue re-renders
+//     the component with the new value. Each piece of changing data is its own
+//     state variable below.
+//   • The KEY IDEA here (progressive reveal): the three result states start null
+//     and get filled one at a time as SSE events arrive (deltas → equilibrium →
+//     simulation). Each setX triggers a re-render, so each chart "pops in" the
+//     moment its data lands — the user isn't staring at a blank screen.
+//   • useRef(initial) → a mutable "box" (.current) that survives re-renders but
+//     does NOT trigger one when changed. We use it to hold the live EventSource
+//     so we can close it later (a connection isn't UI, so it shouldn't be state).
+//   • useEffect(fn, []) → run fn once after mount; its returned function runs on
+//     unmount (cleanup). Used below to close the stream when the user leaves.
 
 export default function HomePage() {
+  // ── Form inputs (driven by the ShockInput controls) ──
   const [party, setParty] = useState<Party>("democrat");
   const [event, setEvent] = useState<string>("");
   const [intensity, setIntensity] = useState<number>(1.0);
+  // ── Request lifecycle ──
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);
-  const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);
-  const [simulation, setSimulation] = useState<SimulationData | null>(null);
-  const [copied, setCopied] = useState(false);
+  // ── Results — each filled by its own SSE event, null until then ──
+  const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);  // ← "deltas"
+  const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);      // ← "equilibrium"
+  const [simulation, setSimulation] = useState<SimulationData | null>(null);          // ← "simulation"
+  const [copied, setCopied] = useState(false);  // transient "Copied!" feedback on the share button
 
+  // Holds the active SSE connection so we can close a stale one before starting a
+  // new request and on unmount. A ref (not state) because it's plumbing, not UI.
   const esRef = useRef<EventSource | null>(null);
 
   // Pre-fill form from shared URL params (once on mount, no auto-submit).
@@ -119,10 +139,13 @@ export default function HomePage() {
     });
   };
 
+  // Driver: open the SSE stream and wire each event to the matching setX. This is
+  // the whole "state machine" — the callbacks fire as the backend streams stages.
   const handleSubmit = () => {
-    esRef.current?.close();
+    esRef.current?.close();  // cancel any previous in-flight stream first
     setLoading(true);
     setError(null);
+    // Clear prior results so stale charts don't linger while the new run streams in.
     setDeltaBins(null);
     setEquilibrium(null);
     setSimulation(null);

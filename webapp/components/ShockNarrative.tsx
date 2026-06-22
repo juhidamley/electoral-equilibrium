@@ -1,5 +1,20 @@
 "use client";
 
+// ============================================================================
+// ShockNarrative — turns the model's per-bloc delta bins into plain English.
+// ============================================================================
+// This is the FIRST result the user sees (it populates on the "deltas" SSE event,
+// before the charts). The model outputs cryptic labels like {"evangelical":
+// "strong_neg", "latino": "mild_neg", ...}; a normal person can't read that. This
+// component translates them into two sentences:
+//   "This shock is predicted to HURT the Democratic coalition with: Evangelicals
+//    (significant), Catholics (mild). And HELP with: Latino voters (moderate)…"
+//
+// HOW: map each bin → a direction (hurt/help/neutral) + a magnitude word, split
+// the blocs into a "hurt" list and a "help" list, sort each by severity, and
+// render. If everything is neutral, show a "minimal impact" message instead.
+// It's a pure presentational component: props in → text out, no state.
+
 import type { Party } from "@/lib/types";
 import { BLOC_LABEL } from "@/lib/blocs";
 

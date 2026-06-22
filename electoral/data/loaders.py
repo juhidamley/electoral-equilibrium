@@ -1,4 +1,12 @@
-"""Panel loaders — generic CSV loader and source-specific survey wrappers."""
+"""Panel loaders — generic CSV loader and source-specific survey wrappers.
+
+This is the "E" (Extract) of the data ETL described in kernels/data.py: read each
+raw survey file off disk into a pandas DataFrame, with the per-source column
+renames defined in configs/column_maps.json (each survey names its columns
+differently). Numeric columns are read as `object` first so that bad strings like
+"N/A" survive to be cleanly coerced to NaN later, rather than crashing the read.
+The cleaning step (data/cleaning.py) then normalizes whatever these return.
+"""
 
 from __future__ import annotations
 

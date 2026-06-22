@@ -1,5 +1,13 @@
 """aggregator: volume-weighted market price aggregation → PredictionMarketData artifact.
 
+BIG PICTURE: collector.py fetches one price per platform (Polymarket, PredictIt,
+…); this combines them into a single consensus number. It's a WEIGHTED AVERAGE
+where each platform's price is weighted by its trading VOLUME — a market with lots
+of money flowing through it is more informative than a thin one, so it counts more.
+Platforms that don't report volume (Metaculus, Manifold) fall back to equal weight.
+The result is wrapped in a PredictionMarketData artifact (calibration display only
+— see the Δπ ≠ Δμ rule in collector.py).
+
 volume_weighted_price(market_prices, volumes) weights each platform's price by
 its trading volume; equal-weights when volume is unavailable (Metaculus, Manifold).
 

@@ -26,6 +26,7 @@ from electoral.core.io import (
     read_artifact,
     read_json,
     read_parquet,
+    sanitize_floats,
     write_artifact,
     write_json,
     write_parquet,
@@ -327,3 +328,38 @@ class TestWriteArtifactDispatch:
         write_artifact(path, sample_envelope)
         raw = path.read_text(encoding="utf-8")
         assert "\n  " in raw, "Envelope JSON is not indented"
+
+
+class TestSanitizeFloats:
+    """The shared non-finite-float sanitizer (Week 8 JSON-safety item)."""
+
+    def test_replaces_inf_neg_inf_nan_with_none(self):
+        out = sanitize_floats({"a": float("inf"), "b": float("-inf"), "c": float("nan")})
+        assert out == {"a": None, "b": None, "c": None}
+
+    def test_finite_floats_and_other_types_untouched(self):
+        payload = {"x": 0.5, "n": 3, "s": "hi", "t": True, "f": False, "z": None}
+        # Comparison is exact: finite values must pass through unchanged.
+        assert sanitize_floats(payload) == payload
+
+    def test_recurses_into_nested_lists_and_dicts(self):
+        out = sanitize_floats(
+            {"row": [1.0, float("nan"), {"deep": float("inf")}], "ok": [0.1, 0.2]}
+        )
+        assert out == {"row": [1.0, None, {"deep": None}], "ok": [0.1, 0.2]}
+
+    def test_does_not_mutate_input(self):
+        original = {"v": float("nan")}
+        sanitize_floats(original)
+        assert original["v"] != original["v"]  # still NaN (NaN != NaN), i.e. untouched
+
+    def test_write_json_emits_valid_json_for_nonfinite(self, tmp_path):
+        """An artifact containing inf/nan must round-trip as null, not break parsing."""
+        path = tmp_path / "art.json"
+        write_json(path, {"win": float("inf"), "loss": float("nan"), "ok": 0.4})
+        raw = path.read_text(encoding="utf-8")
+        # The invalid JSON tokens must NOT appear in the file.
+        assert "Infinity" not in raw and "NaN" not in raw
+        # And it must parse cleanly (strict=True rejects Infinity/NaN tokens).
+        parsed = json.loads(raw)
+        assert parsed == {"win": None, "loss": None, "ok": 0.4}

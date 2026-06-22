@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from electoral.core.io import sanitize_floats
 from electoral.core.rng import derive_seed
 
 log = logging.getLogger(__name__)
@@ -209,7 +210,9 @@ def format_completion(record: dict[str, Any]) -> str:
             "delta_bins_gender": {k: flat[k] for k in _GENDER_BLOCS if k in flat},
             "delta_eff": 0.0,
         }
-    return json.dumps(output, ensure_ascii=False)
+    # sanitize_floats: delta_eff is data-derived, so guard against a stray
+    # inf/nan turning this training line into invalid JSON.
+    return json.dumps(sanitize_floats(output), ensure_ascii=False)
 
 
 def format_training_text(record: dict[str, Any]) -> str:
@@ -402,6 +405,7 @@ def train(
         fp16=(device == "cuda"),
         logging_steps=10,
         save_strategy="epoch",
+        save_total_limit=1,
         eval_strategy="no",  # manual eval below
         seed=derive_seed(seed, "llm_finetune"),
         report_to="none",

@@ -1,5 +1,27 @@
 """scorer: RoBERTa sentiment scoring with bloc-weighted aggregation.
 
+═══════════════════════════════════════════════════════════════════════════════
+BEGINNER ORIENTATION: what "RoBERTa sentiment scoring" means
+═══════════════════════════════════════════════════════════════════════════════
+SENTIMENT SCORING = reading a piece of text and rating how positive or negative
+it is. RoBERTa is a pre-trained language model good at this; the specific model
+here (cardiffnlp/twitter-roberta-base-sentiment) outputs three probabilities —
+P(negative), P(neutral), P(positive) — for any text. We collapse those into one
+number, score = P(positive) − P(negative), which lands in [−1, +1] (−1 = very
+negative, +1 = very positive).
+
+But one post's sentiment isn't what we want — we want sentiment PER DEMOGRAPHIC
+BLOC. Each post comes with a guess (from bio_classifier.py) of which blocs its
+author likely belongs to, expressed as weights. So we compute a WEIGHTED AVERAGE:
+a post by a probably-Latino author counts mostly toward the Latino bloc's score.
+That per-bloc sentiment becomes a feature for the LLM fine-tuning stage.
+
+(Two rules from CLAUDE.md are enforced below: "language_prior" posts are scored
+but excluded from estimation; news articles use outlet-level demographic proxies
+instead of a per-author bio.)
+
+─── original technical summary ───
+
 Model: cardiffnlp/twitter-roberta-base-sentiment (3-class)
   LABEL_0 = negative, LABEL_1 = neutral, LABEL_2 = positive
   score = P(positive) - P(negative) ∈ [-1, 1]

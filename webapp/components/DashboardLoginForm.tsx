@@ -1,5 +1,12 @@
 "use client";
 
+// DashboardLoginForm — the password gate for the analyst dashboard.
+// Submits the typed password to POST /api/dashboard/auth. That server route
+// checks it (constant-time) against DASHBOARD_PASSWORD and, on success, sets the
+// signed HttpOnly session cookie (see webapp/lib/session.ts + the FastAPI
+// _verify_session_token twin). The password is never stored client-side; this
+// form only forwards it once and reacts to the 200/401 response.
+
 import { useState } from "react";
 import { Lock } from "lucide-react";
 

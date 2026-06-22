@@ -1,3 +1,13 @@
+"""Export the shock-summary table for the paper, in CSV / LaTeX / JSON.
+
+A small reporting SCRIPT (run by hand, not part of the live pipeline). It reads
+the per-shock artifacts produced by a pipeline run, builds one summary row per
+shock (win probability, equilibrium gap, the biggest-moving bloc, …) via
+metrics/tables.py, and writes the table in three formats so it can be dropped
+straight into the paper (LaTeX), a spreadsheet (CSV), or reused programmatically
+(JSON). This is the table the Week-6 PR description embeds.
+"""
+
 import logging
 from pathlib import Path
 from electoral.config import PipelineConfig

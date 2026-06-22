@@ -3201,32 +3201,45 @@ DuckDB, password auth, and six data-backed panels is a two-day build, not one.
 \dayhead{3}{Wed --- Feedback, Integration Tests \& Replication Package}
 
 \begin{taskbox}
-\done \task{Resolve substantive open questions at the Week~7 supervision
-  check-in with Prof.\ Espinosa. Three flag-log items cannot close without
-  his answers; get them on record before touching the code:
+\task{Schedule and hold an overdue supervision check-in with Prof.\
+  Espinosa (last check-in was Week~2; major methodology has changed
+  unreviewed since). Walk in with a written agenda, priority-ordered:
+  (1) the synthetic data augmentation pipeline
+  (DeepSeek$\to$Gemini$\to$human review, 559 LLM-generated records
+  merged into the 1,136-record training set) --- is training a
+  forecaster on LLM-labeled data methodologically defensible, and how
+  must it be described/caveated in the methods section? Raise the
+  647-record unreviewed queue and the shared-blind-spot risk yourself;
+  (2) the definition of \texttt{target}=0.5066 (drives win\_prob
+  saturation);
+  (3) the win\_probability CI meaning (sampling error vs
+  $\Sigma_\Delta$-propagated uncertainty);
+  (4) ratify the NEP-weighted baseline change
+  ($\mu_\text{eff}$ 0.716$\to$0.605);
+  (5) confirm the model-vs-market framing.
+  Capture every answer in \texttt{DECISIONS.md} and update the
+  corresponding flag-log items to ``resolved/deferred per Espinosa
+  \textit{<date>}''. Several correctness flags CANNOT close without this
+  meeting --- it is a prerequisite, not a formality. Severity: blocking
+  for the SRP deliverable.}{3}
+
+\task{PROVISIONAL pending Espinosa check-in (last check-in Week~2).
+  Working assumptions used to keep development unblocked --- each MUST be
+  confirmed or corrected at the meeting; do NOT treat as settled:
   \begin{itemize}[leftmargin=1.6em, itemsep=1pt]
-    \item \textbf{What does \texttt{target=0.5066} represent?} Popular-vote
-      share? EC threshold? Effective-loyalty cutoff? The answer determines
-      whether win\_probability=1.0 saturation is a bug or a modeling choice,
-      and whether the current value is defensible.
-    \item \textbf{What should win\_probability\_low/high measure?} Monte
-      Carlo sampling error (the current code) or $\Sigma_\Delta$
-      covariance-propagated uncertainty (what the methodology section
-      implies)? These are different intervals with different scientific
-      meanings; the choice must be explicit and documented.
-    \item \textbf{Is the model-vs-market juxtaposition framed honestly?}
-      The model answers $P(\text{win} \mid \text{hypothetical shock})$; the
-      market answers $P(\text{win} \mid \text{current reality})$. Confirm
-      the UI copy and methodology text distinguish these, and that no
-      generic election contract is presented as event-conditioned.
+    \item \texttt{target=0.5066} assumed to mean national two-party
+      popular-vote share needed for an EC win. [PROVISIONAL --- likely too
+      low; Dems need $\sim$0.52]
+    \item win\_probability CI assumed to be Monte Carlo sampling error,
+      explicitly NOT covariance-propagated. [PROVISIONAL --- methods
+      section must state whichever he confirms]
+    \item Synthetic-data training accepted as-is pending his ruling on
+      whether LLM-labeled data is methodologically admissible.
+      [PROVISIONAL --- highest-risk assumption]
   \end{itemize}
-  Capture his answers in \texttt{DECISIONS.md} and mark the three
-  corresponding flag-log checkboxes ``resolved per Espinosa \textit{<date>}''
-  or ``deferred per Espinosa \textit{<date>}''. Cosmetic feedback (bloc
-  display names, axis labels, disclaimer wording) is the easy part of
-  this task; the three above are the substantive gate. Re-run the manual
-  end-to-end test after each cosmetic change. Commit as
-  \texttt{fix: incorporate-supervision-feedback}.}{3}
+  Every number/figure produced under these is marked PROVISIONAL in
+  \texttt{DECISIONS.md} until the meeting. The flag-log items stay OPEN
+  --- these defaults do not close them.}{2}
 
 \done \task{Write \texttt{tests/test\_integration\_end\_to\_end.py}: run the
   full pipeline on the smoke config from a clean state. Assert all stage
@@ -3522,6 +3535,62 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       document that covariance uncertainty is out of scope. Do not present
       a Bernoulli CI as the covariance-propagated interval the methodology
       section claims.
+    \item[$\square$] \textbf{[correctness --- paper deliverable]} Synthetic
+      data ablation study not tracked: DECISIONS.md requires training two
+      models --- hand-authored-only vs augmented --- and reporting both MAEs
+      before the synthetic rows may be claimed as beneficial in the paper.
+      If the augmented model does not improve on hand-authored-only, the
+      synthetic rows must be dropped. This is a required paper section, not
+      optional.
+    \item[$\square$] \textbf{[correctness]} \texttt{bin\_uncertainty.json}
+      $\sigma_b$ values are still unpopulated (open item in DECISIONS.md).
+      The Logistic-Normal MC uses per-bin empirical $\sigma_b$; if this
+      file holds defaults/zeros the CI width is wrong. Run
+      \texttt{generate\_synthetic.py} to populate before the
+      paper-baseline run.
+    \item[$\square$] \textbf{[correctness --- paper claim]} LIWC
+      cross-validation of the RoBERTa scorer is blocked (no tweet-ID
+      join column in the SAV file). DECISIONS.md defers the alternative
+      (100-post Spearman) to post-SRP. The methodology section must NOT
+      claim LIWC validation occurred; it must accurately describe what
+      validation was done (score distribution variance check only).
+    \item[$\square$] \textbf{[correctness/legal]} Foster \& Rathlin
+      \texttt{metoo\_liwc} dataset is CC~BY-NC-SA~4.0 (non-commercial
+      only) --- flagged in DECISIONS.md for startup/commercial review.
+      Confirm the SRP publication, any web demo, and any downstream use
+      does not violate the non-commercial clause before submission.
+    \item[$\square$] \textbf{[correctness]} NEP-weighted baseline change
+      ($\mu_\text{eff}$ 0.716$\to$0.605) is listed in the Espinosa
+      meeting agenda (item 4) as ``ratify'' but does not appear as a
+      decided entry in DECISIONS.md. Either document it as an
+      implemented decision or confirm with Espinosa that it is correct
+      and then document it.
+    \item[$\square$] \textbf{[correctness]} Python 3.10+ union syntax
+      (\texttt{X | None}, \texttt{X | Y}) crashes at import on local
+      3.9 dev env --- already broke FastAPI server boot
+      (\texttt{get\_audit}, \texttt{str | None}). Choose one fix:
+      (a) convert to \texttt{typing.Optional}/\texttt{Union} throughout
+      \texttt{electoral/}; (b) add \texttt{from \_\_future\_\_ import
+      annotations} to every affected module (verify no runtime annotation
+      introspection); or (c) bump local dev to 3.11 to match
+      HPC/paper-baseline target. Clean-checkout test on 3.9 will keep
+      surfacing these until resolved.
+    \item[$\square$] \textbf{[blocking --- deliverable]} Methodology and
+      Results sections are scaffolded, not written --- 39
+      TODO/PROVISIONAL placeholders, each tied to a real output
+      (Espinosa decision, paper\_baseline run, or model validation). None
+      may be filled from memory or assumption. Submission gate:
+      \texttt{grep -c 'TODO\textbackslash{}|PROVISIONAL'} on the paper
+      must return 0. Load-bearing holes: contested $V_{eq}$ (0.535
+      vs 0.5066), synthetic-data admissibility, Newsom directional
+      validation.
+    \item[$\square$] \textbf{[blocking --- deliverable]} Do NOT tag
+      \texttt{v1.0-paper-baseline} until: (a) retrained adapter validated
+      to fix the Newsom all-minorities-positive error; (b)
+      Espinosa-confirmed (or explicitly-provisional) \texttt{target} and
+      CI definitions; (c) green clean-checkout test suite; (d) production
+      covariance confirmed as Ledoit-Wolf, not the diagonal fallback.
+      Tagging early freezes known-wrong numbers as immutable ground truth.
     \item[$\square$] \textbf{[correctness/security --- blocking for public
       deploy]} Dashboard page auth (DASHBOARD\_PASSWORD) does not protect
       the FastAPI backend routes (\texttt{/api/coverage},
@@ -3926,11 +3995,57 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   for the SRP appendix.}{3}
 
 \task{Verify no JSON artifact can contain \texttt{Infinity}/\texttt{NaN}.
-  The \texttt{eval\_mae=inf} bug already produced one invalid-JSON parse
-  failure. Audit every \texttt{write\_artifact} / \texttt{to\_dict} path
-  and the \texttt{TrainingRun} serializer to guarantee non-finite floats
-  become \texttt{null}. Add a single shared sanitizer and a test feeding
-  it \texttt{inf}/\texttt{-inf}/\texttt{nan}.}{2}
+  The \texttt{eval\_mae=inf} bug already produced one invalid-JSON parse failure.
+  DONE: a shared \texttt{sanitize\_floats()} sanitizer in
+  \texttt{electoral/core/io.py} (recursively maps inf/-inf/nan $\to$ null), tested
+  in \texttt{tests/test\_io.py::TestSanitizeFloats}, is now applied at EVERY JSON
+  emission point we control --- \texttt{write\_json}/\texttt{write\_artifact}, the
+  Monte Carlo CLI (\texttt{simulation/montecarlo.py}), the SSE frames
+  (\texttt{api/shock\_endpoint.py}), and the fine-tune record serializer
+  (\texttt{llm/trainer.py}). REMAINING: \texttt{trainer\_state.json} is written by
+  the HuggingFace \texttt{Trainer} itself (not our code), so a non-finite
+  \texttt{best\_metric} there isn't caught by our sanitizer. Close it with a
+  \texttt{TrainerCallback} that sanitizes the metrics dict (or post-process
+  \texttt{trainer\_state.json} after training), and stop \texttt{\_eval\_mae} from
+  propagating a raw \texttt{inf} into the saved state.}{2}
+
+\task{Enforce per-bloc weight bounds inside the optimizer instead of after it.
+  \texttt{solve\_dqcp} (electoral/optimization/dqcp.py) currently applies the
+  \texttt{ConstraintSpec} lower/upper bounds by clipping the solved weights and
+  then renormalising so they sum to 1. The renormalisation step can push a
+  clipped weight back outside its bound (e.g.\ clip to the ceiling, then divide
+  by a sum $<1$, which scales it above the ceiling), so the returned weights are
+  not guaranteed to respect \texttt{spec}. This is flagged in-code as a known
+  first-order approximation. Replace it with a formulation that enforces the
+  bounds exactly: in the Charnes--Cooper SOCP variables this is the linear pair
+  \texttt{z\_i >= lo\_i * s} and \texttt{z\_i <= hi\_i * s} (bounds become linear
+  in $(z,s)$, no clipping needed). Add a test asserting every returned weight is
+  within \texttt{[lo, hi]} for a spec that the unconstrained optimum violates.}{3}
+
+\task{Reconcile the religion/gender basis in $\mu_{\text{eff}}$ between the
+  baseline and the post-shock stages. \texttt{kernels/baseline.py} computes the
+  baseline $\mu_{\text{eff}}$ using the REAL religion and gender vote shares
+  (\texttt{mu\_religion}, \texttt{mu\_gender}, equal-weighted per bloc), but the
+  post-shock optimizer (\texttt{optimization/dqcp.py}, \texttt{cvx.py}) and the
+  Monte Carlo (\texttt{simulation/montecarlo.py}) both treat those two strata as
+  a flat neutral 0.50 (\texttt{fixed\_loyalty} / \texttt{neutral\_fixed}). The two
+  $\mu_{\text{eff}}$ numbers are therefore on different bases, so any
+  ``baseline $\to$ post-shock'' shift the app or paper reports conflates the real
+  shock effect with this 0.5-vs-real discrepancy. Decide which convention is
+  canonical (likely: use the real fixed-strata loyalties everywhere, or hold them
+  fixed but identical in both places), apply it consistently, document it in
+  DECISIONS.md, and re-freeze the baseline.}{3}
+
+\task{Consolidate the two duplicate optimizer code paths. There are now two
+  separate SOCP formulations of the same max-P(win) problem:
+  \texttt{electoral/optimization/cvx.py:solve\_rebalanced} (used by the
+  \texttt{build\_shock\_response} kernel) and
+  \texttt{electoral/optimization/dqcp.py:solve\_dqcp} (used by the FastAPI
+  \texttt{/estimate/stream} route via a wrapper). They can diverge silently and
+  double the maintenance/test burden. Pick one as canonical (dqcp.py is the more
+  general and better-documented), have the other delegate to it or be removed,
+  and point every caller (kernel, API, sensitivity\_analysis) at the single
+  implementation. Confirm the smoke artifacts are unchanged afterward.}{3}
 
 \end{taskbox}
 

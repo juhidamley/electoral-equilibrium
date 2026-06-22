@@ -1,5 +1,12 @@
 """news_loader: Loaders for scraped and archival news articles.
 
+BIG PICTURE: the NEWS counterpart to archive.py — it reads news articles (locally
+scraped or from HuggingFace datasets) into the canonical payload the scorer
+consumes. Key difference from social posts: news has no individual author bio, so
+each article carries an OUTLET-LEVEL demographic proxy (the publication's typical
+readership, e.g. CBN ≈ evangelical) instead — letting the scorer attribute its
+sentiment to blocs without a per-author bio_classifier call.
+
 Two loaders:
   ScrapedNewsLoader   — reads rawdata/news/{outlet}/{YYYY-MM-DD}.jsonl
   load_huggingface_news() — downloads 3DLNews2 or other HF news datasets

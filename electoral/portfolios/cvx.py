@@ -1,5 +1,16 @@
 """Minimum-variance baseline portfolio optimizer.
 
+WHY THIS EXISTS (and how it differs from the real optimizer): the production
+optimizer maximizes P(win) — the Sharpe ratio (optimization/dqcp.py, cvx.py). THIS
+one does something simpler and deliberately different: it finds the LOWEST-RISK
+coalition that still clears the win threshold ("min variance subject to mu^T w ≥
+target"). That is the textbook-conservative choice, and it's WRONG for the main
+problem — in a losing scenario you must TAKE ON risk to have any shot at winning,
+which min-variance refuses to do. So this is kept only as a BASELINE to compare
+against in the paper ("our P(win) optimizer beats plain min-variance"), not as the
+thing that drives the app. A QP ("quadratic program") is the optimization family
+for a quadratic objective (variance = w^T Σ w) with linear constraints.
+
 solve_baseline() is the QP comparison baseline for the DQCP optimizer.  It
 finds the lowest-variance race-bloc coalition that still meets the win-
 probability loyalty threshold V_eq:

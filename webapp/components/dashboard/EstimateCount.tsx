@@ -1,5 +1,9 @@
 "use client";
 
+// EstimateCount — the small "N estimates logged" figure in the dashboard header.
+// Fetches the total row count from GET /api/audit/count (a lightweight query that
+// doesn't pull all rows). Renders nothing until the count loads.
+
 import { useEffect, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";

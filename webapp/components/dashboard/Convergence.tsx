@@ -1,5 +1,11 @@
 "use client";
 
+// Convergence — Panel 5 of the analyst dashboard.
+// Shows the Monte Carlo win-probability estimate at N=1k/5k/10k draws, with a
+// shaded p5–p95 band, to demonstrate the estimate has CONVERGED (stabilized) by
+// 10k draws — i.e. running more simulations wouldn't change the answer. Data from
+// GET /api/convergence. A Pass/Fail badge flags whether it settled within ±0.005.
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Area,

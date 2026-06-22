@@ -1,3 +1,14 @@
+"""Sensitivity analysis: how do the results change as a shock's INTENSITY varies?
+
+A reporting SCRIPT (run by hand). It re-runs the full shock→optimizer→Monte-Carlo
+chain for one event at a sweep of intensity values (e.g. 0.5 → 2.0) and plots how
+the win probability (with its CI band) and the per-bloc coalition weights move as
+the shock gets stronger. The output figure is the "sensitivity plot" the Week-6 PR
+description includes — it shows the model responds smoothly/sensibly to intensity
+rather than flipping erratically. Uses matplotlib's headless "Agg" backend so it
+runs on a server with no display.
+"""
+
 import argparse
 import logging
 import json

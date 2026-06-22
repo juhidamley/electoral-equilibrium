@@ -1,8 +1,24 @@
 // HMAC-SHA256 session token utilities — runs in both Node.js and Edge runtime.
 //
+// WHAT THIS DOES (beginner crypto): when a user logs in, we give them a "session
+// token" proving they're authenticated. We must make sure they can't FORGE one.
+// An HMAC ("hash-based message authentication code") is a tamper-proof stamp:
+// HMAC(secret, message) produces a signature that you can only reproduce if you
+// know the `secret`. The server keeps DASHBOARD_SESSION_SECRET private, so:
+//   • signSessionToken()   stamps an expiry time → token "{expiry}.{signature}"
+//   • verifySessionToken() re-stamps the expiry with the same secret and checks
+//     it matches. If a user edits the expiry to extend their session, the
+//     signature won't match and verification fails.
+// This is the TypeScript twin of the Python _verify_session_token in
+// shock_endpoint.py — both build/check tokens identically so a token signed by
+// one is accepted by the other.
+//
 // Token format: `{expiry_unix_ms}.{hmac_hex}`
 // HMAC covers only the expiry string, signed with DASHBOARD_SESSION_SECRET.
-// crypto.subtle.verify provides constant-time comparison by spec.
+// crypto.subtle.verify provides constant-time comparison by spec (see the note
+// in shock_endpoint.py on why constant-time matters — it defeats timing attacks).
+// crypto.subtle is the standard Web Crypto API, available in both the Node and
+// Edge (middleware) runtimes, so this one file works everywhere.
 
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
 

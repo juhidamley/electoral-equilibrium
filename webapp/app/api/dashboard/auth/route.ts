@@ -1,3 +1,8 @@
+// Login route: POST /api/dashboard/auth. Receives {password}, checks it against
+// the server's DASHBOARD_PASSWORD, and on success sets the signed session cookie
+// (so subsequent dashboard requests are recognized as logged-in). This runs only
+// on the server — the password and the secret never reach the browser.
+
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { signSessionToken } from "@/lib/session";

@@ -1,11 +1,57 @@
 """Typed, frozen payload dataclasses for every pipeline stage.
 
-Design rules (artifact-first):
-  - All classes are frozen=True: mutation impossible after construction
-  - to_dict() / from_dict() use only native Python types (dict, list, str, int, float, bool, None)
-  - validate() raises ValueError with context-specific messages
-  - No pandas or NumPy objects in payload fields
-  - Election cycles are int YYYY; demographic IDs are lowercase snake_case strings
+═══════════════════════════════════════════════════════════════════════════════
+THIS FILE IS THE PROJECT'S "DATA DICTIONARY" — read it to learn the data model
+═══════════════════════════════════════════════════════════════════════════════
+core/io.py explained that each stage saves an *artifact* (an envelope holding a
+"data" payload). THIS file defines the exact shape of every one of those
+payloads — one class per stage, in pipeline order:
+
+    StageArtifact            the envelope that wraps all the others
+    VoterPanelData           Stage 1  — cleaned voter survey panel
+    BaselinePortfolioData    Stage 2  — steady-state coalition + vote shares
+    SentimentData            Stage 3a — RoBERTa sentiment features
+    SocialMediaSentimentData Stage 3b — platform-aggregated sentiment
+    LLMFineTuneData          Stage 3c — fine-tuning dataset metadata
+    PredictionMarketData     Stage 3d — market prices (calibration only)
+    ShockResponseData        Stage 4  — the LLM's per-bloc shock prediction
+    ShockResponseSchema      (Pydantic) — the schema that CONSTRAINS the LLM
+    EquilibriumData          Stage 5  — optimizer's rebalanced coalition
+    SimulationData           Stage 6  — Monte Carlo win probability + CI
+    MetricsTablesData        Stage 7  — performance/evaluation tables
+
+If you read only one file to understand "what data flows through this system",
+read this one.
+
+═══════════════════════════════════════════════════════════════════════════════
+THE COMMON PATTERN (every class below follows it — learn it once)
+═══════════════════════════════════════════════════════════════════════════════
+Each payload class is a frozen dataclass with the same three methods:
+
+  • to_dict()    — convert the object → a plain dict of native Python types,
+                   ready to be written to JSON. ("Serialize.")
+  • from_dict()  — rebuild the object from such a dict. ("Deserialize.")
+  • validate()   — check every invariant and raise ValueError if anything is
+                   wrong (a weight out of [0,1], a bloc name that isn't
+                   canonical, shares that don't sum to 1, …).
+
+Why this trio matters:
+  - ROUND-TRIP CONTRACT: from_dict(x.to_dict()) must reproduce x exactly. That's
+    what lets one machine write an artifact and another read it back faithfully.
+    (tests/test_artifact_roundtrip.py enforces this for every class.)
+  - FAIL EARLY: validate() catches bad data at the boundary between stages,
+    where the error message can name the exact field — instead of letting a NaN
+    or a misspelled bloc silently corrupt a result three stages later.
+
+DESIGN RULES (the "artifact-first" philosophy):
+  - frozen=True → the object is IMMUTABLE after construction. You can't
+    accidentally mutate an artifact someone else is holding; to "change" one you
+    build a new one. This makes data flow predictable and bug-resistant.
+  - to_dict()/from_dict() use ONLY native types (dict, list, str, int, float,
+    bool, None) — never a pandas DataFrame or a NumPy array. Native types are
+    exactly what JSON understands, so serialization is trivial and portable.
+  - Election cycles are int YYYY; demographic IDs are lowercase snake_case
+    strings (the invariants from core/types.py).
 """
 
 from __future__ import annotations
@@ -54,16 +100,27 @@ class StageArtifact:
     Tabular stages additionally write a .parquet file alongside the JSON.
     """
 
-    stage: str
-    run_key: str
-    metadata: dict[str, Any]
-    data: dict[str, Any]
+    stage: str  # which stage produced this artifact, e.g. "simulation"
+    run_key: str  # which run this belongs to, e.g. "smoke" or "paper_baseline"
+    metadata: dict[str, Any]  # free-form extras (timings, counts) — not validated
+    data: dict[str, Any]  # the actual payload: some XxxData.to_dict() output
+
+    # ── This class is also the TEMPLATE for the to_dict/from_dict/validate trio.
+    #    Every payload class below repeats this same three-method shape, so once
+    #    you understand these three methods you understand all of them. ──
 
     def to_dict(self) -> dict[str, Any]:
+        # dataclasses.asdict recursively turns this object (and any nested
+        # dataclasses) into a plain dict — ready for json.dump.
         return dataclasses.asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> StageArtifact:
+        # The mirror of to_dict: pull each field out of the dict and coerce it to
+        # its declared type (str(), dict(), …). Coercing defends against values
+        # that arrived as a slightly different type from JSON. metadata defaults
+        # to {} because it's optional; data/stage/run_key are required (d["..."]
+        # raises KeyError if missing — a loud, useful failure).
         return cls(
             stage=str(d["stage"]),
             run_key=str(d["run_key"]),
@@ -72,6 +129,9 @@ class StageArtifact:
         )
 
     def validate(self) -> None:
+        # assert_required_keys (from core/schema.py) raises a clear ValueError if
+        # any required key is missing. Then we add envelope-specific checks: an
+        # empty stage or run_key is meaningless and would break artifact lookup.
         assert_required_keys(
             {"stage": self.stage, "run_key": self.run_key, "data": self.data},
             ["stage", "run_key", "data"],
@@ -599,7 +659,18 @@ class ShockResponseData:
 
 
 # ── LLM output schema (Pydantic — used by outlines constrained decoding) ─────
-
+#
+# WHY A SEPARATE SCHEMA HERE (and why Pydantic, not a dataclass)?
+# This is the schema that the language model's output is forced to match. The
+# `outlines` library can take a Pydantic model and constrain the LLM's decoding
+# so it can ONLY produce text that parses into this exact shape — every bloc
+# present, every value one of the 9 legal bins, nothing else. That's why it's a
+# Pydantic BaseModel (which outlines understands) rather than a plain dataclass.
+# Using the SAME model for both constrained decoding and as the FastAPI response
+# type keeps the LLM's contract and the API's contract guaranteed-identical.
+#
+# DeltaBin = the 9 legal labels, as a typing.Literal. Pydantic rejects anything
+# that isn't one of these exact strings — a free, built-in validity check.
 DeltaBin = Literal[
     "strong_neg",
     "mod_neg",
@@ -621,6 +692,10 @@ _NormalizedDeltaBin = Annotated[
 ]
 
 
+# One Pydantic model per stratum, with one field per bloc. Listing the blocs
+# explicitly (rather than a generic dict) is deliberate: it forces the LLM to
+# emit EVERY bloc — it can't skip "muslim" or invent "hispanic" — because the
+# schema literally has no room for anything but these exact fields.
 class _RaceBins(BaseModel):
     african_american: _NormalizedDeltaBin
     latino: _NormalizedDeltaBin

@@ -1,5 +1,17 @@
 "use client";
 
+// ============================================================================
+// PercentileStrip — a mini box-plot per race bloc showing weight UNCERTAINTY.
+// ============================================================================
+// WHAT'S A BOX-PLOT (in case it's unfamiliar): a compact way to show a range of
+// outcomes. The Monte Carlo produced thousands of possible coalition weights for
+// each bloc; rather than one number, this shows the spread:
+//   • the BOX spans the middle 50% of outcomes (25th–75th percentile),
+//   • the line inside the box is the median (50th),
+//   • the WHISKERS reach the 5th and 95th percentiles (the 90% range).
+// A wide box/whiskers = lots of uncertainty about that bloc's weight; a narrow
+// one = the optimizer is confident. Supplementary detail beneath the WinGauge.
+//
 // Compact horizontal box-plot strip — shows the p5/p25/p50/p75/p95 distribution
 // of coalition weights per race bloc, as produced by the Logistic-Normal ILR
 // Monte Carlo in simulation/montecarlo.py.

@@ -1,11 +1,23 @@
 """Audit logger for Electoral Equilibrium estimate requests.
 
-Backed by DuckDB at data/audit.duckdb.  Designed for low-volume logging
-(one write per estimate call) — single connection, guarded by threading.Lock
-for safe use across the ThreadPoolExecutor workers in shock_endpoint.py.
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS IS (beginner orientation)
+═══════════════════════════════════════════════════════════════════════════════
+"Audit logging" = keeping a permanent record of every estimate the API runs:
+the event text, the inputs, the win probability, how long each stage took. This
+powers the dashboard's audit table and lets you answer later questions like
+"what did we predict for that shock last week, and how fast was it?"
 
-DuckDB connections are single-writer; a lock is sufficient because estimates
-are infrequent and the process pool is max_workers=1.
+It's backed by DuckDB — a lightweight SQL database that lives in a single file
+(data/audit.duckdb), no server to run. Think "SQLite, but built for analytics."
+We talk to it with ordinary SQL strings.
+
+THREAD-SAFETY (the threading.Lock): the web server handles requests on multiple
+threads at once. A single DuckDB connection must NOT be used by two threads
+simultaneously, so every database operation below is wrapped in `with self._lock:`
+— that ensures only one thread touches the connection at a time (the others wait
+their turn). Because estimates are infrequent and quick, this serialization costs
+nothing noticeable. (See shock_endpoint.py for the thread/process pools.)
 """
 
 from __future__ import annotations
@@ -24,12 +36,21 @@ log = logging.getLogger(__name__)
 
 
 class AuditLogger:
+    """Append-only logger of estimate runs, backed by a single DuckDB file.
+
+    Created once at app startup (see shock_endpoint.py's lifespan) and shared by
+    all requests. Three public methods: log_estimate() (write one row),
+    recent() (read back recent rows, optionally filtered), count() (total rows).
+    """
+
     def __init__(self, db_path: str = "data/audit.duckdb") -> None:
+        # Make sure the data/ directory exists before DuckDB tries to create the
+        # file inside it.
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._db_path = db_path
-        self._con = duckdb.connect(db_path)
-        self._lock = threading.Lock()
-        self._init_schema()
+        self._con = duckdb.connect(db_path)  # opens (or creates) the .duckdb file
+        self._lock = threading.Lock()  # serializes all access to _con (see module docstring)
+        self._init_schema()  # create the table on first run (idempotent)
 
     def _init_schema(self) -> None:
         # Sequence for auto-increment id (DuckDB pattern: no AUTOINCREMENT keyword).

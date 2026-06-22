@@ -1,10 +1,28 @@
-"""Moment estimation for the baseline portfolio kernel.
+"""Statistical baseline models: moment estimation + a win-probability classifier.
 
-Provides estimate_moments() which computes:
-  mu^(P)  — mean within-bloc vote share for party P across winning cycles
-  Sigma   — 5×5 empirical race-bloc covariance across all available cycles
+═══════════════════════════════════════════════════════════════════════════════
+WHAT THIS FILE PROVIDES (two related things)
+═══════════════════════════════════════════════════════════════════════════════
+1. MOMENT ESTIMATION (estimate_moments) — "moments" is the statistics word for
+   summary numbers of a distribution. We compute two:
+     • μ ("mu")    — the MEAN within-bloc vote share for the party, averaged over
+                     the elections it won. ("How loyal is each bloc, typically?")
+     • Σ ("Sigma") — the 5×5 race-bloc COVARIANCE across all cycles. Covariance
+                     captures how blocs move TOGETHER (do Black and Latino vote
+                     shares rise/fall in sync?). This Σ is the "risk" the
+                     optimizer trades against (see optimization/dqcp.py).
+   These two are the primary inputs to the DQCP optimizer.
 
-These are the primary inputs to the CVXPY DQCP optimizer (portfolios/cvx.py).
+2. A WIN-PROBABILITY CLASSIFIER (fit_gp_classifier + LOCO validation, lower
+   half of the file) — a separate machine-learning baseline that predicts
+   P(win) from the bloc vote shares, used to sanity-check the optimizer's
+   probabilities. It uses a Gaussian Process (a flexible ML model) validated with
+   "leave-one-cycle-out" cross-validation. (Explained at that section below.)
+
+Also here: ground_truth_winning_cycles() and derive_ec_veq() (the empirical win
+threshold V_eq), and psd_repair() (a covariance-fixing helper shared with the
+optimizer). The approximate electorate-share constants below are used only to
+compute a national vote share when deciding which cycles were "wins".
 """
 
 from __future__ import annotations
@@ -296,19 +314,27 @@ class MomentEstimates:
 
 
 def psd_repair(cov: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """Return a copy of *cov* that is positive semi-definite.
+    """Return a copy of *cov* that is positive semi-definite (PSD).
 
-    If the minimum eigenvalue of *cov* is negative, adds
-    ``(-min_eig + eps) * I`` so that all eigenvalues are >= ``eps``.
-    Returns *cov* unchanged (zero-copy) when it is already PSD.
+    WHY THIS MATTERS: a real covariance matrix must be "positive semi-definite" —
+    intuitively, it can't claim a negative amount of variance in any direction.
+    The mathematical test is that all its eigenvalues are ≥ 0. But a covariance
+    ESTIMATED from limited, noisy data can come out with a tiny negative
+    eigenvalue (an impossible-in-theory artifact of estimation/round-off). Many
+    downstream steps — notably the Cholesky factorization in the optimizer and
+    Monte Carlo — then fail. This function nudges the matrix back to valid.
+
+    HOW: if the smallest eigenvalue is negative, add a multiple of the identity
+    (which raises EVERY eigenvalue by that constant) just enough to lift the
+    minimum to ≥ eps. If it's already PSD, return it untouched (no copy).
 
     Parameters
     ----------
-    cov:
-        Square, symmetric matrix (e.g. a sample covariance matrix).
-    eps:
-        Minimum eigenvalue guarantee after repair.  Defaults to 1e-6.
+    cov: Square, symmetric matrix (e.g. a sample covariance matrix).
+    eps: Minimum eigenvalue guarantee after repair. Defaults to 1e-6.
     """
+    # eigvalsh = eigenvalues of a symmetric ("Hermitian") matrix; .min() is the
+    # smallest. If it's already ≥ 0 we don't touch the matrix.
     min_eig = float(np.linalg.eigvalsh(cov).min())
     if min_eig < 0.0:
         return cov + (-min_eig + eps) * np.eye(cov.shape[0])
@@ -453,6 +479,28 @@ def estimate_moments(
 
 
 # ── GP win-probability classifier ────────────────────────────────────────────
+#
+# WHAT THIS HALF OF THE FILE DOES (a second, independent P(win) estimate):
+# The optimizer + Monte Carlo give one estimate of win probability. As a
+# cross-check for the paper, we also train a small machine-learning model that
+# predicts "win or lose" directly from the bloc vote shares, and see how accurate
+# it is on real historical elections.
+#
+# GAUSSIAN PROCESS (GP): the model used. A GP is a flexible curve-fitter that, in
+# addition to a prediction, reports how UNCERTAIN it is at each point (a built-in
+# error bar). That uncertainty is valuable here because we have very few
+# elections to learn from.
+#
+# LOCO = LEAVE-ONE-CYCLE-OUT cross-validation: with only ~10 past elections, we
+# can't spare a big test set. So we test honestly by, for each election year:
+# train on ALL THE OTHER years, then predict the held-out year and check if we
+# got the win/lose right. Repeat for every year. This reuses scarce data while
+# never testing on data the model trained on.
+#
+# PLATT SCALING (platt_scale_loco): a final calibration step. Raw model scores
+# aren't necessarily honest probabilities (a "0.8" may not win 80% of the time);
+# Platt scaling fits a small correction so the reported numbers behave like real
+# probabilities.
 
 
 @dataclasses.dataclass(frozen=True)

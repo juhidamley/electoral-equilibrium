@@ -1,3 +1,9 @@
+// RootLayout — the outermost HTML shell Next.js wraps around EVERY page.
+// Whatever page the user visits is rendered into `{children}` below, inside this
+// <html>/<body>. It's the place for app-wide setup: the global stylesheet, the
+// page <title>/description metadata (the `metadata` export — Next.js injects it
+// into <head>), and base body styling. There's no per-page logic here.
+
 import type { Metadata } from "next";
 import "./globals.css";
 

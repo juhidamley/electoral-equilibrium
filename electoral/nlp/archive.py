@@ -1,5 +1,13 @@
 """archive: Historical archive loader for pre-existing post collections.
 
+BIG PICTURE: this is one of the raw-TEXT SOURCES that feed the sentiment pipeline
+(scorer.py / bio_classifier.py). Rather than scraping live, it ingests already-
+collected historical posts (downloaded HuggingFace/Twitter/Reddit/Discord/news
+archives) and reshapes every one into the SAME canonical post payload, so the
+scorer doesn't care where a post came from. "Normalize to one schema" is the
+whole point — every loader below is just adapting a different messy source format
+into that one shape.
+
 Loads posts from JUHIDRIVE archives and normalizes them to the canonical
 post payload schema. Three loader classes are provided:
 

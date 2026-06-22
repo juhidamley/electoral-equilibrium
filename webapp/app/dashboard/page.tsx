@@ -1,3 +1,14 @@
+// ============================================================================
+// DashboardPage — the analyst dashboard at /dashboard. Assembles the 6 panels.
+// ============================================================================
+// This is a SERVER COMPONENT (note: no "use client" — it's async and runs on the
+// server). Because it runs server-side, it can read the session cookie and verify
+// it BEFORE any HTML is sent: an unauthenticated visitor gets the login form and
+// never receives the dashboard markup at all. Authenticated visitors get the nav
+// + a grid of the panel components (each of which then fetches its own data from
+// the API on the client). The middleware also guards /dashboard/* sub-paths; this
+// page additionally guards the bare /dashboard entry point itself.
+
 import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/session";
 import DashboardLoginForm from "@/components/DashboardLoginForm";

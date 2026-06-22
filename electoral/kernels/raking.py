@@ -1,5 +1,27 @@
 """Marginal calibration (iterative proportional fitting) of lambda layer weights.
 
+═══════════════════════════════════════════════════════════════════════════════
+WHAT PROBLEM THIS SOLVES (in plain English)
+═══════════════════════════════════════════════════════════════════════════════
+Recall μ_eff = λ₁·(race) + λ₂·(religion) + λ₃·(gender). The three λ's say how
+much each stratum should count. We start with rough guesses (0.50 / 0.30 / 0.20).
+This module REPLACES those guesses with values learned from data: it finds the λ
+blend whose μ_eff best reproduces the ACTUAL national Democratic vote share in
+past elections. In other words, "which mix of race/religion/gender signals would
+have predicted history most accurately?"
+
+It does this as a regression: treat each stratum's per-cycle vote share as a
+predictor, the real election outcome as the target, and find the coefficients
+(the λ's) that best fit — then constrain them to be non-negative and sum to 1
+(a valid weighting). "Raking" / "iterative proportional fitting (IPF)" is the
+classic name for repeatedly adjusting one set of weights at a time until the
+whole thing settles — here applied to the λ parameters.
+
+WHY IT'S OPTIONAL: the calibrated ("raked") λ's are written to a SEPARATE block
+in layer_weights.json; the original additive λ's are left untouched, so the paper
+can compare "additive vs raked" side by side.
+
+─── original technical summary ───
 The additive mu_eff formula uses three strata weighted by lambda_1, lambda_2,
 lambda_3 (race, religion, gender).  The default values in layer_weights.json
 (0.50 / 0.30 / 0.20) are rough priors.  This module calibrates them from data
@@ -112,7 +134,11 @@ def _align(
 def _project_simplex(v: np.ndarray) -> np.ndarray:
     """Project *v* onto the probability simplex {x : sum=1, x≥0}.
 
-    Duchi et al. (2008) O(n log n) algorithm.  Works for any n ≥ 1.
+    Same job as optimization/simplex.py:project_simplex (snap a vector to the
+    nearest valid weighting) — this is a near-duplicate written with slightly
+    different arithmetic. It's kept separate rather than imported so we don't risk
+    changing this module's numerical results; consolidating the copies is a
+    minor future cleanup. Duchi et al. (2008), O(n log n), works for any n ≥ 1.
     """
     n = len(v)
     u = np.sort(v)[::-1]
@@ -231,6 +257,14 @@ def rake_layer_weights(
             lam_arr = lam_prior.copy()
         else:
             # ── Solve regularised normal equations on the active face ─────────
+            # "Normal equations" (AᵀA λ = Aᵀy) are the closed-form solution to a
+            # least-squares fit. PROBLEM: the three stratum series move together
+            # (all rise/fall with the national partisan tide), i.e. they're
+            # "collinear" — so the plain fit is unstable (tiny data changes swing
+            # the λ's wildly). FIX (Tikhonov / ridge regularization): add a small
+            # `reg` term that gently pulls the solution toward the equal-weight
+            # prior. This stabilizes the solve at the cost of a 1% bias — a
+            # standard, well-understood trade.
             S_a = S_mat[:, active_idx]
             A_a = S_a.T @ S_a + reg * np.eye(len(active_idx))
             b_a = S_a.T @ y_arr + reg * lam_prior[active_idx]

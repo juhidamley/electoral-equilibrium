@@ -1,5 +1,12 @@
 """News article scraper for shock events — runs on the Intel Mac.
 
+BIG PICTURE: this is the always-on job that actually GATHERS the news text that
+news_loader.py later reads. It runs continuously on the Intel Mac (per CLAUDE.md),
+polls each outlet's RSS feed, keeps entries that match a shock's keywords and date
+window, downloads the full article text, and writes it to JUHIDRIVE (synced to the
+dev machine via Syncthing). Think of it as the "E" (Extract) for news, feeding the
+raw files that the rest of the NLP pipeline consumes.
+
 Fetches articles via direct site RSS feeds, parsed with feedparser.
 Entries are filtered by keyword match and date range, then full article
 text is retrieved with BeautifulSoup.

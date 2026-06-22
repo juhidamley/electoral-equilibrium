@@ -1,5 +1,11 @@
 "use client";
 
+// AuditTable — Panel 6 of the analyst dashboard.
+// A searchable, sortable table of every past estimate (timestamp, event, party,
+// intensity, win prob, feasibility, total latency), read from GET /api/audit.
+// The free-text box filters by event text (server-side ILIKE); clicking a row
+// expands it to show the full per-bloc delta vector and per-stage timing breakdown.
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,

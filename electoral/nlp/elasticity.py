@@ -1,5 +1,23 @@
 """elasticity: Sentiment-to-vote-share regression and fine-tuning dataset assembly.
 
+═══════════════════════════════════════════════════════════════════════════════
+BEGINNER ORIENTATION: what "elasticity" means + what this file is for
+═══════════════════════════════════════════════════════════════════════════════
+"ELASTICITY" is an economics term for "how much does Y change when X changes by
+one unit?" Here X = RoBERTa sentiment about a bloc, Y = that bloc's actual change
+in vote share. The elasticity β is the slope of the line relating them, found by
+regression. A big β means sentiment strongly predicts real vote movement for that
+bloc; a small β means it barely does. This calibrates how much to trust the text
+signal.
+
+This file is the BRIDGE from the NLP signals (Stage 3) to the LLM (Stage 1
+training data). Two jobs:
+  1. estimate/fit_elasticity — MEASURE the sentiment→vote relationship (the β's).
+  2. assemble/build_finetune_dataset — BUILD the LLM's training data: for each
+     past shock, convert the per-bloc sentiment scores into the 9-token delta-bin
+     LABELS (via score_to_bin) and write instruction→response pairs the model
+     learns from. (This is what produced data/finetune/*.jsonl.)
+
 Two components:
   1. estimate_elasticity() — OLS regression: sentiment score → vote_share_delta
      Produces β coefficients (elasticity) per bloc.
@@ -73,13 +91,18 @@ _BIN_THRESHOLDS: list[tuple[float, float, str]] = [
 
 
 def score_to_bin(score: float) -> str:
-    """Map a sentiment score in [-1, 1] to a 9-token delta bin label.
+    """Map a continuous sentiment score in [-1, 1] to one of the 9 delta-bin labels.
 
-    Scores outside [-1, 1] are clamped to the nearest bin.
+    This is the DISCRETIZATION step: the LLM is trained to output a label like
+    "mod_neg", not a raw float, so when we build training data we bucket each
+    sentiment score into the bin whose [lo, hi) range contains it (the
+    _BIN_THRESHOLDS table). Scores outside [-1, 1] clamp to the extreme bins.
     """
+    # Walk the ordered (lo, hi, label) ranges; return the first that contains it.
     for lo, hi, label in _BIN_THRESHOLDS:
         if lo <= score < hi:
             return label
+    # Fell through: score is exactly 1.0 (or beyond the table) → top/bottom bin.
     return "strong_pos" if score >= 1.0 else "strong_neg"
 
 

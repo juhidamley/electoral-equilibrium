@@ -1,4 +1,12 @@
-"""Panel DataFrame validation — five structural invariants."""
+"""Panel DataFrame validation — five structural invariants.
+
+This is the GATE the voter panel must pass before any downstream stage trusts it
+(called at the end of kernels/data.py). It checks the shape/typing rules that the
+rest of the pipeline assumes — required columns present and non-null, cycles are
+sane YYYY integers, bloc IDs are canonical snake_case, and shares are in [0, 1].
+It RAISES on the first violation (naming the column) rather than returning a
+flag, so bad data stops the pipeline loudly instead of corrupting results later.
+"""
 
 from __future__ import annotations
 

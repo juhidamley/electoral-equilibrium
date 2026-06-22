@@ -1,5 +1,9 @@
 "use client";
 
+// DashboardNav — the sidebar/nav for the analyst dashboard: links between the
+// panel groups and a logout button (which clears the session cookie via the
+// /api/dashboard/logout route). Purely navigational; holds no estimate data.
+
 import Link from "next/link";
 import { BarChart2, FileText, Users, Activity, LogOut } from "lucide-react";
 

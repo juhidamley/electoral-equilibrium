@@ -1,5 +1,11 @@
 "use client";
 
+// LossCurves — Panel 4 of the analyst dashboard.
+// Plots the model's training progress: train loss (solid) and validation loss
+// (dashed) per epoch, with a dropdown to pick which training run to view. Data
+// comes from GET /api/training-logs (parsed from the HPC SLURM logs). This is
+// how you check the fine-tuning actually learned — loss should fall over epochs.
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
