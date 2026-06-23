@@ -22,7 +22,7 @@ import numpy as np
 from electoral.artifacts import EquilibriumData, ShockResponseData
 from electoral.config import PipelineConfig
 from electoral.core.io import write_artifact
-from electoral.core.types import CANONICAL_RACES
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ def build_shock_response(
       6. _write_artifacts      — persist shock_{id}.json and equilibrium_{id}.json
     """
     from electoral.optimization.cvx import solve_rebalanced
+    from electoral.optimization.dqcp import compute_fixed_loyalty
+    from electoral.simulation.montecarlo import _load_layer_weights
 
     # Step 1
     shock = _estimate_shock(config, event, intensity)
@@ -65,6 +67,21 @@ def build_shock_response(
         for r in CANONICAL_RACES
     }
 
+    # Step 3b — religion+gender contribution to μ_eff, from the REAL baseline
+    # loyalties shifted by this shock's religion/gender deltas (the "μ_eff basis"
+    # fix). Replaces the old neutral-0.5 placeholder; falls back to neutral inside
+    # compute_fixed_loyalty's caller only if the baseline artifact is absent.
+    mu_rel, mu_gen = _load_baseline_fixed_strata(config)
+    lw = _load_layer_weights()
+    fixed_loyalty = compute_fixed_loyalty(
+        mu_rel,
+        mu_gen,
+        lw["lambda_2"],
+        lw["lambda_3"],
+        deltas_religion=shock.deltas_religion,
+        deltas_gender=shock.deltas_gender,
+    )
+
     # Step 4 — Ledoit-Wolf Σ_Δ from historical panel first-differences
     cov_list = _build_sigma_delta(config)
     shock = dataclasses.replace(shock, covariance=cov_list)
@@ -77,6 +94,7 @@ def build_shock_response(
         target=config.target,
         party=config.party,
         shock=shock.shock,
+        fixed_loyalty=fixed_loyalty,
     )
     equilibrium.validate()
 
@@ -118,6 +136,38 @@ def _load_baseline(
             exc,
         )
         return _fallback_mu, _fallback_w0
+
+
+def _load_baseline_fixed_strata(
+    config: PipelineConfig,
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Load baseline mu_religion and mu_gender from baseline_portfolio.json.
+
+    These feed the religion+gender ("fixed") contribution to μ_eff. On a missing
+    or broken baseline artifact, returns neutral 0.5 for every bloc — which makes
+    compute_fixed_loyalty reproduce the old neutral placeholder, so the pipeline
+    degrades gracefully rather than crashing when no baseline is present.
+    """
+    rel_fb = {r: 0.5 for r in CANONICAL_RELIGIONS}
+    gen_fb = {g: 0.5 for g in CANONICAL_GENDERS}
+
+    path = Path(config.output_dir) / "baseline_portfolio.json"
+    if not path.exists():
+        log.warning("_load_baseline_fixed_strata: %s not found — using neutral 0.5", path)
+        return rel_fb, gen_fb
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))["data"]
+        rel = {r: float(data["mu_religion"][r]) for r in CANONICAL_RELIGIONS}
+        gen = {g: float(data["mu_gender"][g]) for g in CANONICAL_GENDERS}
+        return rel, gen
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        log.warning(
+            "_load_baseline_fixed_strata: failed to parse %s (%s) — using neutral 0.5",
+            path,
+            exc,
+        )
+        return rel_fb, gen_fb
 
 
 # ── Step 1: LLM estimation ────────────────────────────────────────────────────

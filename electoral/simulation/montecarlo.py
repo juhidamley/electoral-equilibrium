@@ -232,6 +232,7 @@ def run_ilr_montecarlo(
     n_simulations: int = 10_000,
     sigma_default: float = 0.02,
     cov_delta: list[list[float]] | None = None,
+    fixed_loyalty: float | None = None,
 ) -> SimulationData:
     """Logistic-Normal ILR Monte Carlo for race-bloc coalition uncertainty.
 
@@ -254,6 +255,10 @@ def run_ilr_montecarlo(
         Passing the shock's covariance here is how the headline win-probability CI
         comes to reflect genuine ("wave") correlation between blocs rather than an
         arbitrary placeholder.
+    fixed_loyalty:
+        The religion+gender contribution to μ_eff (see dqcp.compute_fixed_loyalty).
+        MUST equal what the optimizer used, so the win condition here matches the
+        optimization. When None, falls back to the neutral (1-λ₁)·0.5 placeholder.
 
     Returns
     -------
@@ -289,25 +294,49 @@ def run_ilr_montecarlo(
             "Report these as infeasible_bloc."
         )
 
-    # ── Layer weights ──────────────────────────────────────────────────────────
+    # ── Layer weights + religion/gender ("fixed") contribution ──────────────────
     lw = _load_layer_weights()
     lambda_1 = lw["lambda_1"]
-    # Neutral (0.50) assumed for religion + gender strata (fixed, not optimised)
-    neutral_fixed = (1.0 - lambda_1) * 0.50
+    if fixed_loyalty is None:
+        # DERIVE the religion+gender contribution from the equilibrium so the MC's
+        # win condition uses EXACTLY the μ_eff basis the optimizer used. Since
+        #     μ_eff_shifted = λ₁·Σ(w·μ̃_race) + fixed_loyalty,
+        # we recover  fixed_loyalty = μ_eff_shifted − λ₁·Σ(w·μ̃_race).
+        # This needs no extra plumbing (the equilibrium already carries everything)
+        # and can't drift from the optimizer. Fall back to the neutral (1-λ₁)·0.5
+        # placeholder when μ_eff_shifted is 0.0 (unset on old artifacts, or an
+        # equal-weight fallback result) or the derivation goes negative.
+        mu_eff_shifted = float(getattr(equilibrium, "mu_eff_shifted", 0.0) or 0.0)
+        race_part = lambda_1 * float(w_star @ mu_race)
+        derived = mu_eff_shifted - race_part
+        if mu_eff_shifted > 1e-9 and derived >= 0.0:
+            fixed_loyalty = derived
+        else:
+            fixed_loyalty = (1.0 - lambda_1) * 0.50
 
-    # ── Diagonal covariance (conservative placeholder) ──────────────────────
-    # ⚠️ KNOWN GAP (tracked in Week 8: "Confirm the production covariance path").
-    # This builds an ISOTROPIC diagonal covariance — every bloc has the same
-    # variance (sigma_default²) and ZERO correlation between blocs. That means
-    # the simulation currently ignores the real cross-bloc correlation structure.
+    # ── Covariance Σ_Δ ───────────────────────────────────────────────────────
+    # Prefer the REAL covariance the caller passes (e.g. the shock's Ledoit-Wolf
+    # estimate), which carries the cross-bloc correlation structure ("when Black
+    # support moves, does Latino support move with it?"). Only when no covariance
+    # is supplied do we fall back to an isotropic diagonal sigma_default²·I (every
+    # bloc equal variance, zero correlation) — a conservative placeholder.
     #
-    # Worse, note this function has no covariance parameter at all: the shock
-    # kernel computes a proper Ledoit-Wolf Σ_Δ (from historical cycle deltas) and
-    # stores it in ShockResponseData.covariance, but run_ilr_montecarlo never
-    # receives it and always fabricates this diagonal one. Wiring the real Σ_Δ
-    # through to here is the Week 8 fix; until then results understate correlated
-    # ("wave") uncertainty. sigma_default=0.02 ≈ the "slight" magnitude bin.
-    sigma_delta = np.eye(k) * (sigma_default**2)
+    # ⚠️ Even with a real Σ_Δ, watch for DEGENERATE CIs: a Ledoit-Wolf estimate
+    # from very few election cycles can be near-zero, collapsing the win-prob CI to
+    # [1,1]/[0,0]. The Week-8 "production covariance path" task tracks ensuring the
+    # supplied Σ_Δ is the genuine 14-cycle estimate (and adding a variance floor if
+    # it proves too small) rather than itself being the diagonal fallback.
+    if cov_delta is not None:
+        sigma_delta = np.asarray(cov_delta, dtype=float)
+        if sigma_delta.shape != (k, k):
+            raise ValueError(
+                f"run_ilr_montecarlo: cov_delta shape {sigma_delta.shape} != ({k}, {k})"
+            )
+        # Symmetrize + PSD-repair so the Cholesky draw below can't fail on a
+        # slightly-non-PSD estimate (same safeguard _make_psd gives sigma_ilr).
+        sigma_delta = _make_psd((sigma_delta + sigma_delta.T) / 2.0)
+    else:
+        sigma_delta = np.eye(k) * (sigma_default**2)
 
     # ── Helmert matrix and ILR of w* ─────────────────────────────────────────
     V = helmert_matrix(k)
@@ -350,7 +379,7 @@ def run_ilr_montecarlo(
 
         # ── Compute win flags ─────────────────────────────────────────────────
         mu_race_eff = weights_samples @ mu_race  # (N,)
-        mu_eff_samples = lambda_1 * mu_race_eff + neutral_fixed
+        mu_eff_samples = lambda_1 * mu_race_eff + fixed_loyalty
     win_flags = mu_eff_samples >= target
     win_probability = float(win_flags.mean())
 
@@ -432,12 +461,16 @@ if __name__ == "__main__":
     eq_raw = json.loads(eq_path.read_text(encoding="utf-8"))
     equilibrium = EquilibriumData.from_dict(eq_raw.get("data", eq_raw))
 
-    # Load shock artifact for metadata/log context only
+    # Load shock artifact for metadata/log context AND its real Σ_Δ covariance.
     shock_path = Path(args.shock_artifact)
     shock_id = equilibrium.shock or shock_path.stem.removeprefix("shock_")
+    cov_delta = None
     if shock_path.exists():
-        shock_raw = json.loads(shock_path.read_text(encoding="utf-8"))
-        shock_id = shock_raw.get("data", {}).get("shock", shock_id)
+        shock_data = json.loads(shock_path.read_text(encoding="utf-8")).get("data", {})
+        shock_id = shock_data.get("shock", shock_id)
+        # Feed the shock's covariance to the MC so the CI reflects real bloc
+        # correlation (falls back to the diagonal if the artifact has none).
+        cov_delta = shock_data.get("covariance")
 
     # Minimal config: only derive_seed is consumed by run_ilr_montecarlo
     class _CliConfig:
@@ -453,7 +486,9 @@ if __name__ == "__main__":
         f"for shock='{shock_id}' party={equilibrium.party}",
         flush=True,
     )
-    result = run_ilr_montecarlo(equilibrium, config, n_simulations=args.n_simulations)
+    result = run_ilr_montecarlo(
+        equilibrium, config, n_simulations=args.n_simulations, cov_delta=cov_delta
+    )
     result.validate()
 
     print(

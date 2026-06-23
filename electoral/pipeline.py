@@ -104,8 +104,10 @@ def task_optimization(config: PipelineConfig, shock):
 
 
 @task(**_RETRY)
-def task_simulation(config: PipelineConfig, equilibrium):
-    return run_simulations(config, equilibrium)
+def task_simulation(config: PipelineConfig, equilibrium, cov_delta=None):
+    # cov_delta = the shock's real Σ_Δ (passed from the flow) so the win-prob CI
+    # reflects true bloc correlation; None → diagonal fallback.
+    return run_simulations(config, equilibrium, cov_delta=cov_delta)
 
 
 @flow(name="electoral-equilibrium")
@@ -151,7 +153,9 @@ def run_pipeline(
 
     # Stages 6 + 7: linear chain
     equilibrium = task_optimization(config, shock)
-    simulation = task_simulation(config, equilibrium)
+    # getattr: safe whether `shock` is a ShockResponseData (→ its covariance) or
+    # any other shape (→ None → diagonal fallback). Keeps the real Σ_Δ flowing.
+    simulation = task_simulation(config, equilibrium, getattr(shock, "covariance", None))
 
     return {
         "voter_panel": panel,
@@ -206,7 +210,7 @@ def main() -> None:
             build_llm_finetune(config, sentiment)
         shock = build_shock_response(config, args.shock, args.intensity)
         equilibrium = build_optimization(config, shock)
-        run_simulations(config, equilibrium)
+        run_simulations(config, equilibrium, cov_delta=getattr(shock, "covariance", None))
         print(f"Pipeline completed (run_key={config.run_key!r})")
 
 

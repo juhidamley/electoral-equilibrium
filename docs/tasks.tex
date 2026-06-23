@@ -3493,8 +3493,15 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       checkout after mid-development schema churn.
     \item[$\square$] \textbf{[hardening]} Cross-machine hardcoded paths
       audit (Mac / Laguna / Hopper).
-    \item[$\square$] \textbf{[hardening]} 647-record Gemini human-review
-      queue: adjudicate or explicitly defer.
+    \item[$\square$] \textbf{[hardening $\to$ possibly blocking]} 647-record
+      Gemini human-review queue is EXCLUDED from the current 1,136-record
+      training set (577 original + 559 Gemini-approved) --- cautious
+      default. Gate: validate Newsom direction on the 1,136-set model.
+      If corrected $\Rightarrow$ queue is quality-improvement only
+      (adjudicate when convenient). If NOT corrected $\Rightarrow$ queue
+      is blocking --- some held-out records may be required for
+      directional correctness and must be adjudicated and merged before
+      the model is paper-ready.
     \item[$\square$] \textbf{[polish]} candidates.jsonl overwrite guard;
       DeepSeek truncation handling; malformed-JSONL defensive parsing.
     \item[$\square$] \textbf{[hardening]} Backfill or document 60--66
@@ -3565,6 +3572,16 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       decided entry in DECISIONS.md. Either document it as an
       implemented decision or confirm with Espinosa that it is correct
       and then document it.
+    \item[$\square$] \textbf{[blocking --- deploy]} Constrained decoding is
+      silently broken: \texttt{\_BinToken = Literal[tuple(DELTA\_BINS)]}
+      fails under Pydantic 2.13 (``Unable to generate pydantic-core schema
+      for Literal[\ldots]''), so \texttt{outlines} never engages and the
+      schema-validity guarantee is OFF in production. The greedy fallback
+      also crashes (\texttt{format\_prompt} arity mismatch). Fix: (a)
+      Literal schema construction for current Pydantic; (b)
+      \texttt{format\_prompt()} call signature in \texttt{\_predict\_greedy}.
+      The deployed endpoint cannot promise valid structured output until
+      constrained decoding actually runs.
     \item[$\square$] \textbf{[correctness]} Python 3.10+ union syntax
       (\texttt{X | None}, \texttt{X | Y}) crashes at import on local
       3.9 dev env --- already broke FastAPI server boot
@@ -3978,13 +3995,19 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   to config or env vars. Confirm \texttt{configs/base.json}
   vs \texttt{smoke.json} data\_path behavior is documented.}{2}
 
-\task{Confirm the production covariance path. Verify
-  \texttt{run\_ilr\_montecarlo} uses the Ledoit-Wolf $\Sigma_\Delta$ from
-  14 real cycle-deltas in production runs, not the near-zero diagonal
-  fallback (which produces degenerate [1.0,1.0]/[0.0,0.0] CIs). Add an
-  explicit log line stating which covariance source was used, and a test
-  asserting the fallback is NOT silently used when real panel data is
-  present.}{2}
+\task{Confirm the production covariance path. DONE: \texttt{run\_ilr\_montecarlo}
+  now accepts a \texttt{cov\_delta} argument and uses it as $\Sigma_\Delta$ (with
+  PSD repair); the real shock covariance is threaded through every caller --- the
+  SSE API (\texttt{\_run\_mc\_thread}), the Monte Carlo CLI, and the pipeline
+  stage (\texttt{stages.run\_simulations} $\leftarrow$ \texttt{pipeline.py}). When
+  \texttt{cov\_delta} is None it falls back to the isotropic diagonal, so existing
+  behavior is preserved (tests in \texttt{test\_montecarlo.py}). STILL TO DO:
+  ensure the $\Sigma_\Delta$ actually SUPPLIED is the genuine Ledoit-Wolf estimate
+  from 14 real cycle-deltas, not itself the diagonal fallback (the smoke artifact's
+  covariance is currently $0.02^2 I$ because no panel parquet was present). Add a
+  variance FLOOR so a near-zero empirical $\Sigma_\Delta$ can't collapse the CI to
+  $[1.0,1.0]/[0.0,0.0]$, log which covariance source was used, and add a test
+  asserting the fallback is NOT silently used when real panel data is present.}{2}
 
 \task{Final data-provenance audit. Confirm every ``real'' number traces to
   a documented source: NEP 2024 voter shares (Edison Research), ANES/CES
@@ -4009,43 +4032,56 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   \texttt{trainer\_state.json} after training), and stop \texttt{\_eval\_mae} from
   propagating a raw \texttt{inf} into the saved state.}{2}
 
-\task{Enforce per-bloc weight bounds inside the optimizer instead of after it.
-  \texttt{solve\_dqcp} (electoral/optimization/dqcp.py) currently applies the
-  \texttt{ConstraintSpec} lower/upper bounds by clipping the solved weights and
-  then renormalising so they sum to 1. The renormalisation step can push a
-  clipped weight back outside its bound (e.g.\ clip to the ceiling, then divide
-  by a sum $<1$, which scales it above the ceiling), so the returned weights are
-  not guaranteed to respect \texttt{spec}. This is flagged in-code as a known
-  first-order approximation. Replace it with a formulation that enforces the
-  bounds exactly: in the Charnes--Cooper SOCP variables this is the linear pair
-  \texttt{z\_i >= lo\_i * s} and \texttt{z\_i <= hi\_i * s} (bounds become linear
-  in $(z,s)$, no clipping needed). Add a test asserting every returned weight is
-  within \texttt{[lo, hi]} for a spec that the unconstrained optimum violates.}{3}
+\task{DONE: Enforce per-bloc weight bounds inside the optimizer instead of after
+  it. \texttt{solve\_dqcp} (electoral/optimization/dqcp.py) now enforces the
+  \texttt{ConstraintSpec} bounds EXACTLY inside the SOCP via the linear pair
+  \texttt{z\_i >= lo\_i*s} / \texttt{z\_i <= hi\_i*s} (added as
+  \texttt{cp.multiply(lo, s)} constraints), replacing the old post-solve
+  clip+renorm that could push a weight back outside its bound. Also fixed a latent
+  attribute bug (the old code read \texttt{spec.lower\_bounds}/\texttt{upper\_bounds};
+  the real fields are \texttt{spec.lower}/\texttt{spec.upper}). Tests added in
+  \texttt{tests/test\_optimization.py} assert the upper cap and lower floor hold
+  for specs the unconstrained optimum violates. Behavior-preserving for current
+  runs (no caller passes a \texttt{spec} yet, so the spec branch was dead code).}{3}
 
-\task{Reconcile the religion/gender basis in $\mu_{\text{eff}}$ between the
-  baseline and the post-shock stages. \texttt{kernels/baseline.py} computes the
-  baseline $\mu_{\text{eff}}$ using the REAL religion and gender vote shares
-  (\texttt{mu\_religion}, \texttt{mu\_gender}, equal-weighted per bloc), but the
-  post-shock optimizer (\texttt{optimization/dqcp.py}, \texttt{cvx.py}) and the
-  Monte Carlo (\texttt{simulation/montecarlo.py}) both treat those two strata as
-  a flat neutral 0.50 (\texttt{fixed\_loyalty} / \texttt{neutral\_fixed}). The two
-  $\mu_{\text{eff}}$ numbers are therefore on different bases, so any
-  ``baseline $\to$ post-shock'' shift the app or paper reports conflates the real
-  shock effect with this 0.5-vs-real discrepancy. Decide which convention is
-  canonical (likely: use the real fixed-strata loyalties everywhere, or hold them
-  fixed but identical in both places), apply it consistently, document it in
-  DECISIONS.md, and re-freeze the baseline.}{3}
+\task{DONE: Reconcile the religion/gender basis in $\mu_{\text{eff}}$. The
+  post-shock optimizer and Monte Carlo no longer use a flat neutral 0.5 for the
+  fixed strata. A shared \texttt{dqcp.compute\_fixed\_loyalty()} computes the REAL
+  religion+gender contribution
+  $\lambda_2\!\cdot\!\overline{\mu_{rel}} + \lambda_3\!\cdot\!\overline{\mu_{gen}}$
+  from the baseline loyalties shifted by the shock's religion/gender deltas
+  (post-shock-shifted, consistent with how race uses $\tilde\mu$). The kernel
+  passes it (from the baseline artifact); the API passes it (from nominal priors
+  \texttt{\_NOMINAL\_MU\_RELIGION/GENDER}); \texttt{run\_ilr\_montecarlo} DERIVES
+  it from \texttt{mu\_eff\_shifted} so the MC's win check always matches the
+  optimizer. \texttt{solve\_rebalanced} / \texttt{run\_ilr\_montecarlo} take an
+  opt-in \texttt{fixed\_loyalty} (None $\to$ old neutral, behavior-preserving).
+  Smoke impact: $\mu_{\text{eff}}$ 0.5959$\to$0.5900, weights shift $\le 0.008$.
+  Tests in \texttt{test\_optimization.py} / \texttt{test\_montecarlo.py}.
+  STILL SEPARATE (do not conflate): (a) the \texttt{v\_R}/\texttt{g\_G} within-
+  stratum weights are still equal (1/N) until \texttt{raking.py} supplies real
+  panel marginals; (b) the \emph{value} of \texttt{V\_eq}/\texttt{target} (EC vs
+  popular-vote definition) is the open ``resolve target'' task --- the basis fix
+  here does NOT change it. Re-freeze the baseline once both are settled, and
+  document in DECISIONS.md.}{3}
 
-\task{Consolidate the two duplicate optimizer code paths. There are now two
-  separate SOCP formulations of the same max-P(win) problem:
-  \texttt{electoral/optimization/cvx.py:solve\_rebalanced} (used by the
-  \texttt{build\_shock\_response} kernel) and
-  \texttt{electoral/optimization/dqcp.py:solve\_dqcp} (used by the FastAPI
-  \texttt{/estimate/stream} route via a wrapper). They can diverge silently and
-  double the maintenance/test burden. Pick one as canonical (dqcp.py is the more
-  general and better-documented), have the other delegate to it or be removed,
-  and point every caller (kernel, API, sensitivity\_analysis) at the single
-  implementation. Confirm the smoke artifacts are unchanged afterward.}{3}
+\task{DONE: Consolidate the two duplicate optimizer code paths. There used to be
+  two SOCP formulations that solved DIFFERENT problems: the kernel's
+  \texttt{cvx.solve\_rebalanced} compared race-only $\mu\cdot w$ to $V_{eq}$ (no
+  $\lambda$ weighting, but it DID enforce the [0.05, 0.60] bounds), while the
+  API's wrapper used \texttt{dqcp.solve\_dqcp} with the full $\lambda$-weighted
+  $\mu_{\text{eff}}$ but NO bounds. Now: \texttt{dqcp.solve\_dqcp} is the single
+  canonical solver; \texttt{cvx.solve\_rebalanced} is a thin wrapper that calls it
+  (with a [floor, ceiling] \texttt{ConstraintSpec}) and returns an
+  \texttt{EquilibriumData}; the FastAPI wrapper delegates to
+  \texttt{cvx.solve\_rebalanced}. Both paths now use the SAME $\lambda$-weighted
+  objective AND the same per-bloc bounds, and \texttt{mu\_eff\_shifted} is
+  populated (was unset on the kernel path). Smoke-input impact: coalition weights
+  move $\le 0.016$; \texttt{mu\_eff\_shifted} 0.0$\to$0.5959. Committed
+  \texttt{artifacts/smoke/*} still reflect the OLD kernel optimizer and will
+  update on the next real pipeline run (regen needs the LLM; not hand-edited).
+  Religion/gender are still held at neutral 0.5 --- switching them to the real
+  loyalties is the remaining ``$\mu_{\text{eff}}$ basis'' task below.}{3}
 
 \end{taskbox}
 

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 from electoral.artifacts import EquilibriumData
 from electoral.core.types import CANONICAL_RACES
-from electoral.simulation.montecarlo import run_ilr_montecarlo
+from electoral.simulation.montecarlo import _load_layer_weights, run_ilr_montecarlo
 
 RACES = list(CANONICAL_RACES)
 
@@ -34,6 +34,80 @@ def test_smoke_completes_fast():
     t0 = time.time()
     run_ilr_montecarlo(_make_equilibrium(0.55), _make_config(), n_simulations=100)
     assert time.time() - t0 < 2.0
+
+
+# ── cov_delta wiring (real Σ_Δ → Monte Carlo) ─────────────────────────────────
+
+
+def test_cov_delta_none_matches_explicit_diagonal():
+    """cov_delta=None must reproduce the historical isotropic-diagonal behavior."""
+    eq = _make_equilibrium(0.55)
+    k = len(RACES)
+    diag = [[(0.02**2) if i == j else 0.0 for j in range(k)] for i in range(k)]
+    a = run_ilr_montecarlo(eq, _make_config(7), n_simulations=2000)  # default diagonal
+    b = run_ilr_montecarlo(eq, _make_config(7), n_simulations=2000, cov_delta=diag)
+    # Same seed + mathematically identical covariance → identical result.
+    assert a.to_dict() == b.to_dict()
+
+
+def test_cov_delta_actually_used():
+    """A larger covariance must widen the per-bloc spread — proving Σ_Δ is consumed."""
+    eq = _make_equilibrium(0.55)
+    k = len(RACES)
+    big = [[(0.10**2) if i == j else 0.0 for j in range(k)] for i in range(k)]
+    small = run_ilr_montecarlo(eq, _make_config(1), n_simulations=4000, sigma_default=0.02)
+    large = run_ilr_montecarlo(eq, _make_config(1), n_simulations=4000, cov_delta=big)
+    # p95 - p5 spread for the first bloc should be wider under the larger covariance.
+    b = RACES[0]
+    small_spread = small.percentiles[b][4] - small.percentiles[b][0]
+    large_spread = large.percentiles[b][4] - large.percentiles[b][0]
+    assert large_spread > small_spread
+
+
+def test_cov_delta_wrong_shape_raises():
+    with pytest.raises(ValueError, match="cov_delta shape"):
+        run_ilr_montecarlo(
+            _make_equilibrium(0.55), _make_config(), n_simulations=100, cov_delta=[[1.0, 0.0]]
+        )
+
+
+# ── fixed_loyalty: derived from the equilibrium vs explicit ───────────────────
+
+
+def test_mc_derives_fixed_loyalty_from_equilibrium():
+    """With no explicit fixed_loyalty, the MC must recover it from mu_eff_shifted
+    so its win condition matches the optimizer's exactly."""
+    lambda_1 = _load_layer_weights()["lambda_1"]
+    w = {r: 0.2 for r in RACES}
+    mu = {r: 0.55 for r in RACES}
+    chosen_fl = 0.27
+    race_part = lambda_1 * sum(w[r] * mu[r] for r in RACES)
+    eq = EquilibriumData(
+        method="t",
+        party="democrat",
+        shock="t",
+        weights=w,
+        mu_shifted=mu,
+        feasible=True,
+        target_met=True,
+        target=0.5,
+        mu_eff_shifted=race_part + chosen_fl,  # encodes fixed_loyalty = 0.27
+    )
+    derived = run_ilr_montecarlo(eq, _make_config(7), n_simulations=3000)
+    explicit = run_ilr_montecarlo(eq, _make_config(7), n_simulations=3000, fixed_loyalty=chosen_fl)
+    # Deriving from the equilibrium reproduces passing fixed_loyalty explicitly.
+    assert derived.to_dict() == explicit.to_dict()
+
+
+def test_mc_fixed_loyalty_falls_back_to_neutral_when_unset():
+    """An equilibrium with mu_eff_shifted=0.0 (unset/fallback) → neutral (1-λ₁)·0.5."""
+    lambda_1 = _load_layer_weights()["lambda_1"]
+    eq = _make_equilibrium(0.55)  # mu_eff_shifted defaults to 0.0
+    a = run_ilr_montecarlo(eq, _make_config(7), n_simulations=3000)
+    b = run_ilr_montecarlo(
+        eq, _make_config(7), n_simulations=3000, fixed_loyalty=(1.0 - lambda_1) * 0.50
+    )
+    assert a.to_dict() == b.to_dict()
 
 
 def test_win_probability_in_range():

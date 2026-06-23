@@ -68,7 +68,7 @@ import math
 import cvxpy as cp
 import numpy as np
 
-from electoral.core.types import CANONICAL_RACES
+from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.models.ml_baseline import psd_repair
 from electoral.portfolios.constraints import ConstraintSpec
 
@@ -205,13 +205,18 @@ def solve_dqcp(
         s >= 1e-6,
     ]
 
-    # Per-bloc weight bounds: w*_i ∈ [lo_i, hi_i] ⟺ z*_i ∈ [lo_i·s*, hi_i·s*],
-    # which is bilinear in (z, s) and cannot be added as a SOCP constraint directly.
-    # KNOWN APPROXIMATION: bounds are enforced post-solve via clipping + renorm
-    # (see lines below).  This can shift the solution outside the true feasible set;
-    # the paper acknowledges this as a first-order approximation.  A tighter
-    # formulation would introduce a second-order cone constraint per bloc at the cost
-    # of a larger problem.  Pre-check feasibility with ConstraintSpec before calling.
+    # Per-bloc weight bounds, enforced EXACTLY inside the SOCP.
+    # In the recovered weights w = z / s, the bound lo_i ≤ w_i ≤ hi_i is identical
+    # to lo_i·s ≤ z_i ≤ hi_i·s. Because s is a *variable* and lo_i/hi_i are
+    # constants, these are LINEAR constraints (not bilinear — z_i·s would be), so
+    # they're perfectly valid in an SOCP. This replaces the old post-solve
+    # clip+renorm, which could renormalize a clipped weight back outside its bound.
+    if spec is not None:
+        lo = np.array([spec.lower.get(blocs[i], 0.0) for i in range(k)])
+        hi = np.array([spec.upper.get(blocs[i], 1.0) for i in range(k)])
+        constraints.append(z >= cp.multiply(lo, s))
+        constraints.append(z <= cp.multiply(hi, s))
+
     problem = cp.Problem(objective, constraints)
 
     if not problem.is_dcp():
@@ -231,13 +236,10 @@ def solve_dqcp(
     if s_val <= 0:
         raise RuntimeError("solve_dqcp: s ≤ 0 at optimum — solver produced degenerate solution")
 
+    # Per-bloc bounds (if any) were enforced exactly inside the SOCP above, so no
+    # post-solve clipping is needed. We only clip at 0 to wipe tiny negative
+    # round-off from the solver before the final renormalization.
     w_raw = np.clip(z.value / s_val, _CLIP_FLOOR, None)
-
-    # Apply per-bloc bounds from spec (post-solve clipping + renorm)
-    if spec is not None:
-        lo = np.array([spec.lower_bounds.get(blocs[i], 0.0) for i in range(k)])
-        hi = np.array([spec.upper_bounds.get(blocs[i], 1.0) for i in range(k)])
-        w_raw = np.clip(w_raw, lo, hi)
 
     total = w_raw.sum()
     if total <= 0:
@@ -279,3 +281,47 @@ def compute_mu_eff(
     # (Iterating `weights` keys assumes mu_race has every bloc weights does.)
     race_eff = sum(weights[b] * mu_race[b] for b in weights)
     return lambda_1 * race_eff + fixed_loyalty
+
+
+# ── Utility: the religion + gender contribution to μ_eff ──────────────────────
+
+
+def compute_fixed_loyalty(
+    mu_religion: dict[str, float],
+    mu_gender: dict[str, float],
+    lambda_2: float,
+    lambda_3: float,
+    deltas_religion: dict[str, float] | None = None,
+    deltas_gender: dict[str, float] | None = None,
+) -> float:
+    """Compute the religion+gender ("fixed") contribution to μ_eff.
+
+    Returns λ₂·Σ(v_R·μ_relR) + λ₃·Σ(g_G·μ_genG) with EQUAL within-stratum weights
+    (v_R = 1/n_rel, g_G = 1/n_gen — a placeholder until raking.py supplies real
+    panel marginals). This is the value passed as `fixed_loyalty` to the optimizer
+    and Monte Carlo, replacing the old neutral (λ₂+λ₃)·0.5 placeholder.
+
+    "Fixed" because race is the only stratum the optimizer rebalances; religion
+    and gender loyalties still SHIFT with the shock, but they aren't decision
+    variables. If `deltas_religion`/`deltas_gender` are given, they're added to the
+    baseline loyalties (and clipped to [0, 1]) to get the POST-shock values — the
+    correct, signal-using choice, consistent with how race uses μ̃ = μ + Δ.
+
+    Args:
+        mu_religion / mu_gender: baseline within-bloc loyalties per stratum.
+        lambda_2 / lambda_3:     religion / gender layer weights.
+        deltas_religion / deltas_gender: optional per-bloc shock deltas; when
+            omitted, the baseline (pre-shock) loyalties are used as-is.
+    """
+    d_rel = deltas_religion or {}
+    d_gen = deltas_gender or {}
+
+    # Post-shock within-bloc loyalties, clipped to a valid [0, 1] share.
+    rel = {r: min(1.0, max(0.0, mu_religion[r] + d_rel.get(r, 0.0))) for r in CANONICAL_RELIGIONS}
+    gen = {g: min(1.0, max(0.0, mu_gender[g] + d_gen.get(g, 0.0))) for g in CANONICAL_GENDERS}
+
+    n_rel = len(CANONICAL_RELIGIONS)
+    n_gen = len(CANONICAL_GENDERS)
+    religion_term = lambda_2 * sum(rel[r] / n_rel for r in CANONICAL_RELIGIONS)
+    gender_term = lambda_3 * sum(gen[g] / n_gen for g in CANONICAL_GENDERS)
+    return float(religion_term + gender_term)

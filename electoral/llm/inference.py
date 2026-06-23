@@ -194,7 +194,15 @@ def _predict_greedy(
     import re
     import torch
 
-    prompt = f"<s>{format_prompt(shock_text, party)}\n"
+    _example = {
+        "description": shock_text,
+        "party": party,
+        "year": "",
+        "source": "",
+        "news_roberta_scores": {},
+        "social_roberta_scores": {},
+    }
+    prompt = f"<s>{format_prompt(_example)}\n"
     inputs = tokenizer(prompt, return_tensors="pt")
     if hasattr(model, "device") and str(model.device) != "cpu":
         inputs = {k: v.to(model.device) for k, v in inputs.items()}

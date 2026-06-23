@@ -170,11 +170,19 @@ def run_simulations(
     config: PipelineConfig,
     equilibrium: EquilibriumData,
     n_simulations: int = 10_000,
+    cov_delta: list[list[float]] | None = None,
 ) -> SimulationData:
-    """Week 5: Logistic-Normal ILR Monte Carlo → 90% CI on win probability."""
+    """Week 5: Logistic-Normal ILR Monte Carlo → 90% CI on win probability.
+
+    cov_delta is the shock's real 5×5 race covariance (Σ_Δ). Passing it makes the
+    win-probability CI reflect true cross-bloc correlation; None falls back to the
+    isotropic diagonal inside run_ilr_montecarlo.
+    """
     from electoral.simulation.montecarlo import run_ilr_montecarlo
 
-    payload = run_ilr_montecarlo(equilibrium, config, n_simulations=n_simulations)
+    payload = run_ilr_montecarlo(
+        equilibrium, config, n_simulations=n_simulations, cov_delta=cov_delta
+    )
     payload.validate()
     envelope = StageArtifact(
         stage="simulation",

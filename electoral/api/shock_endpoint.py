@@ -71,7 +71,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
 
-import numpy as np
 import torch
 from fastapi import Cookie, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -79,7 +78,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from electoral.api.audit import AuditLogger
-from electoral.artifacts import EquilibriumData, ShockResponseData, ShockResponseSchema
+from electoral.artifacts import ShockResponseData, ShockResponseSchema
 from electoral.core.io import sanitize_floats
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.llm.inference import ShockEstimator
@@ -109,6 +108,35 @@ _NOMINAL_MU_RACE: dict[str, dict[str, float]] = {
         "other_race": 0.40,
         "white": 0.58,
     },
+}
+
+# Nominal within-bloc loyalties for the FIXED strata (religion, gender), used by
+# the live API to compute the religion+gender contribution to μ_eff. Approximate
+# priors (same spirit as _NOMINAL_MU_RACE); the offline kernel uses the real
+# baseline artifact instead. Republican = 1 − democrat by construction.
+_NOMINAL_MU_RELIGION: dict[str, dict[str, float]] = {
+    "democrat": {
+        "evangelical": 0.24,
+        "catholic": 0.50,
+        "protestant": 0.45,
+        "secular": 0.70,
+        "jewish": 0.68,
+        "muslim": 0.65,
+        "other_rel": 0.58,
+    },
+    "republican": {
+        "evangelical": 0.76,
+        "catholic": 0.50,
+        "protestant": 0.55,
+        "secular": 0.30,
+        "jewish": 0.32,
+        "muslim": 0.35,
+        "other_rel": 0.42,
+    },
+}
+_NOMINAL_MU_GENDER: dict[str, dict[str, float]] = {
+    "democrat": {"women": 0.55, "men": 0.45, "other_gender": 0.70},
+    "republican": {"women": 0.45, "men": 0.55, "other_gender": 0.30},
 }
 
 # V_eq fallbacks — overridden by configs/party_config.json when available.
@@ -323,55 +351,28 @@ def solve_rebalanced(
     target: float,
     party: str,
     shock_id: str,
+    fixed_loyalty: float | None = None,
 ) -> dict[str, Any]:
-    """Run the DQCP optimizer for a post-shock coalition rebalance.
+    """Run the coalition optimizer for the SSE stream and return its dict form.
 
-    MUST run in ProcessPoolExecutor — CVXPY's C solvers (SCS/ECOS/OSQP) are NOT
-    thread-safe and will segfault under ThreadPoolExecutor.
-    run_in_executor(None, ...) defaults to the event loop's THREAD pool —
-    never pass None for this function; that is the segfault path.
+    Thin adapter over the single canonical optimizer
+    (electoral.optimization.cvx.solve_rebalanced). It stays a MODULE-LEVEL
+    function on purpose: ProcessPoolExecutor pickles it by qualified name, and a
+    closure/lambda would not be picklable.
+
+    MUST run in ProcessPoolExecutor — CVXPY's C solvers are NOT thread-safe and
+    will segfault under ThreadPoolExecutor. run_in_executor(None, ...) defaults to
+    the event loop's THREAD pool — never pass None for this function.
+
+    Note: by going through the canonical optimizer, the API now enforces the same
+    per-bloc [0.05, 0.60] weight bounds the kernel always used (previously this
+    path ran unbounded), and uses the same λ-weighted μ_eff objective.
+    `fixed_loyalty` is the real religion+gender contribution (None → neutral 0.5).
     """
-    from electoral.optimization.dqcp import compute_mu_eff, solve_dqcp
-    from electoral.simulation.montecarlo import _load_layer_weights
+    from electoral.optimization.cvx import solve_rebalanced as _solve_rebalanced
 
-    lw = _load_layer_weights()
-    lambda_1 = lw["lambda_1"]
-    lambda_2 = lw["lambda_2"]
-    lambda_3 = lw["lambda_3"]
-    # Fixed contribution from religion + gender strata at neutral loyalty (0.50).
-    # Actual raked values would come from the voter panel; neutral is conservative.
-    fixed_loyalty = (lambda_2 + lambda_3) * 0.5
-
-    cov = np.array(cov_list)
-    feasible = True
-
-    try:
-        weights = solve_dqcp(
-            mu_race=mu_tilde,
-            cov_race=cov,
-            target=target,
-            lambda_1=lambda_1,
-            fixed_loyalty=fixed_loyalty,
-        )
-    except (ValueError, RuntimeError) as exc:
-        log.warning("solve_rebalanced: DQCP infeasible (%s); falling back to equal weights", exc)
-        feasible = False
-        n = len(mu_tilde)
-        weights = {b: 1.0 / n for b in mu_tilde}
-
-    mu_eff_shifted = compute_mu_eff(weights, mu_tilde, lambda_1, fixed_loyalty)
-    target_met = feasible and (mu_eff_shifted >= target)
-
-    return EquilibriumData(
-        method="cvxpy_dqcp",
-        party=party,
-        shock=shock_id,
-        weights=weights,
-        mu_shifted=mu_tilde,
-        feasible=feasible,
-        target_met=target_met,
-        target=target,
-        mu_eff_shifted=mu_eff_shifted,
+    return _solve_rebalanced(
+        mu_tilde, cov_list, target, party=party, shock=shock_id, fixed_loyalty=fixed_loyalty
     ).to_dict()
 
 
@@ -379,12 +380,17 @@ def _run_mc_thread(
     equilibrium_dict: dict[str, Any],
     config_seed: int,
     n_simulations: int,
+    cov_delta: list[list[float]] | None = None,
 ) -> dict[str, Any]:
     """Run the Logistic-Normal ILR Monte Carlo in the thread pool.
 
     Monte Carlo is pure NumPy which releases the GIL during array operations,
     so it runs safely and cheaply in ThreadPoolExecutor — no process spawn or
     pickling cost, unlike the CVXPY optimizer.
+
+    cov_delta is the shock's real 5×5 race covariance (Σ_Δ); passing it lets the
+    win-probability CI reflect actual cross-bloc correlation instead of the
+    isotropic diagonal fallback. None → fall back to the diagonal.
     """
     from electoral.artifacts import EquilibriumData
     from electoral.core.rng import derive_seed
@@ -399,7 +405,9 @@ def _run_mc_thread(
         def derive_seed(self, stage: str) -> int:  # noqa: F811
             return derive_seed(self.seed, stage)
 
-    return run_ilr_montecarlo(equilibrium, _MinConfig(config_seed), n_simulations).to_dict()
+    return run_ilr_montecarlo(
+        equilibrium, _MinConfig(config_seed), n_simulations, cov_delta=cov_delta
+    ).to_dict()
 
 
 # ── SSE helpers ───────────────────────────────────────────────────────────────
@@ -579,6 +587,8 @@ async def estimate_stream(
 
     target = _target_for_party(party, party_config)
     nominal_mu = _NOMINAL_MU_RACE[party]
+    nominal_rel = _NOMINAL_MU_RELIGION[party]
+    nominal_gen = _NOMINAL_MU_GENDER[party]
 
     async def _generate() -> AsyncGenerator[str, None]:
         # This async generator yields SSE frames one at a time; FastAPI streams
@@ -615,6 +625,22 @@ async def estimate_stream(
         }
         cov_list: list[list[float]] = shock.covariance
 
+        # Religion+gender contribution to μ_eff, from nominal loyalties shifted by
+        # this shock's religion/gender deltas — so the API optimizer uses the same
+        # μ_eff basis as the kernel (the "μ_eff basis" fix), not neutral 0.5.
+        from electoral.optimization.dqcp import compute_fixed_loyalty
+        from electoral.simulation.montecarlo import _load_layer_weights
+
+        _lw = _load_layer_weights()
+        fixed_loyalty = compute_fixed_loyalty(
+            nominal_rel,
+            nominal_gen,
+            _lw["lambda_2"],
+            _lw["lambda_3"],
+            deltas_religion=shock.deltas_religion,
+            deltas_gender=shock.deltas_gender,
+        )
+
         # ── Stage 2: CVXPY optimizer (process pool) ────────────────────────────
         # CRITICAL: must use process_pool, NOT thread_pool or run_in_executor(None).
         # CVXPY's C solvers (CLARABEL/ECOS/SCS) are NOT thread-safe and segfault
@@ -629,6 +655,7 @@ async def estimate_stream(
                 target,
                 party,
                 shock.shock,
+                fixed_loyalty,
             )
         except Exception as exc:
             log.exception("SSE /estimate/stream: optimizer stage failed")
@@ -651,6 +678,7 @@ async def estimate_stream(
                 equilibrium_dict,
                 seed,
                 10_000,
+                cov_list,  # the shock's real Σ_Δ → CI reflects true bloc correlation
             )
         except Exception as exc:
             log.exception("SSE /estimate/stream: Monte Carlo stage failed")

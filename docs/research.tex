@@ -75,13 +75,18 @@ We present Electoral Equilibrium, a stochastic optimization framework that estim
 how a political party's voter coalition must rebalance after an exogenous shock.
 Given a free-text description of a political event, the framework outputs
 (i) updated coalition weights over five racial/ethnic blocs, and
-(ii) a 90\% credible interval on the post-shock probability of winning the
+(ii) a 90\% Monte Carlo interval on the post-shock probability of winning the
 Electoral College. The framework combines three independently validated components:
-a fine-tuned Mistral 7B language model that translates shock narratives into
-per-stratum loyalty-shift bins, a disciplined quasi-convex program (DQCP) that
-maximizes the probability of meeting an Electoral College threshold under a
-Logistic-Normal ILR uncertainty model, and an NLP pipeline (RoBERTa + SetFit)
-that constructs training data from social media and news archives.
+a QLoRA-fine-tuned Mistral 7B language model (rank-16 adapter, MAE 0.036 on a
+111-example held-out eval set) that translates shock narratives into per-stratum
+loyalty-shift bins via constrained decoding, a disciplined quasi-convex program
+(DQCP) that maximizes the probability of meeting an Electoral College threshold
+under a Logistic-Normal ILR uncertainty model, and an NLP pipeline (RoBERTa +
+SetFit) that constructs training data from social media and news archives.
+The LLM is fine-tuned on a 1,136-record catalog of historical shock events
+(577 hand-authored and 559 Gemini-reviewed synthetic examples validated by
+maximum mean discrepancy, PCA alignment, and pairwise correlation difference
+diagnostics).
 The demographic architecture models three independent marginal strata---race,
 religion, and gender---without nested cross-tabulations, acknowledging the
 ecological fallacy as an explicit approximation. Iterative proportional fitting
@@ -92,7 +97,9 @@ from first principles the documented growth of the gender gap since 1980.
 A Gaussian Process leave-one-cycle-out classifier trained on panel vote shares
 achieves 85\% accuracy and Brier score 0.071 on the 20-cycle panel.
 Electoral College asymmetry analysis places the Democrat win threshold at
-50.66\% of the two-party popular vote versus 49.34\% for Republicans.
+50.66\% of the two-party popular vote versus 49.34\% for Republicans;
+this threshold is an empirical estimate subject to ongoing validation
+(Section~\ref{sec:veq_results}).
 \end{abstract}
 
 \bigskip
@@ -190,6 +197,14 @@ Our primary contributions are:
         Brier 0.071) and documentation of three data-quality issues---Perot
         three-party contamination, ANES oversampling in 1988, and pre-realignment
         era drift---whose corrections non-trivially affect downstream estimates.
+
+  \item Fine-tuning results for the Stage~1 Mistral 7B QLoRA adapter: rank-16
+        achieves MAE 0.036 on a held-out eval set of 111 synthetic examples,
+        outperforming rank-32 (MAE 0.037, 2.8\% worse) despite being trained on
+        a smaller parameter budget. We document a directional error on the Newsom
+        2028 nomination scenario---the pre-augmentation model incorrectly predicts
+        \texttt{slight\_pos} for all minority blocs---and report the retraining
+        procedure on a 1,136-record augmented dataset designed to correct it.
 \end{enumerate}
 
 The remainder of the paper proceeds as follows. Section~\ref{sec:background}
@@ -740,6 +755,20 @@ making it impossible to model wave elections where all blocs shift together.
 The delta method with a floor at $w_i \geq 0.01$ was rejected because the
 perturbation is not uniform in Aitchison geometry.
 
+\begin{remark}[Scope of the reported CI]
+The 90\% interval reported here reflects \emph{Monte Carlo sampling variance}:
+how precisely we estimate the win fraction across $N = 10{,}000$ draws of
+$\boldw^{(n)}$. This quantity shrinks as $1/\sqrt{N}$ and is not scientifically
+meaningful as a measure of model uncertainty---it is a parameter we control, not
+a property of the data. A scientifically meaningful interval would additionally
+propagate uncertainty in the covariance estimate $\SigmaDelta$ itself, for
+example by drawing $\hat{\Sigma} \sim \mathrm{Wishart}(\hat{\Sigma}_{\mathrm{LW}},
+n_{\mathrm{cycles}})$ and repeating the full ILR Monte Carlo for each draw.
+This outer loop is deferred to future work. In results tables and figures, the
+reported CI should be read as ``simulation precision'' rather than
+``epistemic uncertainty about $P(\text{win})$.''
+\end{remark}
+
 \subsection{Stage 1: LLM fine-tuning for shock estimation}
 \label{sec:llm}
 
@@ -761,12 +790,64 @@ conservative priors are used for bins with fewer than five historical examples.
 
 \textbf{Training data.} Historical training records pair shock descriptions with
 per-stratum delta bins derived from pre/post-event changes in survey vote
-shares. Synthetic data is generated via Gemini 2.5 Pro and validated by three
-diagnostics before inclusion: (i) maximum mean discrepancy (MMD) with
-RBF kernel and the median heuristic $\lambda = 1/(2\sigma^2)$
-\citep{Gretton2012}; (ii) PCA alignment requiring $>70\%$ of synthetic
-variance explained by the top-2 real principal components; (iii) pairwise
-correlation difference (PCD) Frobenius norm.
+shares. The current training set contains \textbf{1,136 records}: 577 hand-authored
+from historical shock events and 559 Gemini-reviewed synthetic examples. Synthetic
+records are generated via a three-stage pipeline: (i) DeepSeek constrained to
+the four-axis taxonomy (stratum $\times$ valence $\times$ intensity $\times$ party),
+(ii) Gemini 2.5 Flash plausibility review (APPROVE / REVISE / HUMAN\_REVIEW
+verdicts), and (iii) a mandatory 5\% human spot-check. Every synthetic row carries
+a \texttt{source} provenance tag and \texttt{\_seed\_meta} block linking it to its
+generating event and party. An additional 647 records flagged for human review are
+\emph{excluded} from the current training set; their inclusion is contingent on
+directional validation of the retrained model (see below).
+
+Synthetic batches are validated before inclusion by three diagnostics:
+(i) maximum mean discrepancy (MMD) with RBF kernel and the median heuristic
+$\lambda = 1/(2\sigma^2)$ \citep{Gretton2012}; (ii) PCA alignment requiring
+$>70\%$ of synthetic variance explained by the top-2 real principal components;
+(iii) pairwise correlation difference (PCD) Frobenius norm. Per-row soft weights
+$w = 0.5 \cdot \exp(-\lambda \cdot \mathrm{MMD}^2)$ downweight synthetic records
+with poor distributional alignment; hard rejection is not applied.
+
+\textbf{Fine-tuning results.} Table~\ref{tab:lora_ranks} reports evaluation
+metrics for rank-16 and rank-32 adapters trained on an 80/20 stratified
+train/eval split of the pre-augmentation 557-example dataset (446 train /
+111 eval), evaluated by mean absolute error in delta-bin units and direction
+accuracy (sign match).
+
+\begin{table}[h]
+\centering
+\caption{QLoRA adapter rank comparison (Mistral 7B Instruct v0.3, 111-example
+  held-out eval set stratified by party).}
+\label{tab:lora_ranks}
+\begin{tabular}{lcccc}
+\toprule
+Rank & Overall MAE & Direction acc.\ & Training loss & Adapter size \\
+\midrule
+r=16 & \textbf{0.0362} & 110/111 & 0.2331 & $\sim$84M params \\
+r=32 & 0.0372          & 111/111 & 0.2693 & $\sim$168M params \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Rank-32 is 2.8\% worse in MAE and shows higher training loss, consistent with
+overfitting on the 446-example training set. The rank-16 adapter at
+\texttt{models/mistral-r16-hopper} is selected as the production adapter.
+Highest-error blocs are \texttt{other\_gender} (MAE 0.049), \texttt{evangelical}
+(0.045), and \texttt{african\_american} (0.042)---all blocs with sparse
+synthetic training coverage that will improve when real RoBERTa-scored data
+enters the training mix.
+
+\textbf{Directional validation.} Running the pre-augmentation adapter on the
+Newsom 2028 presidential nomination scenario produced \texttt{slight\_pos} for
+all five race blocs---a politically incorrect prediction, as Newsom is expected
+to hurt with White working-class and some Latino voters while possibly helping
+with African American and secular blocs. The directional error indicates that
+the model is biased toward positive bins by the synthetic training distribution
+rather than learning genuinely event-specific partisan dynamics. The 1,136-record
+augmented dataset is intended to correct this by expanding coverage of events
+with mixed or negative minority-bloc effects. Validation of the retrained model
+on the Newsom scenario is a required gate before the paper-baseline run.
 
 \subsection{Stage 3: NLP pipeline}
 \label{sec:nlp}
@@ -854,6 +935,18 @@ Substituting the flat 50\% threshold used in some prior work would systematicall
 understate the Democrat structural disadvantage. We recommend deriving $\Veq$
 from EC-adjusted logistic regression for any coalition model targeting the
 Electoral College.
+
+\begin{remark}[Provisional status of $\Veq$]
+The threshold $\Veq^{(\text{Dem})} = 0.5066$ reflects the logistic regression
+fit but may be too low to guarantee an EC win under modern geographic efficiency
+conditions. Two-party analyses of 2000 and 2016 suggest Democrats have needed
+approximately 52\% of the two-party vote for a comfortable EC majority, and
+recent literature on EC bias \citep[see, e.g.,][]{Linzer2013} suggests a higher
+structural threshold. A threshold near 0.507 combined with a near-zero covariance
+fallback produces win-probability saturation ($P(\text{win}) \approx 1.0$) that
+is not meaningful for sensitivity analysis. This value will be validated and
+potentially revised in consultation with the supervising faculty (Section~\ref{sec:conclusion}).
+\end{remark}
 
 \subsection{Layer weight calibration}
 \label{sec:raking_results}
@@ -1097,6 +1190,35 @@ investigation. In the 2024 case, the 7.2 pp divergence between the model
 ($p = 0.542$) and PredictIt (47.0\% Democrat) is within the noise level
 of a borderline election and does not indicate model failure.
 
+\subsection{Win-probability saturation under smoke-config conditions}
+\label{sec:saturation}
+
+Running the full pipeline on a smoke configuration (flat baseline $\mueff = 0.50$,
+near-zero diagonal covariance fallback $\SigmaDelta = 0.02^2 I$) produces
+$P(\text{win}) \approx 1.0$ for all shock intensities. This is mathematically
+expected: with $\Veq = 0.5066$ and a shock pushing $\mueff$ to 0.52, the
+Sharpe ratio $(\mueff - \Veq) / \sqrt{\lambdaone^2\, \boldw^\top \SigmaDelta
+\boldw}$ is dominated by the near-zero denominator and diverges. The saturation
+is not a model failure but a diagnostic for two upstream issues:
+
+\begin{enumerate}
+  \item \textbf{Covariance source.} When real panel data is absent, the diagonal
+    fallback $\SigmaDelta = 0.02^2 I$ produces negligible denominator variance.
+    Production runs must use the Ledoit-Wolf estimator on the 20-cycle race-delta
+    matrix, which yields a condition number of $\approx$12 and non-degenerate
+    off-diagonal terms.
+
+  \item \textbf{Target validity.} If $\Veq = 0.5066$ is too low (as discussed in
+    Section~\ref{sec:veq_results}), even a modest positive shock pushes
+    $\mueff$ safely above the threshold, making the win probability trivially
+    high. The saturation is therefore also a symptom of a potentially
+    underestimated win threshold.
+\end{enumerate}
+
+Results are only interpretable once both conditions are resolved: real panel
+data loaded (Ledoit-Wolf active) and $\Veq$ validated against EC efficiency
+models.
+
 \subsection{Era sensitivity and the pre-realignment panel}
 
 We tested whether restricting training data to post-realignment cycles
@@ -1152,13 +1274,38 @@ because the gender gap has grown the most since 1980. Future work will use the
 DQCP optimizer to demonstrate that these two objectives recommend different
 coalition allocations under identical shock conditions.
 
-The full framework---LLM shock estimation, DQCP optimizer, and ILR Monte Carlo---is
-not yet complete. Future stages will: (i) assemble a catalog of 25+ historical
-shock events; (ii) fine-tune Mistral 7B via QLoRA on the CMC HPC A100;
-(iii) collect social media and news data via the described NLP pipeline; and
-(iv) run the complete end-to-end pipeline on 2024 post-election shock scenarios
-to validate that the optimizer's recommended rebalancing is consistent with
-observed party strategic responses.
+The three-stage pipeline is substantially implemented. The Stage~1 LLM
+(Mistral 7B QLoRA rank-16) is fine-tuned and evaluated; the Stage~2 DQCP
+optimizer solves on real panel data; the Stage~3 NLP pipeline (SetFit
+bio-classifiers and RoBERTa scorer) is trained and deployed. The shock catalog
+covers 30 historical events (2001--2024) across nine taxonomy categories.
+
+Three items remain before the paper-baseline run can be frozen:
+\begin{enumerate}
+  \item \textbf{Directional validation.} The retrained 1,136-record model must
+    be confirmed to fix the Newsom 2028 all-minorities-positive directional
+    error. If the error persists, the synthetic training data requires
+    additional adjudication before the model can be presented as directionally
+    calibrated.
+
+  \item \textbf{Threshold validation.} $\Veq = 0.5066$ must be confirmed or
+    revised in consultation with the supervising faculty to ensure it reflects
+    the true Democrat Electoral College structural disadvantage. The current
+    value produces win-probability saturation under realistic shock conditions,
+    which limits the optimizer's diagnostic value.
+
+  \item \textbf{CI definition.} The reported Monte Carlo interval must be
+    explicitly labeled as sampling precision rather than covariance-propagated
+    epistemic uncertainty, or the outer Wishart loop must be implemented. This
+    decision determines what scientific claim the interval supports.
+\end{enumerate}
+
+Future extensions beyond the SRP include: (i) real-time shock collection via
+the live AT Protocol firehose and Apify collectors; (ii) Wishart-propagated
+uncertainty intervals; (iii) MRP as an alternative to the additive independence
+approximation, contingent on access to full race $\times$ religion $\times$
+gender cross-tabulations; and (iv) post-election 2026--2028 validation against
+observed party strategic responses to the Iran conflict and the 2026 midterms.
 
 \appendix
 
