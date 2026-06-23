@@ -49,13 +49,17 @@ def _get_delta_bins_model() -> Any:
     if _DeltaBinsModel is not None:
         return _DeltaBinsModel
     try:
-        from pydantic import BaseModel
-        from typing import Literal
+        from enum import Enum
+        from pydantic import create_model
 
-        _BinToken = Literal[tuple(DELTA_BINS)]  # type: ignore[valid-type]
+        # str-Enum of the nine canonical bins. Pydantic 2.x handles Enums
+        # natively. Build the model with create_model (the supported dynamic
+        # API) — the manual type()+__annotations__ hack mis-reads the
+        # (Type, default) tuple as the annotation and fails on 2.13.
+        _BinToken = Enum("BinToken", {b: b for b in DELTA_BINS}, type=str)
 
-        field_defs = {bloc: (_BinToken, ...) for bloc in _ALL_BLOCS}  # type: ignore[misc]
-        _DeltaBinsModel = type("DeltaBinsModel", (BaseModel,), {"__annotations__": field_defs})
+        field_defs = {bloc: (_BinToken, ...) for bloc in _ALL_BLOCS}
+        _DeltaBinsModel = create_model("DeltaBinsModel", **field_defs)
         return _DeltaBinsModel
     except ImportError:
         return None
@@ -162,6 +166,7 @@ def _predict_constrained(
     model: Any,
     tokenizer: Any,
     max_tokens: int = 512,
+    seed: int = 42,
 ) -> dict[str, str]:
     """Use outlines for constrained JSON generation."""
     import outlines
@@ -170,9 +175,35 @@ def _predict_constrained(
     if DeltaBinsModel is None:
         raise ImportError("pydantic is required for constrained generation")
 
-    prompt = f"<s>{format_prompt(shock_text, party)}\n"
-    generator = outlines.generate.json(model, DeltaBinsModel)
-    result = dict(generator(prompt))
+    _example = {
+        "description": shock_text,
+        "party": party,
+        "year": "",
+        "source": "",
+        "news_roberta_scores": {},
+        "social_roberta_scores": {},
+    }
+    prompt = f"<s>{format_prompt(_example)}\n"
+    # outlines needs its own model wrapper (capital-T Transformers); passing the
+    # bare HF model makes outlines reach for model.tokenizer, which a
+    # MistralForCausalLM does not have. Disable KV cache to avoid the
+    # reorder_kv_cache NoneType crash under PEFT adapters.
+    model.config.use_cache = False
+    wrapped = outlines.models.Transformers(model, tokenizer)
+    generator = outlines.generate.json(wrapped, DeltaBinsModel)
+    # Seed for reproducibility. Global torch seed covers any version of
+    # outlines; the rng kwarg is attempted first for explicit control.
+    import torch
+    torch.manual_seed(seed)
+    try:
+        _rng = torch.Generator(device=getattr(model, "device", "cpu"))
+        _rng.manual_seed(seed)
+        raw = dict(generator(prompt, rng=_rng))
+    except TypeError:
+        # this outlines version's generator() takes no rng kwarg; global seed applies
+        raw = dict(generator(prompt))
+    # outlines returns Enum members; unwrap to the canonical str token
+    result = {k: (v.value if hasattr(v, "value") else v) for k, v in raw.items()}
     invalid = {k: v for k, v in result.items() if v not in DELTA_BINS}
     if invalid:
         log.warning(
@@ -259,6 +290,7 @@ def predict_delta_bins(
     *,
     use_constrained: bool = True,
     max_tokens: int = 512,
+    seed: int = 42,
 ) -> dict[str, str]:
     """Predict delta bins for all 15 demographic blocs.
 
@@ -286,7 +318,7 @@ def predict_delta_bins(
 
     if use_constrained:
         try:
-            result = _predict_constrained(shock_text, party, model, tokenizer, max_tokens)
+            result = _predict_constrained(shock_text, party, model, tokenizer, max_tokens, seed=seed)
             return _fill_missing(result)
         except ImportError as exc:
             log.warning("outlines not available (%s); falling back to greedy decode", exc)
