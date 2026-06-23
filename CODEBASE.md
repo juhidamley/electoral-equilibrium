@@ -134,10 +134,11 @@ Use `Race.WHITE` not the string literal `"white"` in kernel code.
 #### `electoral/core/io.py`
 **Purpose:** Artifact I/O: write/read JSON envelopes and Parquet tables.
 
-- `write_artifact(path, d)` — writes JSON; creates parent directories automatically
-- `write_parquet(path, df)` — writes DataFrame to Parquet (no index)
-- `read_artifact(path) → dict` — reads JSON; unwraps `StageArtifact` envelope if present
-- `read_parquet(path) → pd.DataFrame`
+- `write_artifact(path, envelope, df=None)` — writes the JSON envelope; if `df` given, also writes a sibling `.parquet`. Creates parent dirs.
+- `write_json(path, payload)` — stable formatting (`indent=2`, `sort_keys=True`); runs `sanitize_floats` first.
+- `sanitize_floats(obj)` — recursively maps non-finite floats (inf/-inf/NaN) → `null` so artifacts are always valid JSON (TS frontend / DuckDB safe). Shared sanitizer; also applied at the MC CLI, SSE frames, and fine-tune serializer.
+- `read_artifact(path) → (envelope, df|None)` — reads JSON; loads the sibling `.parquet` if present.
+- `read_json` / `write_parquet` / `read_parquet` (lazy pandas/pyarrow import).
 
 ---
 
@@ -209,25 +210,25 @@ Source-specific bloc remaps (`_ANES_RACE`, `_GSS_RELIGION`, `_CES_GENDER`, etc.)
 
 `resolve_conflicts()` logs every conflict at INFO level. Missing (cycle, bloc) cells are logged as warnings.
 
-#### `electoral/kernels/baseline.py` 🔲 STUB (Week 2)
-Will implement: GP classifier for win probability from historical loyalty estimates; `mu_eff` computation from layer weights; V_eq derivation from winning cycles; LOCO-CV evaluation.
+#### `electoral/kernels/baseline.py` ✅ IMPLEMENTED (Week 2)
+`build_baseline_portfolio(config, panel_df) → BaselinePortfolioData`. Estimates per-bloc moments (`estimate_moments` in `models/ml_baseline.py`), sets baseline race weights by **NEP×loyalty** (`w0_i ∝ nep_share_i · loyalty_i`, normalized — not an optimization), and computes the steady-state `mu_eff` via the three-stratum formula using the REAL religion/gender vote shares (equal-weighted, the v_R/g_G placeholder until raking). NaN bloc loyalties imputed to neutral 0.5 with a warning.
 
-#### `electoral/kernels/raking.py` 🔲 STUB (Week 2)
-Will implement: Iterative Proportional Fitting (IPF) across the three marginal stratum tables. Optional calibration step. Paper will compare additive vs. raked outputs.
+#### `electoral/kernels/raking.py` ✅ IMPLEMENTED (Week 2)
+`rake_layer_weights(panel)` calibrates the λ layer weights by IPF / regularized least-squares against historical national 2-party Dem vote share (ridge-regularized to handle the strata's collinearity; simplex-projected each pass). `write_raked_weights()` writes them under the `"raked"` key in `layer_weights.json`, leaving the additive λ's untouched so the paper can compare additive vs. raked. Optional calibration step.
 
 #### `electoral/kernels/sentiment.py` ✅ IMPLEMENTED (Week 4)
 **Purpose:** Orchestrates the full NLP sentiment pipeline — loads social posts and archives, runs bio classification and RoBERTa scoring, writes `SentimentData` and `SocialMediaSentimentData` artifacts.
 
 `run_sentiment_pipeline(config_path, posts_root, archive_root, news_root, shock_ids, model_name, window_hours, output_dir, shocks_path)` → `(SentimentData, list[SocialMediaSentimentData])`. Builds the nested `shock_id → platform → list[post]` dict via `_load_social_posts()`, then delegates to `score_social_for_shock()` and `score_news_for_shocks()` from `nlp/scorer.py`. Writes JSON artifacts to `output_dir` if provided.
 
-#### `electoral/kernels/shock.py` 🔲 STUB (Week 4)
-Will implement: Mistral 7B + constrained decoding via `outlines`. Input: shock text string. Output: `ShockResponseData` with delta bins and Δμ per bloc.
+#### `electoral/kernels/shock.py` ✅ IMPLEMENTED (Week 4–6)
+`build_shock_response(config, event, intensity) → (ShockResponseData, EquilibriumData)`, the full chain: (1) `_estimate_shock` runs the fine-tuned LLM via `outlines` constrained decoding; (2) `_load_baseline` (race μ) + `_load_baseline_fixed_strata` (religion/gender μ) read `baseline_portfolio.json`; (3) `mu_tilde = clip(μ_baseline + Δ_race)`; (3b) `compute_fixed_loyalty(...)` builds the real religion+gender contribution from baseline shifted by the shock's religion/gender deltas; (4) `_build_sigma_delta` computes the Ledoit-Wolf 5×5 Σ_Δ from panel first-differences (diagonal fallback if no panel); (5) `solve_rebalanced(..., fixed_loyalty=...)`; (6) writes per-id `shock_{id}.json` / `equilibrium_{id}.json`. Validates both artifacts.
 
-#### `electoral/kernels/optimize.py` 🔲 STUB (Week 5)
-Will implement: CVXPY DQCP optimizer. Objective: `max Φ((μ̃_eff(w) − V_eq) / sqrt(λ₁² wᵀΣ_Δw))`. Must assert `problem.is_dcp(qcp=True)`. Decision variables: race bloc weights w (5-simplex). Fixed: religion weights `v_R`, gender weights `g_G`.
+#### `electoral/kernels/optimize.py` ✅ IMPLEMENTED (Week 5)
+`build_optimization(config, shock) → EquilibriumData` — thin stage wrapper that calls `optimization.cvx.solve_rebalanced` (the canonical optimizer) and writes `optimization.json`. The objective/solve lives in `optimization/dqcp.py`.
 
-#### `electoral/kernels/finetune.py` 🔲 STUB (Week 4)
-Will implement: assembles instruction-completion pairs from RoBERTa-scored posts and historical events; calls QLoRA trainer on HPC.
+#### `electoral/kernels/finetune.py` ✅ IMPLEMENTED (Week 5)
+`build_llm_finetune(config) → LLMFineTuneData`. **Idempotent:** if a trained LoRA adapter (`adapter_config.json`) already exists at the configured path, returns its metadata without retraining; otherwise calls `train_hpc` (`llm/trainer.py`). Logs eval MAE from `trainer_state.json`.
 
 #### `electoral/kernels/metrics_tables.py` 🔲 STUB (Week 6+)
 Will implement: manuscript-ready performance tables for bio classifier, RoBERTa scorer, and LLM delta predictions.
@@ -236,54 +237,57 @@ Will implement: manuscript-ready performance tables for bio classifier, RoBERTa 
 
 ### `electoral/models/` — ML Models
 
-#### `electoral/models/ml_baseline.py` 🔲 STUB
-Will implement: GP classifier (RBF kernel) for baseline win probability; XGBoost baseline for comparison; leave-one-cycle-out (LOCO) cross-validation.
+#### `electoral/models/ml_baseline.py` ✅ IMPLEMENTED
+Moment estimation + a win-probability classifier. `estimate_moments(panel, party)` → μ (per stratum) and the 5×5 race Σ; `ground_truth_winning_cycles`, `derive_ec_veq(party)` (EC-adjusted V_eq via logistic fit over 20 cycles — Rep < 0.5), `psd_repair(cov)` (used by the optimizer/MC). Lower half: `fit_gp_classifier` (Gaussian Process) with leave-one-cycle-out (LOCO) CV and `platt_scale_loco` calibration.
 
-#### `electoral/models/bootstrap.py` 🔲 STUB
-Will implement: bootstrap resampling for confidence intervals on GP predictions.
+#### `electoral/models/bootstrap.py` ✅ IMPLEMENTED
+`ledoit_wolf_cov(delta_matrix)` (shrinkage covariance for the p>n regime — the production Σ_Δ estimator) plus `bootstrap_cov_matrix` / `bootstrap_cov_weighted` (kept for the paper's covariance-comparison table). Uses `make_rng` for reproducibility.
 
 #### `electoral/models/regression.py` 🔲 STUB
-Will implement: OLS/Ridge regression for Δμ estimation from sentiment scores.
+Placeholder (raises `NotImplementedError`). Δμ-from-sentiment regression lives in `nlp/elasticity.py`.
 
 ---
 
 ### `electoral/portfolios/` — Optimization Building Blocks
 
-#### `electoral/portfolios/constraints.py` 🔲 STUB
-Will implement: `ConstraintSpec` dataclass encoding V_eq, layer weights (λ₁/λ₂/λ₃), party, `mu_eff` baseline, and the 5×5 race covariance matrix `Σ_Δ`.
+#### `electoral/portfolios/constraints.py` ✅ IMPLEMENTED
+`ConstraintSpec` dataclass: `blocs`, per-bloc `lower`/`upper` weight bounds. `from_bounds(...)` / `default(...)` factories; `validate()` checks bounds ∈ [0,1], lower ≤ upper, Σlower ≤ 1 ≤ Σupper. Consumed by `solve_dqcp` (enforced exactly in the SOCP) and `solve_baseline`.
 
-#### `electoral/portfolios/cvx.py` 🔲 STUB
-Will implement: CVXPY DQCP optimizer. The quasi-convex Sharpe-ratio objective. Key implementation note: must call `problem.solve(qcp=True)` and assert `problem.is_dcp(qcp=True) == True`.
+#### `electoral/portfolios/cvx.py` ✅ IMPLEMENTED
+`solve_baseline(mu, cov, target, blocs, spec)` — the **min-variance** QP baseline (`min wᵀΣw s.t. μᵀw ≥ target`, simplex + bounds), used only as the paper's comparison against the max-P(win) optimizer. Relax-and-retry on infeasibility. (This is NOT the production optimizer — that's `optimization/dqcp.py`.)
 
-#### `electoral/portfolios/weights.py` 🔲 STUB
-Will implement: equal-weight baseline (uniform 1/5 race allocation) and value-weight baseline (proportional to electorate share).
+#### `electoral/portfolios/weights.py` ✅ IMPLEMENTED
+`equal_weight_baseline` (uniform 1/n) and `value_weight_baseline` (∝ electorate share) — trivial benchmark portfolios for paper comparison; no solver.
 
 ---
 
 ### `electoral/optimization/`
 
-#### `electoral/optimization/cvx.py`
-Re-exports from `electoral/portfolios/cvx.py`. Exists to provide a consistent import path.
+#### `electoral/optimization/dqcp.py` ✅ IMPLEMENTED — the single canonical optimizer
+Max-P(win) Sharpe-ratio optimizer. `solve_dqcp(mu_race, cov_race, target, lambda_1, fixed_loyalty, *, blocs, spec, solver=CLARABEL)` solves the SOCP form (normalized Charnes–Cooper / Lobo et al.) and returns a weights dict. Maximizes `(λ₁·μ·w + fixed_loyalty − V_eq) / √(wᵀΣw)`. Per-bloc `ConstraintSpec` bounds are enforced EXACTLY inside the cone via the linear pair `z_i ≥ lo_i·s`, `z_i ≤ hi_i·s` (no post-solve clipping). Helpers: `compute_mu_eff(weights, mu_race, λ₁, fixed_loyalty)` = `λ₁·Σ(w·μ) + fixed_loyalty`; `compute_fixed_loyalty(mu_religion, mu_gender, λ₂, λ₃, deltas_religion, deltas_gender)` = the real religion+gender contribution (equal-weighted v_R/g_G, post-shock-shifted).
 
-#### `electoral/optimization/simplex.py`
-Simplex projection utilities for the CVXPY optimizer.
+#### `electoral/optimization/cvx.py` ✅ IMPLEMENTED — EquilibriumData wrapper
+`solve_rebalanced(mu_tilde, cov_delta, target, party, shock, floor=0.05, ceiling=0.60, fixed_loyalty=None)` is the canonical entry point used by BOTH the kernel and the API. It delegates the solve to `dqcp.solve_dqcp` (passing a `[floor, ceiling]` `ConstraintSpec`), computes `mu_eff_shifted`, and returns a validated `EquilibriumData`. `fixed_loyalty=None` → neutral `(λ₂+λ₃)·0.5` placeholder. On infeasible/solver failure → `solve_equal_weight_rebalanced` (equal weights, `feasible=False`, `method="equal_weight_fallback"`). Also re-exports `solve_baseline` from `portfolios/cvx.py`.
+
+#### `electoral/optimization/simplex.py` ✅ IMPLEMENTED
+Euclidean projection onto the probability simplex. `project_simplex(v)` (Duchi et al. 2008, O(n log n)) snaps any vector to the nearest non-negative, sums-to-1 vector; `project_simplex_batch(W)` applies it per row. A repair utility, not the main MC path.
 
 ---
 
 ### `electoral/simulation/`
 
-#### `electoral/simulation/montecarlo.py` 🔲 STUB (Week 5)
-Will implement: Logistic-Normal ILR Monte Carlo.
+#### `electoral/simulation/montecarlo.py` ✅ IMPLEMENTED — Logistic-Normal ILR Monte Carlo
+`run_ilr_montecarlo(equilibrium, config, n_simulations=10_000, sigma_default=0.02, cov_delta=None, fixed_loyalty=None) → SimulationData`.
 
 Algorithm:
-1. Map optimal weights w* to ILR coordinates: `z* = Vᵀ log(w*)` (Helmert contrast matrix V)
-2. Propagate Σ_Δ to ILR space via Jacobian: `Σ_ILR = J Σ_Δ Jᵀ`
-3. Draw `y^(n) ~ N(z*, Σ_ILR)` in R^(K-1) for n = 1..N
-4. Back-transform: `w^(n) = softmax(V y^(n))`
-5. Compute `win_flag^(n) = 1[μ̃_eff(w^(n)) ≥ V_eq]`
-6. Report: `win_probability = mean(win_flags)`, `percentiles[bloc]` = [p5,p25,p50,p75,p95] of w distribution
+1. Map weights w* to ILR coords: `z* = Vᵀ log(w*)` (Helmert matrix `helmert_matrix(k)`, `ilr(w, V)`)
+2. Propagate Σ_Δ to ILR space via Jacobian: `Σ_ILR = J Σ_Δ Jᵀ`, then PSD-repair
+3. Draw `y^(n) ~ N(z*, Σ_ILR)` via Cholesky (vectorized over N)
+4. Back-transform: `w^(n) = softmax(V y^(n))` (`ilr_inv(z, V)`)
+5. `win_flag = 1[μ_eff(w^(n)) ≥ V_eq]`; `win_probability = mean`; per-bloc percentiles [p5,p25,p50,p75,p95]
+6. 90% CI on win_probability via Bernoulli/binomial bootstrap (not percentile of the 0/1 flags)
 
-Zero-weight draws → flag as `infeasible_bloc`, never floor.
+Σ_Δ: uses `cov_delta` (the shock's real covariance) when supplied, else the isotropic diagonal `sigma_default²·I`. `fixed_loyalty`: the religion+gender contribution; when `None` it is DERIVED from `equilibrium.mu_eff_shifted − λ₁·Σ(w·μ̃)` so the MC win-check always matches the optimizer (falls back to neutral on unset/fallback equilibria). Zero-weight blocs → `ValueError` (ILR undefined at the simplex boundary), never floored. Also exposes a `python -m electoral.simulation.montecarlo` CLI for SLURM runs.
 
 ---
 
@@ -341,67 +345,68 @@ Platform-agnostic collector interface. `SocialCollector` ABC with `collect()` ab
 #### `electoral/nlp/collectors/schema.py`
 Post schema definitions shared across Bluesky, Apify/X, and Reddit collectors.
 
-#### `electoral/nlp/collectors/bluesky_firehose.py` 🔲 STUB
-Will implement: AT Protocol firehose listener with English + political keyword filtering.
+#### `electoral/nlp/collectors/bluesky_firehose.py` ✅ IMPLEMENTED
+AT Protocol firehose listener with English + political-keyword filtering; writes the canonical post envelope. (Delegated to by `social.BlueSkyCollector`.)
 
-#### `electoral/nlp/collectors/apify_x_scraper.py` 🔲 STUB
-Will implement: Apify X (Twitter) free-tier scraper (500 results/run), triggered per shock event.
+#### `electoral/nlp/collectors/apify_x_scraper.py` ✅ IMPLEMENTED
+Apify X (Twitter) free-tier scraper (500 results/run), triggered per shock event. (Delegated to by `social.ApifyCollector`.)
 
 ---
 
 ### `electoral/markets/`
 
-#### `electoral/markets/collector.py` 🔲 STUB
-Will implement: price poller for Polymarket and PredictIt contracts. Contract IDs are in `configs/market_contracts.json`.
+#### `electoral/markets/collector.py` ✅ IMPLEMENTED
+Price poller for Polymarket / PredictIt / Metaculus / Manifold. Contract IDs read from `configs/market_contracts.json` (never resolved live → reproducible). **Calibration display only — never a training input** (a market price is P(win)=Δπ, not the vote-share margin Δμ).
 
-#### `electoral/markets/aggregator.py` 🔲 STUB
-Will implement: volume-weighted multi-market price aggregator. Output: `"Market consensus: X%"` display value. **Markets are calibration benchmarks only** — never used as training inputs.
+#### `electoral/markets/aggregator.py` ✅ IMPLEMENTED
+`volume_weighted_price(...)` → volume-weighted consensus across platforms (equal-weight when a platform reports no volume); wraps the result in `PredictionMarketData` for the `"Market consensus: X%"` display.
 
 ---
 
 ### `electoral/llm/` — LLM Fine-Tuning
 
-#### `electoral/llm/trainer.py` 🔲 STUB
-Will implement: QLoRA trainer (HuggingFace PEFT, 4-bit NF4, rank-16 LoRA) for Mistral 7B. Runs on HPC A100.
+#### `electoral/llm/trainer.py` ✅ IMPLEMENTED
+QLoRA trainer (HuggingFace PEFT, 4-bit NF4, rank-16 LoRA) for Mistral 7B; HPC-only deps. `TrainConfig`, `format_prompt`/`format_completion` (fine-tune record → `[INST]…[/INST]` + JSON target, sanitized), `train_hpc`, `_eval_mae`. Writes the adapter + `trainer_state.json`.
 
-#### `electoral/llm/inference.py` 🔲 STUB
-Will implement: constrained decoding via `outlines` library. Constrains output to 9-token bin vocabulary per stratum.
+#### `electoral/llm/inference.py` ✅ IMPLEMENTED
+`ShockEstimator` — constrained decoding via `outlines`, constraining output to the `ShockResponseSchema` (9-token bins per stratum). `.estimate(event_dict, intensity)` → `ShockResponseData`.
 
-#### `electoral/llm/eval.py` 🔲 STUB
-Will implement: evaluation against held-out historical (shock, delta_bin) pairs.
+#### `electoral/llm/eval.py` ✅ IMPLEMENTED
+Evaluation against held-out historical (shock, delta_bin) pairs.
 
 ---
 
 ### `electoral/api/` — FastAPI Endpoints
 
-#### `electoral/api/shock_endpoint.py` 🔲 STUB
-Will implement: `POST /estimate` — accepts shock text + party, streams Server-Sent Events (SSE) with stage-by-stage results (deltas → equilibrium → simulation → error).
+#### `electoral/api/shock_endpoint.py` ✅ IMPLEMENTED
+The web backend. Loads the LLM once via FastAPI `lifespan`; holds the executor pools on `app.state`. **Concurrency contract:** the CVXPY optimizer runs in a `ProcessPoolExecutor(max_workers=1)` (CVXPY's C solvers are NOT thread-safe — threads segfault); the LLM and Monte Carlo run in a `ThreadPoolExecutor` (GIL released). Routes: `POST /estimate`; `GET /estimate/stream` (SSE: `deltas → equilibrium → simulation → done`, frames sanitized via `sanitize_floats`); `GET /api/market-prior`; the dashboard routes `GET /api/{audit,audit/count,coverage,sentiment-dist,bio-coverage,training-logs,convergence}` (all behind `_require_dashboard_auth`); `GET /health`, `GET /blocs`. The module-level `solve_rebalanced(...)` is a picklable adapter that delegates to `optimization.cvx.solve_rebalanced` (passing the real `fixed_loyalty` computed from nominal religion/gender priors). Auth: HMAC-SHA256 signed session cookie (`_verify_session_token`, constant-time, fails closed).
 
-#### `electoral/api/audit.py` 🔲 STUB
-Will implement: `GET /audit_log` and `POST /log_inference` — audit trail for all inference runs.
+#### `electoral/api/audit.py` ✅ IMPLEMENTED
+`AuditLogger` — append-only estimate log backed by a single DuckDB file (`data/audit.duckdb`), guarded by a `threading.Lock`. `log_estimate(...)` (incl. `party`), `recent(limit, search=None)` (parameterized `ILIKE` search, limit-clamped), `count()`. Non-finite floats stored as NULL; failures swallowed so logging never breaks a request.
 
 ---
 
 ### `electoral/metrics/` and `electoral/reporting/`
 
-#### `electoral/metrics/performance.py` / `tables.py` 🔲 STUBS
-Will implement: precision/recall/F1/AUC for bio classifier and scorer; manuscript-ready table formatting.
+#### `electoral/metrics/performance.py` / `tables.py` ✅ IMPLEMENTED
+`performance.py`: `win_probability(sim_data)`, `equilibrium_gap(weights, mu, target)` (= wᵀμ − target; intersects keys so race-only dicts can't leak), `bloc_delta_summary(baseline, rebalanced)` (signed Δ per bloc, sorted by |Δ|) — all JSON-native. `tables.py`: manuscript-ready table builders (e.g. `build_shock_summary_table`).
 
-#### `electoral/reporting/export.py` 🔲 STUB
-Will implement: export of `EquilibriumData` + `SimulationData` to frontend-consumable JSON.
+#### `electoral/reporting/export.py` ✅ IMPLEMENTED
+Exports artifacts to CSV / LaTeX / JSON (`export_csv`, `export_latex_table`, `export_json`) for the paper.
 
 ---
 
 ## `collectors/` — Always-On Collectors (Intel Mac / M5)
 
-#### `collectors/bluesky.py` 🔲 STUB
-AT Protocol firehose listener. Primary data source is pre-existing HuggingFace Bluesky archives. Secondary: live firehose going forward. Output: `rawdata/social/bluesky/live/{YYYY-MM-DD}.jsonl`.
+> ⚠️ These top-level modules are intentional PLACEHOLDERS (they `raise
+> NotImplementedError`). The working collectors live in the package:
+> `electoral/nlp/social.py` + `electoral/nlp/collectors/{bluesky_firehose,apify_x_scraper}.py`,
+> and Reddit is ingested via `electoral/nlp/archive.py` (`subreddit_proxy`). These
+> files are kept only so the original devplan layout resolves.
 
-#### `collectors/apify.py` 🔲 STUB
-Apify X scraper (free tier, 500 results/run). Run per shock event. Output: `rawdata/social/apify/{shock_id}/{YYYY-MM-DD}.jsonl`.
-
-#### `collectors/reddit.py` 🔲 STUB
-Reddit API OAuth collector. Subreddits: r/Catholicism, r/Christianity, r/exchristian, r/Conservative, r/progressive, r/BlackPeopleTwitter, r/LatinoPeopleTwitter, r/Jewish, r/islam. Output: `rawdata/social/reddit/{subreddit}/{YYYY-MM-DD}.jsonl`. Uses `inference_method: "subreddit_proxy"` — excluded from Σ_Δ.
+#### `collectors/bluesky.py` 🔲 PLACEHOLDER → see `electoral/nlp/collectors/bluesky_firehose.py`
+#### `collectors/apify.py` 🔲 PLACEHOLDER → see `electoral/nlp/collectors/apify_x_scraper.py`
+#### `collectors/reddit.py` 🔲 PLACEHOLDER → Reddit handled in `electoral/nlp/archive.py` (`subreddit_proxy`, excluded from Σ_Δ)
 
 ---
 

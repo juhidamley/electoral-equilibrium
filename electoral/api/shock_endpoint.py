@@ -139,8 +139,10 @@ _NOMINAL_MU_GENDER: dict[str, dict[str, float]] = {
     "republican": {"women": 0.45, "men": 0.55, "other_gender": 0.30},
 }
 
-# V_eq fallbacks — overridden by configs/party_config.json when available.
-_V_EQ_DEFAULT: dict[str, float] = {"democrat": 0.521, "republican": 0.495}
+# V_eq fallbacks — used only if configs/party_config.json can't be loaded.
+# Kept IN SYNC with the canonical EC-adjusted values in that file (0.5066 Dem /
+# 0.4934 Rep) so the fallback can't silently disagree with production.
+_V_EQ_DEFAULT: dict[str, float] = {"democrat": 0.5066, "republican": 0.4934}
 
 
 # ── Config loaders ────────────────────────────────────────────────────────────

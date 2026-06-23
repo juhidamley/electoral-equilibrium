@@ -657,6 +657,15 @@ class TestEquilibriumData:
         mu_high = {r: 0.60 for r in RACE_IDS}
         assert_roundtrip(self._make(mu_shifted=mu_high, feasible=True, target_met=True))
 
+    def test_republican_v_eq_below_half_validates(self):
+        """Regression: the Republican EC-adjusted V_eq (~0.4934) is BELOW 0.50 and
+        must validate. The old (0.50, 0.70) bound wrongly rejected it, breaking
+        every Republican run."""
+        self._make(party="republican", target=0.4934).validate()
+        # And the round-trip preserves the sub-0.5 target exactly.
+        d = assert_roundtrip(self._make(party="republican", target=0.4934))
+        assert d["target"] == pytest.approx(0.4934)
+
     def test_weights_not_summing_raises(self):
         bad = {**RACE_WEIGHTS, "white": 0.99}
         with pytest.raises(ValueError, match="sum"):

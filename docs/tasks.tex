@@ -3470,8 +3470,15 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
     \item[$\square$] \textbf{[correctness]} Meaning of \texttt{target}
       (0.5066) undefined --- popular vote? EC threshold? Drives
       win\_prob=1.0 saturation. Resolve with Espinosa.
-    \item[$\square$] \textbf{[blocking]} Retrained model must be confirmed
-      to fix the Newsom all-minorities-slight\_pos directional error.
+    \item[$\boxtimes$] \textbf{[blocking --- RESOLVED for MVP 2026-06-23]}
+      Newsom directional error fixed for white (stable slight\_neg across
+      runs). Latino direction is \emph{model-boundary unstable}: varies
+      across runs (slight\_neg / slight\_pos / neutral depending on decode
+      path and seed). This is not a residual bug but a genuine model
+      uncertainty at the decision boundary for this bloc/event combination.
+      No paper-grade directional claim about latino on Newsom may be made
+      until generation is seeded and the seeded constrained result is stable.
+      See decode-sensitivity flag.
     \item[$\square$] \textbf{[correctness]} Party-neutral preset text +
       separate \texttt{party} field: confirm model reads the field and
       flips deltas by party.
@@ -3572,16 +3579,23 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       decided entry in DECISIONS.md. Either document it as an
       implemented decision or confirm with Espinosa that it is correct
       and then document it.
-    \item[$\square$] \textbf{[blocking --- deploy]} Constrained decoding is
-      silently broken: \texttt{\_BinToken = Literal[tuple(DELTA\_BINS)]}
-      fails under Pydantic 2.13 (``Unable to generate pydantic-core schema
-      for Literal[\ldots]''), so \texttt{outlines} never engages and the
-      schema-validity guarantee is OFF in production. The greedy fallback
-      also crashes (\texttt{format\_prompt} arity mismatch). Fix: (a)
-      Literal schema construction for current Pydantic; (b)
-      \texttt{format\_prompt()} call signature in \texttt{\_predict\_greedy}.
-      The deployed endpoint cannot promise valid structured output until
-      constrained decoding actually runs.
+    \item[$\boxtimes$] \textbf{[blocking --- deploy --- RESOLVED 2026-06-23]}
+      Constrained decoding fixed end-to-end: \texttt{pydantic.create\_model}
+      + str-Enum + \texttt{outlines.models.Transformers} wrap +
+      \texttt{use\_cache=False} + Enum \texttt{.value} unwrap. No fallback.
+      Schema guarantee restored. Deploy blocker cleared.
+    \item[$\boxtimes$] \textbf{[correctness --- paper --- RESOLVED 2026-06-23]}
+      Decode non-determinism closed. Generation seeded (\texttt{seed} param
+      threaded through \texttt{predict\_delta\_bins} $\to$
+      \texttt{\_predict\_constrained}, default 42,
+      \texttt{torch.manual\_seed} + rng). Confirmed reproducible: identical
+      output across two runs. Inference path fully working: trained adapter +
+      constrained decoding + seeded + clean str tokens.
+      \textbf{All MVP code blockers closed.}
+      Remaining paper obligation: headline-event validation tables must be
+      produced under the seeded constrained path; boundary-straddling blocs
+      (latino on Newsom) must be noted in the paper as carrying uncertainty
+      the MAE metric does not capture.
     \item[$\square$] \textbf{[correctness]} Python 3.10+ union syntax
       (\texttt{X | None}, \texttt{X | Y}) crashes at import on local
       3.9 dev env --- already broke FastAPI server boot
@@ -3957,15 +3971,25 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
 
 \begin{taskbox}{Final Sweep --- Ambiguities \& Loose Ends}
 
-\task{Resolve the meaning of \texttt{target}. The win threshold is set to
-  0.5066 but it is unclear whether this represents the national two-party
-  popular-vote share needed to win the Electoral College, a weighted
-  effective-loyalty threshold, or something else. Democrats are
-  structurally disadvantaged in the EC (need $\sim$52--54\% popular vote),
-  so 0.5066 may be too low and is the likely cause of the
-  win\_probability=1.0 saturation. Pin down the exact definition with
-  Prof.\ Espinosa, document it in DECISIONS.md, and adjust the value if
-  the current one is wrong.}{2}
+\task{Resolve the meaning of \texttt{target}. PARTLY DONE. (1) The VALUE is
+  principled: \texttt{configs/party\_config.json} defines V\_eq = 0.5066 (Dem) /
+  0.4934 (Rep) as the EC-adjusted popular-vote share where P(EC win)=0.5, derived
+  by \texttt{derive\_ec\_veq()} (logistic fit over 20 cycles). (2) RECONCILED: the
+  hardcoded \texttt{\_V\_EQ\_DEFAULT} fallback now matches (0.5066/0.4934) instead
+  of the stale 0.521/0.495. \texttt{base.json} already agreed at 0.5066;
+  \texttt{smoke.json} deliberately keeps 0.535 as a fast-test value. (3) FIXED a
+  real bug: the validators required \texttt{0.5 < target < 0.7}, which rejected the
+  Republican EC V\_eq (0.4934 < 0.5) and broke every Republican run --- widened to
+  \texttt{(0.40, 0.70)} in PipelineConfig / BaselinePortfolioData / EquilibriumData,
+  with regression tests. NOTE: the earlier hypothesis that 0.5066 is ``too low''
+  and causes \texttt{win\_probability=1.0} saturation was WRONG --- the saturation
+  comes from the near-zero DIAGONAL $\Sigma_\Delta$ (smoke has no real panel
+  covariance; $\mu_{eff}\approx0.59 \gg 0.5066$ with tiny variance $\Rightarrow$
+  every draw wins), tracked by the ``production covariance path'' task.
+  REMAINING (needs Espinosa, a modeling call not a code fix): is $\mu_{eff}$ --- a
+  $\lambda$-weighted blend over three overlapping strata --- a fair proxy for the
+  national two-party popular-vote share that V\_eq thresholds? Document the
+  approximation in DECISIONS.md.}{2}
 
 \task{Apply all six Copilot PR review fixes that were accepted but may not
   all be committed: (i) Bernoulli-binomial bootstrap in montecarlo.py

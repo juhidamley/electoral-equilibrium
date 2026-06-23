@@ -1388,3 +1388,89 @@ extending the dataset.
 (a) base model (no fine-tuning), (b) fine-tuned on hand-authored data only,
 (c) fine-tuned on hand-authored + synthetic. If (c) does not improve on (b), drop the
 synthetic rows and note this in the paper's data section.
+
+## Week 8 — 2026-06-22 — Optimizer / μ_eff / V_eq consolidation
+
+Changes landed this session (all verified behavior-preserving where noted; full
+test suite green at the time of writing).
+
+### Decision: one canonical optimizer (`dqcp.solve_dqcp`)
+There were two optimizers solving *different* problems: the kernel's
+`cvx.solve_rebalanced` compared race-only `μ·w` to V_eq (no λ weighting, but it
+enforced the [0.05, 0.60] bounds), while the API used `dqcp.solve_dqcp` with the
+full λ-weighted μ_eff but *no* bounds. **Resolved:** `dqcp.solve_dqcp` is the
+single solver; `cvx.solve_rebalanced` is now a thin wrapper that calls it with a
+`[floor, ceiling]` `ConstraintSpec` and returns an `EquilibriumData`; the FastAPI
+wrapper delegates to `cvx.solve_rebalanced`. Both paths now use the same objective
+and the same per-bloc bounds, and `mu_eff_shifted` is populated (was unset on the
+kernel path).
+
+### Decision: per-bloc bounds enforced inside the SOCP
+`solve_dqcp` now enforces `ConstraintSpec` bounds exactly via the linear pair
+`z_i ≥ lo_i·s`, `z_i ≤ hi_i·s` (these are linear in (z, s), not bilinear),
+replacing a post-solve clip+renorm that could leave a weight outside its bound.
+(Also fixed a latent attribute bug: code read `spec.lower_bounds`/`upper_bounds`;
+the real fields are `spec.lower`/`spec.upper`.)
+
+### Decision: μ_eff basis — REAL religion/gender, post-shock-shifted
+The optimizer and Monte Carlo no longer hold the fixed strata at a flat neutral
+0.5. `dqcp.compute_fixed_loyalty()` computes the real religion+gender contribution
+`λ₂·avg(μ_rel) + λ₃·avg(μ_gen)` from baseline loyalties shifted by the shock's
+religion/gender deltas (consistent with how race uses μ̃ = μ + Δ). The kernel
+passes it from the baseline artifact; the API from nominal priors
+(`_NOMINAL_MU_RELIGION/GENDER`); the MC *derives* it from `mu_eff_shifted` so its
+win check always matches the optimizer. Defaults remain neutral (opt-in), so old
+artifacts are unaffected. Smoke impact: μ_eff 0.5959 → 0.5900, weights ≤ 0.008.
+**Still equal-weight v_R = 1/n_rel, g_G = 1/n_gen** until `raking.py` supplies real
+panel marginals (open item below).
+
+### Decision: V_eq is EC-adjusted; bound widened to (0.40, 0.70)
+V_eq is the EC-adjusted two-party popular-vote share where P(win EC)=0.5, from
+`configs/party_config.json` (0.5066 Dem / 0.4934 Rep, via `derive_ec_veq`). The
+hardcoded `_V_EQ_DEFAULT` fallback was realigned to match (was 0.521/0.495). The
+target validation bound was `(0.5, 0.7)`, which **rejected the Republican V_eq
+(0.4934 < 0.5) and broke every Republican run** — widened to `(0.40, 0.70)` in
+PipelineConfig / BaselinePortfolioData / EquilibriumData, with regression tests.
+The earlier `win_probability=1.0` saturation is NOT caused by V_eq being "too
+low" — it's the near-zero diagonal Σ_Δ (see open items).
+
+### Decision: JSON artifacts are sanitized of non-finite floats
+`core/io.sanitize_floats()` maps inf/-inf/NaN → null; applied in `write_json` and
+at the other JSON emission points we control (MC CLI, SSE frames, fine-tune
+serializer). Guarantees valid JSON for the TS frontend and DuckDB.
+
+### Decision: Monte Carlo consumes the real Σ_Δ
+`run_ilr_montecarlo` gained a `cov_delta` param; the shock's covariance is threaded
+through every caller (None → the old isotropic diagonal). So the win-probability
+CI can reflect real cross-bloc correlation once a real panel covariance exists.
+
+---
+
+### OPEN — modeling caveats requiring Prof. Espinosa (NOT code fixes)
+
+1. **Is μ_eff a fair proxy for the popular-vote V_eq threshold?** μ_eff is a
+   λ-weighted blend over three *overlapping* strata; V_eq thresholds a national
+   two-party popular-vote share. They coincide only under the additive-
+   independence approximation. This should be stated as a limitation in the paper.
+
+2. **Market vs model display** is a *conditional vs unconditional* comparison
+   ("if this shock happens → " vs "current general-election price"). The UI must
+   not present them as competing estimates of the same question. (Tracked in the
+   API/Frontend Contract task box.)
+
+### OPEN — engineering items needing an environment I don't have here
+
+3. **Raking marginals:** `raking.py` should supply real v_R / g_G within-stratum
+   weights to replace the equal-weight (1/N) placeholder in `compute_fixed_loyalty`
+   and `baseline.py`.
+
+4. **HF-Trainer JSON safety:** `trainer_state.json` is written by the HuggingFace
+   `Trainer` itself, so our `sanitize_floats` doesn't reach it. Add a
+   `TrainerCallback` that sanitizes the metrics dict (and stop `_eval_mae` from
+   propagating a raw `inf`). Needs the GPU training environment to test.
+
+5. **Production covariance path:** ensure the Σ_Δ actually supplied to the MC is
+   the genuine Ledoit-Wolf estimate from real panel cycles (currently the smoke
+   artifact's Σ_Δ is itself the diagonal fallback). Add a variance floor so a
+   near-zero empirical Σ_Δ can't collapse the CI to [1,1]/[0,0]. Re-freeze the
+   baseline once V_eq and raking are settled.

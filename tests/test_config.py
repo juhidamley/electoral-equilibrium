@@ -139,9 +139,10 @@ class TestValidate:
             _minimal(tmp_path, party="").validate()
 
     def test_target_at_lower_boundary_raises(self, tmp_path):
-        # 0.5 is excluded (strictly greater than 0.5)
+        # 0.40 is excluded (bound is strict: 0.40 < target < 0.70). The floor is
+        # 0.40, not 0.50, so the Republican EC-adjusted V_eq (~0.4934) is allowed.
         with pytest.raises(ValueError, match="target"):
-            _minimal(tmp_path, target=0.5).validate()
+            _minimal(tmp_path, target=0.40).validate()
 
     def test_target_at_upper_boundary_raises(self, tmp_path):
         # 0.7 is excluded (strictly less than 0.7)
@@ -160,7 +161,9 @@ class TestValidate:
         _minimal(tmp_path, party="democrat", target=0.535).validate()
 
     def test_republican_typical_target_valid(self, tmp_path):
-        _minimal(tmp_path, party="republican", target=0.52).validate()
+        # The real Republican EC-adjusted V_eq is BELOW 0.50 (~0.4934). Regression
+        # for the bug where the old (0.50, 0.70) bound rejected every Rep run.
+        _minimal(tmp_path, party="republican", target=0.4934).validate()
 
     def test_negative_seed_raises(self, tmp_path):
         with pytest.raises(ValueError, match="seed"):

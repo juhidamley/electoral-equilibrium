@@ -287,9 +287,11 @@ class BaselinePortfolioData:
             context="BaselinePortfolioData.layer_weights",
         )
         assert_shares_sum_to_one(self.layer_weights, context="BaselinePortfolioData.layer_weights")
-        if not (0.5 < self.target < 0.7):
+        # (0.40, 0.70): the Republican EC-adjusted V_eq is legitimately < 0.50
+        # (~0.4934) — see PipelineConfig.validate / configs/party_config.json.
+        if not (0.40 < self.target < 0.70):
             raise ValueError(
-                f"BaselinePortfolioData.target must be in (0.5, 0.7), got {self.target}"
+                f"BaselinePortfolioData.target must be in (0.40, 0.70), got {self.target}"
             )
 
 
@@ -791,8 +793,10 @@ class EquilibriumData:
                 f"EquilibriumData.weights and mu_shifted must have identical key sets. "
                 f"Missing from mu_shifted: {missing}, extra in mu_shifted: {extra}"
             )
-        if not (0.5 < self.target < 0.7):
-            raise ValueError(f"EquilibriumData.target must be in (0.5, 0.7), got {self.target}")
+        # (0.40, 0.70): the Republican EC-adjusted V_eq is legitimately < 0.50
+        # (~0.4934) — see PipelineConfig.validate / configs/party_config.json.
+        if not (0.40 < self.target < 0.70):
+            raise ValueError(f"EquilibriumData.target must be in (0.40, 0.70), got {self.target}")
 
 
 # ── Stage 6: Monte Carlo simulation ──────────────────────────────────────────

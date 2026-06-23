@@ -74,8 +74,13 @@ class PipelineConfig:
             raise ValueError(
                 f"PipelineConfig.party must be 'democrat' or 'republican', " f"got {self.party!r}"
             )
-        if not (0.5 < self.target < 0.7):
-            raise ValueError(f"PipelineConfig.target must be in (0.5, 0.7), got {self.target}")
+        # Bound is (0.40, 0.70), NOT (0.50, 0.70): the Republican EC-adjusted V_eq
+        # is legitimately BELOW 0.50 (~0.4934) — Republicans win the Electoral
+        # College with under 50% of the two-party vote due to geographic
+        # efficiency (see configs/party_config.json / derive_ec_veq). The old 0.50
+        # floor silently rejected every Republican run.
+        if not (0.40 < self.target < 0.70):
+            raise ValueError(f"PipelineConfig.target must be in (0.40, 0.70), got {self.target}")
         if self.pipeline_mode not in VALID_PIPELINE_MODES:
             raise ValueError(
                 f"PipelineConfig.pipeline_mode must be one of "

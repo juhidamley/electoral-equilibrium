@@ -6,7 +6,7 @@ Covers the two untested fallback seams in the production chain:
 
 _estimate_shock is patched in every test to avoid loading the LLM adapter.
 
-Note on target: PipelineConfig enforces target ∈ (0.5, 0.7). For tests that
+Note on target: PipelineConfig enforces target ∈ (0.40, 0.70). For tests that
 use the fallback mu=0.5, a slight positive delta (0.02) on the stub shock
 pushes mu_tilde to 0.52, clearing the target=0.51 threshold and keeping the
 optimizer feasible without violating the config constraint.
