@@ -71,6 +71,8 @@ _PACKAGES = [
     "accelerate==0.33.0",
     "bitsandbytes==0.43.3",
     "safetensors==0.4.5",
+    "sentencepiece==0.2.0",  # Mistral tokenizer is sentencepiece-based
+    "protobuf==4.25.3",  # sentencepiece tokenizer conversion needs it
     # Constrained decoding — PINNED to HPC-tested version
     "outlines==0.0.37",
     # Numerical — PINNED below breaking API changes
@@ -128,14 +130,20 @@ image = (
     )
     .run_function(
         _download_base_model,
-        # Pass HF_TOKEN if present — Mistral-7B-v0.3 is public so it's optional.
-        secrets=[modal.Secret.from_name("huggingface-secret", required=False)],
+        # Mistral-7B-v0.3 is public — no HF token needed for download.
     )
+    # Local-dir adds must be the final image layers in Modal 1.x (runtime mount).
+    .add_local_dir("electoral", remote_path="/root/electoral",
+                   ignore=["**/__pycache__/**", "**/*.pyc"])
+    .add_local_dir("configs", remote_path="/root/configs")
+    .add_local_dir("artifacts", remote_path="/root/artifacts",
+                   ignore=["**/*.parquet"])
 )
 
 # ── Modal app ──────────────────────────────────────────────────────────────────
 
 modal_app = modal.App("electoral-equilibrium", image=image)
+app = modal_app  # alias so `modal deploy` auto-discovers
 
 # ── Volumes ────────────────────────────────────────────────────────────────────
 # adapter_vol — adapter weights; populated once with `modal volume put` (see header).
@@ -152,34 +160,9 @@ audit_vol = modal.Volume.from_name("electoral-audit", create_if_missing=True)
 # re-deploy after any local change to pick them up.
 
 
-def _not_pycache(p: str) -> bool:
-    return "__pycache__" not in p and not p.endswith(".pyc")
-
-
-_mounts = [
-    # Python source — importable as `import electoral`
-    modal.Mount.from_local_dir(
-        "electoral",
-        remote_path="/root/electoral",
-        condition=_not_pycache,
-    ),
-    # Runtime configs (layer_weights.json, party_config.json, shock_taxonomy.json …)
-    modal.Mount.from_local_dir(
-        "configs",
-        remote_path="/root/configs",
-    ),
-    # Pre-computed market artifacts (optional — empty dir is fine, returns null prob)
-    modal.Mount.from_local_dir(
-        "artifacts",
-        remote_path="/root/artifacts",
-        # Skip heavy Parquet panel data — not needed at inference time
-        condition=lambda p: not p.endswith(".parquet"),
-    ),
-]
-
 # ── Container paths ────────────────────────────────────────────────────────────
 # These are the paths inside the running Modal container.
-_ADAPTER_PATH = "/adapters/mistral-r16"
+_ADAPTER_PATH = "/adapters/mistral-r16-v2"
 _AUDIT_DB_PATH = "/audit/audit.duckdb"
 
 
@@ -189,23 +172,21 @@ _AUDIT_DB_PATH = "/audit/audit.duckdb"
 @modal_app.function(
     # A10G: 24 GB VRAM — Mistral 7B float16 uses ~14 GB; leaves ~10 GB for KV cache.
     # Alternatives: gpu=modal.gpu.L4() (similar price), gpu=modal.gpu.A100() (overkill).
-    gpu=modal.gpu.A10G(),
+    gpu="A10G",
     memory=20480,  # 20 GB system RAM — base model + overhead
     cpu=2.0,
-    timeout=180,  # generous for cold start (~60 s model load + adapter merge)
+    timeout=900,  # generous for cold start (~60 s model load + adapter merge)
     volumes={
         "/adapters": adapter_vol,
         "/audit": audit_vol,
     },
-    mounts=_mounts,
     secrets=[
         modal.Secret.from_name("electoral-secrets"),
-        modal.Secret.from_name("huggingface-secret", required=False),
     ],
     # Single-writer constraint for both DuckDB and the CVXPY ProcessPoolExecutor.
     # Raise only after switching audit store to a concurrent-safe backend.
-    allow_concurrent_inputs=1,
-    container_idle_timeout=300,  # keep warm 5 min — saves cold-start latency
+    max_containers=1,
+    scaledown_window=600,  # keep warm 5 min — saves cold-start latency
 )
 @modal.asgi_app()
 def serve() -> Any:
