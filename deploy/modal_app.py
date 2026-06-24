@@ -67,6 +67,7 @@ _PACKAGES = [
     # PyTorch ecosystem
     "torch==2.4.0",
     "transformers==4.46.3",
+    "datasets==3.0.1",  # imported by trainer/inference path at call time
     "peft==0.13.2",
     "accelerate==0.33.0",
     "bitsandbytes==0.43.3",
@@ -80,6 +81,8 @@ _PACKAGES = [
     "scipy<1.14",
     # Optimizer — PINNED to 1.3.x (1.4 changed DQCP interface, not yet validated)
     "cvxpy==1.3.4",
+    "scikit-learn==1.5.2",  # ml_baseline: GaussianProcess + Ledoit-Wolf covariance
+    "clarabel==0.9.0",  # CVXPY default solver for the DQCP optimizer
     # API stack
     "fastapi==0.115.0",
     "uvicorn[standard]==0.30.6",
