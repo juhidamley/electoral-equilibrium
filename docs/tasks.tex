@@ -3539,11 +3539,34 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       ephemeral --- container restarts silently drop all audit rows.
       Mount on a Modal Volume or external DB; confirm with a
       deploy-restart-query test.
-    \item[$\square$] \textbf{[blocking --- public deploy]} No rate
-      limiting or spend cap on the unauthenticated GPU endpoint; the
-      share-link feature lets strangers trigger \textasciitilde12\,s GPU
-      calls. Add per-IP rate limit, Modal concurrency cap, and billing
-      alert before going public.
+    \item[$\square$] \textbf{[correctness --- Espinosa-grade]} Bias/symmetry
+      of the model across parties not yet formally validated. Matched
+      scandal pairs show: race deltas near-symmetric (Rep aa $-$0.07 vs
+      Dem $-$0.035; remaining blocs equal); religion deltas differ by
+      coalition shape (Dem scandal: evangelical/prot $+$0.012; Rep scandal:
+      evangelical/catholic $-$0.07) --- signs are coherent (scandal hits
+      own base hardest), not obvious anti-R bias. BUT: \texttt{delta\_eff}
+      inverts oddly (Dem scandal $\to$ Dem $\Delta_\text{eff}=-0.0$; Rep
+      scandal $\to$ Rep $\Delta_\text{eff}=+0.03$) --- possible per-party
+      aggregate calibration bug that could drive win-prob asymmetry.
+      Required: run 5--10 matched event-type pairs, measure symmetry
+      formally (e.g.\ sign-parity and magnitude ratio across parties)
+      before any claim that the model is ``bipartisan.'' This is a
+      methodology question for the Espinosa check-in --- a model presented
+      as party-neutral must demonstrate it empirically.
+    \item[$\square$] \textbf{[blocking --- PUBLIC DEPLOY + LIVE COST]}
+      \texttt{min\_containers=1} is deployed (warm A10, fixes CORS/150s
+      timeout root cause) but costs \textasciitilde\$1/hr 24/7
+      \emph{right now}. Must: (a) set Modal billing hard limit immediately;
+      (b) add per-IP rate limit and concurrency cap before sharing the URL;
+      (c) scale to \texttt{min\_containers=0} after the demo window closes.
+      This is no longer hypothetical --- it is live spend.
+      \textbf{Background:} Modal enforces a 150\,s web-request timeout;
+      requests over it get a 303 redirect that strips CORS headers. Cold
+      start triggered a 14\,GB model re-download (\texttt{snapshot\_download}
+      used \texttt{local\_dir} not HF cache format, so \texttt{from\_pretrained}
+      re-fetched every time, $\sim$3\,min). Fixed: correct \texttt{cache\_dir}
+      format + \texttt{min\_containers=1}.
     \item[$\square$] \textbf{[correctness --- CONFIRMED OPEN 2026-06-24]}
       win\_probability CI [0.653, 0.668] observed live --- a 1.5\,pp
       width that is MC sampling error around the diagonal fallback cov,

@@ -126,6 +126,9 @@ export default function ShockInput({
               </button>
             ))}
           </div>
+          <p className="mt-2 text-xs italic text-gray-400">
+            The party toggle above determines whose coalition is modeled — this event is interpreted as affecting the selected party&apos;s candidate.
+          </p>
         </div>
       </div>
 

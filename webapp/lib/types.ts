@@ -76,7 +76,7 @@ export interface ShockResponseData {
 export interface EquilibriumData {
   method: string;
   party: Party;
-  shock: string;
+  shock: string | null;
   weights: Record<RaceBloc, number>;
   mu_shifted: Record<RaceBloc, number>;   // per-bloc post-shock loyalty μ̃_i (for bar rendering)
   mu_eff_shifted: number;                 // λ-weighted scalar across all three strata (for gap display)

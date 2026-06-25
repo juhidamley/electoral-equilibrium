@@ -112,7 +112,7 @@ export const ShockResponseDataSchema = z.object({
 export const EquilibriumDataSchema = z.object({
   method: z.string(),
   party: PartySchema,
-  shock: z.string(),
+  shock: z.string().nullable(),
   weights: raceRecord(z.number()),
   mu_shifted: raceRecord(z.number()),
   mu_eff_shifted: z.number(),

@@ -161,26 +161,41 @@ export default function CoalitionChart({
   // event: 1 hook — React throws "Rendered more hooks than previous render").
   const BarShape = useMemo(
     () =>
-      (props: {
-        x?: number; y?: number; width?: number; height?: number;
-        value?: number;
-        payload?: ChartEntry;
-      }) => {
-        const { x = 0, y = 0, width = 0, height = 0, value, payload } = props;
-        const sv = typeof value === "number" ? value : payload?.shifted;
+      (props: Record<string, unknown>) => {
+        const x = (props.x as number) ?? 0;
+        const y = (props.y as number) ?? 0;
+        const height = (props.height as number) ?? 0;
+        const value = props.value;
+        const payload = props.payload as ChartEntry | undefined;
+        const bg = props.background as { width?: number } | undefined;
+        // Recharts 3 passes value as array [start, end] for range bars or as a scalar.
+        const sv: number | null | undefined = Array.isArray(value)
+          ? (value[1] as number)
+          : typeof value === "number"
+            ? value
+            : payload?.shifted;
+        // Derive pixel scale from background.width (full plot span for domain [0,1]).
+        // Falls back to width/sv only when recharts omits background — avoids
+        // width=0 during initial layout causing all-blank bars.
+        const rawW = (props.width as number) ?? 0;
+        const plotW: number | null =
+          bg?.width != null && bg.width > 0
+            ? bg.width
+            : sv != null && sv > 0 && rawW > 0
+              ? rawW / sv
+              : null;
+        if (process.env.NODE_ENV === "development") {
+          console.log("[BarShape]", { bloc: payload?.bloc, sv, value, plotW, height });
+        }
         const wv = payload?.weight ?? null;
         const bv = payload?.baseline ?? null;
         const dv = payload?.delta ?? null;
-        if (sv == null || width <= 0) return <g />;
+        if (sv == null || plotW == null) return <g />;
 
-        // pixels per unit on the shared [0,1] x-axis
-        const scale = width / sv;
-
-        // Baseline tick x-position (null when μ_i not yet in SSE payload)
-        const baselineX = bv != null ? x + bv * scale : null;
-
-        // Translucent weight bar width
-        const weightW = hasRebalanced && wv != null ? Math.max(0, wv * scale) : 0;
+        // All bar widths derived from plotW — immune to recharts width=0 quirks.
+        const barW = Math.max(0, sv * plotW);
+        const baselineX = bv != null ? x + bv * plotW : null;
+        const weightW = hasRebalanced && wv != null ? Math.max(0, wv * plotW) : 0;
 
         // Bar labels
         const deltaStr =
@@ -197,7 +212,7 @@ export default function CoalitionChart({
             {/* 1. Opaque prediction bar (shifted μ̃_i) */}
             <rect
               x={x} y={y}
-              width={Math.max(0, width)} height={height}
+              width={barW} height={height}
               fill={partyColor} fillOpacity={1}
             />
 
@@ -221,9 +236,9 @@ export default function CoalitionChart({
             )}
 
             {/* Delta label on opaque bar (+8pp / -3pp) */}
-            {deltaStr != null && width > 30 && (
+            {deltaStr != null && barW > 30 && (
               <text
-                x={x + width - 4} y={y + height / 2 + 4}
+                x={x + barW - 4} y={y + height / 2 + 4}
                 textAnchor="end" fontSize={10} fill="white"
               >
                 {deltaStr}

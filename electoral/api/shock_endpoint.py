@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import dataclasses
 import hashlib
 import hmac
 import json
@@ -618,6 +619,26 @@ async def estimate_stream(
 
         llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("SSE deltas: %.0fms", llm_ms)
+
+        # Recompute delta_eff from the predicted bins rather than using the LLM's
+        # own scalar prediction, which drifts from the bins it actually emitted.
+        # Nominal loyalties serve as coalition-weight proxies (per-party, so the
+        # asymmetry is correct: a scandal hurts Democrat AA more than Republican AA).
+        # The deltas already carry the intensity multiplier from ShockEstimator.estimate.
+        from electoral.simulation.montecarlo import _load_layer_weights
+        _lw = _load_layer_weights()
+        _eff = (
+            _lw["lambda_1"] * sum(
+                nominal_mu[b] * shock.deltas_race.get(b, 0.0) for b in CANONICAL_RACES
+            )
+            + _lw["lambda_2"] * sum(
+                nominal_rel[R] * shock.deltas_religion.get(R, 0.0) for R in CANONICAL_RELIGIONS
+            )
+            + _lw["lambda_3"] * sum(
+                nominal_gen[G] * shock.deltas_gender.get(G, 0.0) for G in CANONICAL_GENDERS
+            )
+        )
+        shock = dataclasses.replace(shock, delta_eff=float(_eff))
         yield _sse("deltas", shock.to_dict())
 
         # ── Compute mu_tilde (nominal + delta per bloc) ────────────────────────
@@ -631,9 +652,7 @@ async def estimate_stream(
         # this shock's religion/gender deltas — so the API optimizer uses the same
         # μ_eff basis as the kernel (the "μ_eff basis" fix), not neutral 0.5.
         from electoral.optimization.dqcp import compute_fixed_loyalty
-        from electoral.simulation.montecarlo import _load_layer_weights
 
-        _lw = _load_layer_weights()
         fixed_loyalty = compute_fixed_loyalty(
             nominal_rel,
             nominal_gen,
