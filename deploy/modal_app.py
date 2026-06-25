@@ -108,7 +108,7 @@ def _download_base_model() -> None:
 
     snapshot_download(
         repo_id=_BASE_MODEL,
-        local_dir=_MODEL_CACHE,
+        cache_dir=_MODEL_CACHE,
         ignore_patterns=[
             "*.msgpack",
             "*.h5",
@@ -188,6 +188,7 @@ _AUDIT_DB_PATH = "/audit/audit.duckdb"
     ],
     # Single-writer constraint for both DuckDB and the CVXPY ProcessPoolExecutor.
     # Raise only after switching audit store to a concurrent-safe backend.
+    min_containers=1,  # keep one warm — avoids cold-start 303/CORS break
     max_containers=1,
     scaledown_window=600,  # keep warm 5 min — saves cold-start latency
 )
