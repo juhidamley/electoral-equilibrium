@@ -188,9 +188,9 @@ _AUDIT_DB_PATH = "/audit/audit.duckdb"
     ],
     # Single-writer constraint for both DuckDB and the CVXPY ProcessPoolExecutor.
     # Raise only after switching audit store to a concurrent-safe backend.
-    min_containers=1,  # keep one warm — avoids cold-start 303/CORS break
+    min_containers=0,  # scaled to zero — no idle GPU billing
     max_containers=1,
-    scaledown_window=600,  # keep warm 5 min — saves cold-start latency
+    scaledown_window=60,  # release GPU 60 s after last request — no idle billing
 )
 @modal.asgi_app()
 def serve() -> Any:
