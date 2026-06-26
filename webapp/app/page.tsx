@@ -277,8 +277,6 @@ export default function HomePage() {
                   winProbabilityHigh={simulation?.win_probability_high}
                   percentiles={simulation?.percentiles ?? null}
                   loading={loading && !simulation}
-                  party={party}
-                  event={event}
                 />
               </>
             )}

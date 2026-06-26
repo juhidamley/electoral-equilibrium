@@ -5,11 +5,10 @@
 // ============================================================================
 // HOW TO READ IT: the needle sweeps left (0% = certain loss) → up (50% = toss-up)
 // → right (100% = certain win) over a red/yellow/green arc. Below it: the 90%
-// confidence interval and, for comparison, the live betting-market consensus.
-// The number comes from the Monte Carlo simulation (the "simulation" SSE event).
+// confidence interval. The number comes from the Monte Carlo simulation (the
+// "simulation" SSE event).
 //
-// It's an SVG drawing computed by hand (the geometry math is below). It also uses
-// React state/effects (useState/useEffect) to fetch the market price on its own.
+// It's an SVG drawing computed by hand (the geometry math is below).
 //
 // Semicircular gauge — win probability from Logistic-Normal Monte Carlo.
 //
@@ -20,9 +19,8 @@
 //   (winProbability * 180 - 90)°. Verified anchor cases:
 //   0% → -90° → points left ✓, 50% → 0° → points up ✓, 100% → +90° → right ✓
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import PercentileStrip from "@/components/PercentileStrip";
-import type { Party } from "@/lib/types";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -32,20 +30,7 @@ interface WinGaugeProps {
   winProbabilityLow?: number;
   winProbabilityHigh?: number;
   loading?: boolean;
-  party: Party;
-  event: string;
 }
-
-// ── Market-prior fetch ────────────────────────────────────────────────────────
-
-type MarketStatus =
-  | { tag: "idle" }
-  | { tag: "loading" }
-  | { tag: "found"; probability: number }
-  | { tag: "unavailable" }; // covers both "no contract" and fetch errors
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // ── Arc geometry ──────────────────────────────────────────────────────────────
 
@@ -87,47 +72,9 @@ export default function WinGauge({
   winProbabilityLow,
   winProbabilityHigh,
   loading,
-  party,
-  event,
 }: WinGaugeProps) {
   const isLoading = loading || winProbability === null;
 
-  // ── Market-prior fetch ─────────────────────────────────────────────────────
-  // Fires when event+party change (i.e. on each submit). Gated at ≥10 chars
-  // to match the backend's validation threshold. Errors silently degrade to
-  // "unavailable" — a market lookup failure must never block the model output.
-  const [market, setMarket] = useState<MarketStatus>({ tag: "idle" });
-
-  useEffect(() => {
-    if (event.length < 10) {
-      setMarket({ tag: "idle" });
-      return;
-    }
-    const controller = new AbortController();
-    setMarket({ tag: "loading" });
-    fetch(
-      `${API_URL}/api/market-prior?party=${party}&event=${encodeURIComponent(event)}`,
-      { signal: controller.signal },
-    )
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: unknown) => {
-        const p = (data as Record<string, unknown>)?.probability;
-        if (typeof p === "number") {
-          setMarket({ tag: "found", probability: p });
-        } else {
-          setMarket({ tag: "unavailable" });
-        }
-      })
-      .catch((err: Error) => {
-        if (err.name === "AbortError") return;
-        console.error("Market prior fetch failed:", err);
-        setMarket({ tag: "unavailable" });
-      });
-    return () => controller.abort();
-  }, [event, party]);
   const pct = winProbability !== null ? Math.round(winProbability * 100) : null;
 
   // Rotation: p=0 → -90°, p=0.5 → 0°, p=1 → +90°
@@ -253,35 +200,6 @@ export default function WinGauge({
           )
         ) : null}
       </div>
-
-      {/* Market consensus + disclaimer — only rendered after model result arrives */}
-      {!isLoading && market.tag !== "idle" && (
-        <div className="mt-3 w-full space-y-0.5 border-t border-gray-100 pt-3 text-center text-xs">
-          {market.tag === "loading" && (
-            <p className="animate-pulse text-gray-400">
-              Fetching market consensus…
-            </p>
-          )}
-          {market.tag === "found" && (
-            <p className="text-gray-500">
-              Market consensus:{" "}
-              <span className="font-medium">
-                {Math.round(market.probability * 100)}%
-              </span>
-            </p>
-          )}
-          {market.tag === "unavailable" && (
-            <p className="italic text-gray-400">No active market</p>
-          )}
-          {/* Disclaimer — appears once market lookup reaches a terminal state */}
-          {(market.tag === "found" || market.tag === "unavailable") && (
-            <p className="mt-1 text-[10px] leading-snug text-gray-400">
-              Model: N=10,000 simulations of coalition structure under this
-              hypothetical. Market: live Polymarket/Manifold prices.
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Percentile distribution strip — supplementary detail, shown only once
           simulation data is present; PercentileStrip handles null silently. */}
