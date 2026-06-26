@@ -197,36 +197,44 @@ export default function CoalitionChart({
         const baselineX = bv != null ? x + bv * plotW : null;
         const weightW = hasRebalanced && wv != null ? Math.max(0, wv * plotW) : 0;
 
+        // Split the row into two stacked lanes so the loyalty bar and the
+        // rebalance-weight bar never occlude each other. Both share x and the
+        // same color, and loyalty (≈0.4–0.9) is almost always wider than weight
+        // (bounded [0.05, 0.60]) — drawing the translucent weight ON TOP of the
+        // opaque loyalty bar made it invisible. Two lanes fixes that.
+        const showWeight = hasRebalanced && wv != null;
+        const gap = 1;
+        const loyH = showWeight ? Math.round(height * 0.56) : height;
+        const wtY = y + loyH + gap;
+        const wtH = Math.max(0, height - loyH - gap);
+
         // Bar labels
         const deltaStr =
           dv != null
             ? `${dv >= 0 ? "+" : ""}${Math.round(dv * 100)}pp`
             : null;
-        const weightStr =
-          hasRebalanced && wv != null
-            ? `${Math.round(wv * 100)}%`
-            : null;
+        const weightStr = showWeight ? `${Math.round(wv! * 100)}%` : null;
 
         return (
           <g>
-            {/* 1. Opaque prediction bar (shifted μ̃_i) */}
+            {/* 1. Opaque prediction bar (shifted μ̃_i) — top lane */}
             <rect
               x={x} y={y}
-              width={barW} height={height}
+              width={barW} height={loyH}
               fill={partyColor} fillOpacity={1}
             />
 
-            {/* 2. Translucent rebalance overlay (weight w̃_i) */}
-            {hasRebalanced && wv != null && (
+            {/* 2. Rebalance-weight bar (weight w̃_i) — bottom lane */}
+            {showWeight && (
               <rect
-                x={x} y={y}
-                width={weightW} height={height}
+                x={x} y={wtY}
+                width={weightW} height={wtH}
                 fill={feasible ? partyColor : "url(#stripe-infeasible)"}
-                fillOpacity={feasible ? 0.35 : 1}
+                fillOpacity={feasible ? 0.4 : 1}
               />
             )}
 
-            {/* 3. Baseline reference tick (μ_i pre-shock) */}
+            {/* 3. Baseline reference tick (μ_i pre-shock) — spans both lanes */}
             {baselineX != null && (
               <line
                 x1={baselineX} y1={y}
@@ -235,21 +243,21 @@ export default function CoalitionChart({
               />
             )}
 
-            {/* Delta label on opaque bar (+8pp / -3pp) */}
+            {/* Delta label on loyalty lane (+8pp / -3pp) */}
             {deltaStr != null && barW > 30 && (
               <text
-                x={x + barW - 4} y={y + height / 2 + 4}
+                x={x + barW - 4} y={y + loyH / 2 + 3}
                 textAnchor="end" fontSize={10} fill="white"
               >
                 {deltaStr}
               </text>
             )}
 
-            {/* Weight label on translucent bar (14%) */}
+            {/* Weight label on rebalance lane (14%) */}
             {weightStr != null && weightW > 30 && (
               <text
-                x={x + weightW - 4} y={y + height / 2 + 4}
-                textAnchor="end" fontSize={10} fill={partyColor} fillOpacity={0.9}
+                x={x + weightW - 4} y={wtY + wtH / 2 + 3}
+                textAnchor="end" fontSize={9} fill="white" fillOpacity={0.95}
               >
                 {weightStr}
               </text>
@@ -310,7 +318,7 @@ export default function CoalitionChart({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-5 rounded-sm"
-            style={{ background: partyColor, opacity: 0.35 }}
+            style={{ background: partyColor, opacity: 0.4 }}
           />
           <span className="text-sm text-gray-500">Most likely rebalance</span>
           <span className="text-xs text-gray-400">(coalition weight)</span>
@@ -328,7 +336,7 @@ export default function CoalitionChart({
           layout="vertical"
           data={chartData}
           margin={{ top: 2, right: 44, bottom: 2, left: 8 }}
-          barSize={22}
+          barSize={30}
         >
           {/* SVG pattern for infeasible bars */}
           <Customized component={InfeasibleDefs} />
