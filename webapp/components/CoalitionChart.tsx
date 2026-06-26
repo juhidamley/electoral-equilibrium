@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================================
-// CoalitionChart — the main visualization: one horizontal bar per race bloc.
+// CoalitionChart — TWO side-by-side panels, one quantity each.
 // ============================================================================
 // BEGINNER ORIENTATION (React + recharts):
 //   • This file exports a React COMPONENT — a function that takes `props` (its
@@ -10,22 +10,23 @@
 //     arrive from the parent page as SSE events stream in.
 //   • "use client" (top line) marks this as a browser component (Next.js renders
 //     some components on the server; charts need the browser, hence this).
-//   • We draw with `recharts`, a charting library. The unusual part: instead of
-//     letting recharts draw plain bars, we give it a CUSTOM `shape` (BarShape
-//     below) that hand-draws three layers per row as raw SVG. That's how we get
-//     prediction + rebalance + baseline into a single bar.
+//   • We draw with `recharts`. Each panel is a plain horizontal bar chart; the
+//     only custom part is a `shape` (makeBarShape) that hand-draws one bar + its
+//     label as raw SVG so we control sizing precisely.
 //
-// WHAT THE USER SEES — three layers per race bloc:
-//   1. Opaque bar    — shifted (equilibrium.mu_shifted per-bloc loyalty μ̃_i ∈ [0,1]):
-//                      "how loyal this bloc is to the party after the shock."
-//   2. Translucent   — rebalanced (equilibrium.weights w̃_i, fillOpacity=0.35):
-//                      "how much the optimizer says to lean on this bloc."
-//   3. Baseline tick — thin dashed gray line at μ_i (pre-shock), when available.
+// WHY TWO PANELS (this used to be one overlaid chart):
+//   Panel A — "Predicted loyalty shift" (μ̃_i ∈ [0,1]): how loyal each bloc is to
+//             the selected party AFTER the shock.
+//   Panel B — "Optimizer-recommended coalition emphasis" (w̃_i ∈ [0,1]): the
+//             optimizer's strategic weighting — how heavily to lean on each bloc.
+//             This is NOT each bloc's share of the population or electorate.
+//   The previous single-chart overlay drew w̃ as a translucent bar on top of μ̃,
+//   which (a) had a rendering bug where the translucent layer didn't show and
+//   (b) led users to read w̃ as population share. Two separate panels fix both:
+//   each quantity gets its own clean [0,1] axis and its own honest header.
 //
-// All three layers arrive together on the "equilibrium" SSE event. The chart shows a
-// skeleton until that event arrives, then renders both layers without animation.
-//
-// Both μ̃_i and w̃_i are in [0,1], so they share a single x-axis.
+// Both quantities arrive together on the "equilibrium" SSE event; the panels show
+// a skeleton until then, then render without animation.
 
 import React, { useMemo } from "react";
 import {
@@ -92,6 +93,9 @@ const InfeasibleDefs = (_: unknown) => (
 );
 
 // ── Custom tooltip ────────────────────────────────────────────────────────────
+// Shared by both panels — shows loyalty and (strategic) emphasis together. With
+// the panels visually separated, surfacing both numbers in the tooltip is a
+// convenience, not an overlay: the wording makes clear emphasis ≠ population share.
 
 const CustomTooltip = ({ active, payload, label }: {
   active?: boolean;
@@ -118,12 +122,146 @@ const CustomTooltip = ({ active, payload, label }: {
       )}
       {entry.weight != null && (
         <p>
-          Coalition weight: <strong>{Math.round(entry.weight * 100)}%</strong>
+          Coalition emphasis (strategic weighting):{" "}
+          <strong>{Math.round(entry.weight * 100)}%</strong>
         </p>
       )}
     </div>
   );
 };
+
+// ── Single-quantity bar shape factory ─────────────────────────────────────────
+// Returns a recharts `shape` function that draws ONE bar + its value label.
+// Defined at module level so the closures are stable; each panel wraps it in a
+// useMemo (constant hook count) below.
+//
+// `valueKey` selects which ChartEntry field this bar reads (shifted | weight) —
+// we read from payload, not the spread `value`, so a null field cleanly renders
+// nothing instead of a zero-width artifact.
+
+function makeBarShape(opts: {
+  valueKey: "shifted" | "weight";
+  color: string;
+  fillOpacity: number;
+  stripeWhenInfeasible?: boolean;
+  feasible?: boolean;
+  showBaseline?: boolean;
+}) {
+  return (props: Record<string, unknown>) => {
+    const x = (props.x as number) ?? 0;
+    const y = (props.y as number) ?? 0;
+    const height = (props.height as number) ?? 0;
+    const payload = props.payload as ChartEntry | undefined;
+    const bg = props.background as { width?: number } | undefined;
+
+    const sv = payload ? payload[opts.valueKey] : null;
+
+    // Derive pixel scale from background.width (full plot span for domain [0,1]).
+    // Falls back to recharts' own width/sv only when background is omitted —
+    // avoids the width=0-during-initial-layout bug that blanked bars.
+    const rawW = (props.width as number) ?? 0;
+    const plotW: number | null =
+      bg?.width != null && bg.width > 0
+        ? bg.width
+        : sv != null && sv > 0 && rawW > 0
+          ? rawW / sv
+          : null;
+    if (sv == null || plotW == null) return <g />;
+
+    const barW = Math.max(0, sv * plotW);
+    const infeasible = opts.stripeWhenInfeasible && opts.feasible === false;
+    const fill = infeasible ? "url(#stripe-infeasible)" : opts.color;
+    const fillOpacity = infeasible ? 1 : opts.fillOpacity;
+
+    const bv = payload?.baseline ?? null;
+    const baselineX = opts.showBaseline && bv != null ? x + bv * plotW : null;
+
+    const labelStr = `${Math.round(sv * 100)}%`;
+    // Inside (white) when the bar is wide enough; otherwise just outside the end
+    // (gray) so small bars — common for coalition emphasis — stay readable.
+    const labelInside = barW > 34;
+
+    return (
+      <g>
+        <rect x={x} y={y} width={barW} height={height} fill={fill} fillOpacity={fillOpacity} />
+
+        {/* Baseline reference tick (μ_i pre-shock) — loyalty panel only */}
+        {baselineX != null && (
+          <line
+            x1={baselineX} y1={y}
+            x2={baselineX} y2={y + height}
+            stroke="#9ca3af" strokeWidth={2} strokeDasharray="3 2"
+          />
+        )}
+
+        {labelInside ? (
+          <text
+            x={x + barW - 4} y={y + height / 2 + 3}
+            textAnchor="end" fontSize={10} fill="white"
+          >
+            {labelStr}
+          </text>
+        ) : (
+          <text
+            x={x + barW + 4} y={y + height / 2 + 3}
+            textAnchor="start" fontSize={10} fill="#4b5563"
+          >
+            {labelStr}
+          </text>
+        )}
+      </g>
+    );
+  };
+}
+
+// ── One panel (header + chart) ────────────────────────────────────────────────
+
+function ChartPanel({
+  title,
+  subtitle,
+  data,
+  dataKey,
+  shape,
+}: {
+  title: string;
+  subtitle: string;
+  data: ChartEntry[];
+  dataKey: "shifted" | "weight";
+  shape: (props: Record<string, unknown>) => React.ReactElement;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2">
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+        <p className="text-xs text-gray-400">{subtitle}</p>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart
+          layout="vertical"
+          data={data}
+          margin={{ top: 2, right: 40, bottom: 2, left: 8 }}
+          barSize={22}
+        >
+          <Customized component={InfeasibleDefs} />
+          <XAxis
+            type="number"
+            domain={[0, 1]}
+            tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+            tick={{ fontSize: 11 }}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={120}
+            tick={{ fontSize: 11 }}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey={dataKey} shape={shape as any} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -153,130 +291,44 @@ export default function CoalitionChart({
       ? (muEffShifted - target) * 100
       : null;
 
-  // ── Custom bar shape ───────────────────────────────────────────────────────
-  // useMemo is declared HERE — before the skeleton early return — so the hook
-  // call count is identical on every render regardless of whether shifted is
-  // null or not. Moving it after the early return causes a Rules-of-Hooks
-  // violation on the null→data transition (first render: 0 hooks; after SSE
-  // event: 1 hook — React throws "Rendered more hooks than previous render").
-  const BarShape = useMemo(
+  // Two single-quantity shapes. useMemo keeps a constant hook count across the
+  // null→data transition (Rules of Hooks), and both are declared BEFORE the
+  // skeleton early return below.
+  const LoyaltyShape = useMemo(
     () =>
-      (props: Record<string, unknown>) => {
-        const x = (props.x as number) ?? 0;
-        const y = (props.y as number) ?? 0;
-        const height = (props.height as number) ?? 0;
-        const value = props.value;
-        const payload = props.payload as ChartEntry | undefined;
-        const bg = props.background as { width?: number } | undefined;
-        // Recharts 3 passes value as array [start, end] for range bars or as a scalar.
-        const sv: number | null | undefined = Array.isArray(value)
-          ? (value[1] as number)
-          : typeof value === "number"
-            ? value
-            : payload?.shifted;
-        // Derive pixel scale from background.width (full plot span for domain [0,1]).
-        // Falls back to width/sv only when recharts omits background — avoids
-        // width=0 during initial layout causing all-blank bars.
-        const rawW = (props.width as number) ?? 0;
-        const plotW: number | null =
-          bg?.width != null && bg.width > 0
-            ? bg.width
-            : sv != null && sv > 0 && rawW > 0
-              ? rawW / sv
-              : null;
-        if (process.env.NODE_ENV === "development") {
-          console.log("[BarShape]", { bloc: payload?.bloc, sv, value, plotW, height });
-        }
-        const wv = payload?.weight ?? null;
-        const bv = payload?.baseline ?? null;
-        const dv = payload?.delta ?? null;
-        if (sv == null || plotW == null) return <g />;
-
-        // All bar widths derived from plotW — immune to recharts width=0 quirks.
-        const barW = Math.max(0, sv * plotW);
-        const baselineX = bv != null ? x + bv * plotW : null;
-        const weightW = hasRebalanced && wv != null ? Math.max(0, wv * plotW) : 0;
-
-        // Split the row into two stacked lanes so the loyalty bar and the
-        // rebalance-weight bar never occlude each other. Both share x and the
-        // same color, and loyalty (≈0.4–0.9) is almost always wider than weight
-        // (bounded [0.05, 0.60]) — drawing the translucent weight ON TOP of the
-        // opaque loyalty bar made it invisible. Two lanes fixes that.
-        const showWeight = hasRebalanced && wv != null;
-        const gap = 1;
-        const loyH = showWeight ? Math.round(height * 0.56) : height;
-        const wtY = y + loyH + gap;
-        const wtH = Math.max(0, height - loyH - gap);
-
-        // Bar labels
-        const deltaStr =
-          dv != null
-            ? `${dv >= 0 ? "+" : ""}${Math.round(dv * 100)}pp`
-            : null;
-        const weightStr = showWeight ? `${Math.round(wv! * 100)}%` : null;
-
-        return (
-          <g>
-            {/* 1. Opaque prediction bar (shifted μ̃_i) — top lane */}
-            <rect
-              x={x} y={y}
-              width={barW} height={loyH}
-              fill={partyColor} fillOpacity={1}
-            />
-
-            {/* 2. Rebalance-weight bar (weight w̃_i) — bottom lane */}
-            {showWeight && (
-              <rect
-                x={x} y={wtY}
-                width={weightW} height={wtH}
-                fill={feasible ? partyColor : "url(#stripe-infeasible)"}
-                fillOpacity={feasible ? 0.4 : 1}
-              />
-            )}
-
-            {/* 3. Baseline reference tick (μ_i pre-shock) — spans both lanes */}
-            {baselineX != null && (
-              <line
-                x1={baselineX} y1={y}
-                x2={baselineX} y2={y + height}
-                stroke="#9ca3af" strokeWidth={2} strokeDasharray="3 2"
-              />
-            )}
-
-            {/* Delta label on loyalty lane (+8pp / -3pp) */}
-            {deltaStr != null && barW > 30 && (
-              <text
-                x={x + barW - 4} y={y + loyH / 2 + 3}
-                textAnchor="end" fontSize={10} fill="white"
-              >
-                {deltaStr}
-              </text>
-            )}
-
-            {/* Weight label on rebalance lane (14%) */}
-            {weightStr != null && weightW > 30 && (
-              <text
-                x={x + weightW - 4} y={wtY + wtH / 2 + 3}
-                textAnchor="end" fontSize={9} fill="white" fillOpacity={0.95}
-              >
-                {weightStr}
-              </text>
-            )}
-          </g>
-        );
-      },
-    [partyColor, feasible, hasRebalanced],
+      makeBarShape({
+        valueKey: "shifted",
+        color: partyColor,
+        fillOpacity: 1,
+        showBaseline: true,
+      }),
+    [partyColor],
+  );
+  const WeightShape = useMemo(
+    () =>
+      makeBarShape({
+        valueKey: "weight",
+        color: partyColor,
+        fillOpacity: 0.55,
+        stripeWhenInfeasible: true,
+        feasible,
+      }),
+    [partyColor, feasible],
   );
 
   // ── Skeleton ───────────────────────────────────────────────────────────────
   if (shifted === null) {
     return (
       <div className="rounded-md border border-gray-100 bg-white p-4">
-        <div className="space-y-3 animate-pulse">
-          {RACE_BLOCS.map((b) => (
-            <div key={b} className="flex items-center gap-3">
-              <div className="h-3 w-28 rounded bg-gray-100" />
-              <div className="h-6 flex-1 rounded bg-gray-100" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {[0, 1].map((panel) => (
+            <div key={panel} className="space-y-3 animate-pulse">
+              {RACE_BLOCS.map((b) => (
+                <div key={b} className="flex items-center gap-3">
+                  <div className="h-3 w-24 rounded bg-gray-100" />
+                  <div className="h-5 flex-1 rounded bg-gray-100" />
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -285,6 +337,8 @@ export default function CoalitionChart({
   }
 
   // ── Chart data ─────────────────────────────────────────────────────────────
+  // Sorted by post-shock loyalty descending so both panels share row order and
+  // line up for visual comparison.
   const chartData: ChartEntry[] = RACE_BLOCS.map((bloc) => {
     const s = shifted[bloc] ?? null;
     const b = baseline?.[bloc] ?? null;
@@ -297,7 +351,7 @@ export default function CoalitionChart({
       weight: w,
       delta: s != null && b != null ? s - b : null,
     };
-  }).sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
+  }).sort((a, b) => (b.shifted ?? 0) - (a.shifted ?? 0));
 
   return (
     <div className="rounded-md border border-gray-100 bg-white p-4">
@@ -308,61 +362,24 @@ export default function CoalitionChart({
         </div>
       )}
 
-      {/* Section header — explains each layer before the user reads the chart */}
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1.5">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-5 rounded-sm" style={{ background: partyColor }} />
-          <strong className="text-sm text-gray-800">What will happen</strong>
-          <span className="text-xs text-gray-400">(loyalty shift)</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-3 w-5 rounded-sm"
-            style={{ background: partyColor, opacity: 0.4 }}
-          />
-          <span className="text-sm text-gray-500">Most likely rebalance</span>
-          <span className="text-xs text-gray-400">(coalition weight)</span>
-        </span>
-        {baseline !== null && (
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 border-t-2 border-dashed border-gray-400" />
-            <span className="text-xs text-gray-400">Pre-shock baseline</span>
-          </span>
-        )}
-      </div>
-
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart
-          layout="vertical"
+      {/* Two distinct panels — loyalty (μ̃) and strategic emphasis (w̃) — never
+          overlaid, so emphasis can't be misread as a share of the population. */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <ChartPanel
+          title="Predicted loyalty shift"
+          subtitle="Per-bloc support for the party after the shock (μ̃)"
           data={chartData}
-          margin={{ top: 2, right: 44, bottom: 2, left: 8 }}
-          barSize={30}
-        >
-          {/* SVG pattern for infeasible bars */}
-          <Customized component={InfeasibleDefs} />
-
-          <XAxis
-            type="number"
-            domain={[0, 1]}
-            tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
-            tick={{ fontSize: 11 }}
-          />
-          <YAxis
-            type="category"
-            dataKey="label"
-            width={130}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-
-          {/* Single <Bar> renders all three layers via BarShape */}
-          <Bar
-            dataKey="shifted"
-            shape={BarShape as any}
-            isAnimationActive={false}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+          dataKey="shifted"
+          shape={LoyaltyShape}
+        />
+        <ChartPanel
+          title="Optimizer-recommended coalition emphasis"
+          subtitle="Strategic weighting (w̃) — not population share"
+          data={chartData}
+          dataKey="weight"
+          shape={WeightShape}
+        />
+      </div>
 
       {/* Equilibrium summary — visible once equilibrium SSE event arrives */}
       {shifted !== null && (

@@ -66,6 +66,70 @@ function HowItWorks() {
   );
 }
 
+// ── "What do these mean?" explainer ───────────────────────────────────────────
+// Plain-language definitions for the two charts + the gauge. The closing caveat
+// is the honest disclaimer that coalition emphasis is NOT population share.
+
+function WhatDoTheseMean() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible.Root
+      open={open}
+      onOpenChange={setOpen}
+      className="overflow-hidden rounded-md border border-gray-200 bg-white"
+    >
+      <Collapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
+        What do these mean?
+        <ChevronDown
+          className={`h-4 w-4 flex-none text-gray-400 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </Collapsible.Trigger>
+      <Collapsible.Content>
+        <dl className="space-y-2.5 px-4 pb-2 pt-1 text-sm text-gray-600">
+          <div>
+            <dt className="inline font-medium text-gray-800">Loyalty shift (μ̃).</dt>{" "}
+            <dd className="inline">
+              How much each bloc&apos;s support for the selected party moves after
+              this hypothetical shock.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-medium text-gray-800">Coalition emphasis (w̃).</dt>{" "}
+            <dd className="inline">
+              The optimizer&apos;s recommendation for how heavily the campaign
+              should lean on each bloc to stay above the win threshold — this is a
+              strategic weighting, NOT each bloc&apos;s share of the population or
+              electorate.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-medium text-gray-800">Equilibrium status.</dt>{" "}
+            <dd className="inline">
+              Whether a weighting exists that keeps effective loyalty above the
+              model&apos;s win threshold.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-medium text-gray-800">Win probability.</dt>{" "}
+            <dd className="inline">
+              The model&apos;s simulated probability of clearing the threshold
+              under this hypothetical — a conditional estimate, not a real-world
+              forecast.
+            </dd>
+          </div>
+        </dl>
+        <p className="px-4 pb-4 pt-1 text-xs leading-snug text-gray-400">
+          Coalition emphasis reflects the optimizer&apos;s math and is not
+          currently constrained to realistic demographic shares; treat it as
+          relative strategic weighting, not a literal coalition composition.
+        </p>
+      </Collapsible.Content>
+    </Collapsible.Root>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 //
 // This is the top-level page component and the frontend's "state machine". A few
@@ -269,6 +333,9 @@ export default function HomePage() {
                   party={party}
                   loading={loading}
                 />
+
+                {/* Plain-language definitions for the two panels + the gauge */}
+                <WhatDoTheseMean />
 
                 {/* WinGauge: skeleton until "simulation" event */}
                 <WinGauge

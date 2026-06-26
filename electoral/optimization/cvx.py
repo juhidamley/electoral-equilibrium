@@ -43,6 +43,19 @@ __all__ = ["solve_baseline", "solve_rebalanced", "solve_equal_weight_rebalanced"
 
 logger = logging.getLogger(__name__)
 
+# Demographic-plausibility band for coalition weights, expressed as multipliers on
+# each bloc's baseline NEP electorate share w0_i:
+#     w0_i · WEIGHT_LOWER_MULT  ≤  w_i  ≤  w0_i · WEIGHT_UPPER_MULT
+# Rationale: a campaign can shift a bloc's *effective* emphasis up or down by
+# turnout/persuasion, but not by multiples — so optimal coalition weights should
+# stay within a realistic band of the electorate's actual composition rather than
+# concentrating on whichever bloc has the highest predicted loyalty.
+#
+# PROVISIONAL — these multipliers are a first pass pending advisor (Espinosa)
+# review; the ±50% band is a modeling judgment, not an empirically calibrated one.
+WEIGHT_LOWER_MULT: float = 0.5
+WEIGHT_UPPER_MULT: float = 1.5
+
 
 def solve_rebalanced(
     mu_tilde: dict[str, float],
@@ -50,8 +63,8 @@ def solve_rebalanced(
     target: float,
     party: str = "democrat",
     shock: str = "",
-    floor: float = 0.05,
-    ceiling: float = 0.60,
+    floor: float | None = None,
+    ceiling: float | None = None,
     fixed_loyalty: float | None = None,
 ) -> EquilibriumData:
     """Solve max P(win) and return a validated EquilibriumData — the ONE optimizer.
@@ -74,7 +87,12 @@ def solve_rebalanced(
         cov_delta: 5×5 race covariance Σ_Δ.
         target:    V_eq win threshold.
         party/shock: passed through to the artifact.
-        floor/ceiling: per-bloc weight bounds.
+        floor/ceiling: OPTIONAL uniform per-bloc weight bounds. When BOTH are left
+            as None (the default), each bloc is instead bounded to a demographic-
+            plausibility band around its baseline NEP electorate share w0_i:
+            [w0_i·WEIGHT_LOWER_MULT, w0_i·WEIGHT_UPPER_MULT]. Passing explicit
+            floor/ceiling restores the legacy uniform band (used by some tests and
+            ad-hoc callers).
     """
     # Lazy imports: keep this module light and avoid any import-order surprises.
     from electoral.optimization.dqcp import compute_mu_eff, solve_dqcp
@@ -92,14 +110,24 @@ def solve_rebalanced(
     if fixed_loyalty is None:
         fixed_loyalty = (lw["lambda_2"] + lw["lambda_3"]) * 0.50
 
+    # Build per-bloc weight bounds. Default (floor/ceiling both None): bound each
+    # bloc to a demographic-plausibility band around its baseline NEP electorate
+    # share w0_i. We import DEFAULT_NEP_SHARES (the single source of those shares,
+    # also used by kernels/baseline.py) rather than hardcoding a second copy; the
+    # import is lazy to keep this module light and dodge any import-cycle surprises.
+    # solve_dqcp enforces these per-bloc bounds EXACTLY inside the cone program.
+    if floor is None and ceiling is None:
+        from electoral.kernels.baseline import DEFAULT_NEP_SHARES
+
+        lower = {b: DEFAULT_NEP_SHARES[b] * WEIGHT_LOWER_MULT for b in blocs}
+        upper = {b: min(1.0, DEFAULT_NEP_SHARES[b] * WEIGHT_UPPER_MULT) for b in blocs}
+    else:
+        # Legacy uniform band — only when a caller passes floor/ceiling explicitly.
+        lower = {b: (floor if floor is not None else 0.0) for b in blocs}
+        upper = {b: (ceiling if ceiling is not None else 1.0) for b in blocs}
+
     try:
-        # Translate the floor/ceiling into a ConstraintSpec; solve_dqcp enforces
-        # these per-bloc bounds exactly inside the cone program.
-        spec = ConstraintSpec.from_bounds(
-            blocs,
-            lower={b: floor for b in blocs},
-            upper={b: ceiling for b in blocs},
-        )
+        spec = ConstraintSpec.from_bounds(blocs, lower=lower, upper=upper)
         weights = solve_dqcp(
             mu_tilde,
             np.asarray(cov_delta, dtype=float),
