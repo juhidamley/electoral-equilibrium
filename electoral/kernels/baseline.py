@@ -50,6 +50,7 @@ from electoral.core.types import (
     CANONICAL_RELIGIONS,
     LAYER_WEIGHT_KEYS,
 )
+from electoral.kernels.shock import COVARIANCE_MIN_CYCLE
 from electoral.models.ml_baseline import estimate_moments, ground_truth_winning_cycles
 
 log = logging.getLogger(__name__)
@@ -131,8 +132,13 @@ def build_baseline_portfolio(
         layer_weights = {"lambda_1": 0.50, "lambda_2": 0.30, "lambda_3": 0.20}
 
     # ── 2. Moment estimation ───────────────────────────────────────────────────
+    # Apply the same 1990+ window used for the Monte Carlo Σ_Δ so the baseline μ and
+    # Σ exclude pre-1990 sparse/imputed thin-bloc cells (reuses the single constant
+    # COVARIANCE_MIN_CYCLE from kernels/shock.py — not a second definition).
     winning = ground_truth_winning_cycles(config.party)
-    moments = estimate_moments(panel_df, config.party, winning_cycles=winning)
+    moments = estimate_moments(
+        panel_df, config.party, winning_cycles=winning, min_cycle=COVARIANCE_MIN_CYCLE
+    )
     log.info(
         "baseline: party=%s  winning_cycles=%s  (n=%d)",
         config.party,

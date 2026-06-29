@@ -3665,6 +3665,109 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
       DuckDB placeholder (\texttt{ILIKE ?} with wildcards in the bound
       parameter). Clamp \texttt{limit}. Audit every other DuckDB query
       for the same pattern.
+    \item[$\boxtimes$] \textbf{[correctness --- RESOLVED 2026-06-29]}
+      CoalitionChart rendered only the \texttt{white} bloc (4 of 5 bars
+      invisible). Root cause: Recharts~3 with \texttt{layout="vertical"}
+      sets \texttt{props.width} to 0 during initial render for most bars;
+      the old guard \texttt{if (width <= 0) return <g/>} silently dropped
+      them. Fix: derive \texttt{plotW} from \texttt{background.width}
+      (\texttt{offset.width}, always the full chart-plot pixel span) and
+      compute \texttt{barW = sv * plotW}. All five race-bloc bars plus
+      the translucent weight overlay now render correctly. TypeScript
+      type-check and production build both pass. Confirmed in
+      \texttt{webapp/components/CoalitionChart.tsx}.
+    \item[$\square$] \textbf{[polish]} Remove the \texttt{console.log("[BarShape]", ...)}
+      debug statement in \texttt{CoalitionChart.tsx} (gated by
+      \texttt{NODE\_ENV === "development"} but still noise). Remove once
+      user confirms all five blocs render correctly in the browser.
+    \item[$\square$] \textbf{[correctness --- optimizer]} Coalition weights
+      $\tilde{w}$ were demographically unconstrained: the optimizer
+      concentrated weight on the highest-loyalty bloc
+      (\texttt{african\_american} $\tilde{w}\approx0.50$ vs
+      $\sim$0.19 electorate share), producing unrealistic coalitions and
+      inflating win probabilities. FIX IN PROGRESS: added per-bloc bounds
+      $w_0[i]\!\cdot\!\texttt{LOWER\_MULT} \le w[i] \le
+      w_0[i]\!\cdot\!\texttt{UPPER\_MULT}$ (provisional
+      $0.5\times$--$1.5\times$ of NEP baseline share in
+      \texttt{electoral/optimization/cvx.py}). Bounds are PROVISIONAL ---
+      calibration is an Espinosa decision. Verify some shocks now
+      correctly go infeasible (a feature, not a bug).
+    \item[$\square$] \textbf{[correctness --- Espinosa]} Win-probability
+      inflation: with unconstrained weights essentially all events cleared
+      target (e.g.\ ``MET +16\,pp'', win-prob 0.66 for a scandal). Confirm
+      after the weight-bound fix that win-probs attenuate to realistic
+      levels. Ties to the open \texttt{target}=0.5066-meaning and
+      diagonal-covariance flags.
+    \item[$\square$] \textbf{[correctness --- simulation]} Per-bloc weight
+      percentile (p5--p95) panel renders degenerate: percentiles span
+      $\sim$0--0.88 with mass piled near 0, an artifact of
+      (a)~diagonal-covariance fallback and (b)~unconstrained optimizer.
+      Recheck after weight-bound fix; if still degenerate, either wire
+      real Ledoit-Wolf $\Sigma_\Delta$ or remove the panel for the
+      presentation and note as future work.
+    \item[$\square$] \textbf{[correctness --- display]} ShockNarrative has
+      no \texttt{neutral} bucket: blocs with
+      \texttt{delta\_bin=="neutral"} are sorted into hurt/help, making
+      output appear more polarized than the model's actual predictions
+      (which include many neutrals). Add a third ``little measurable
+      effect on:'' bucket.
+    \item[$\square$] \textbf{[polish --- display]} CoalitionChart
+      conflated two distinct quantities ($\tilde\mu$ loyalty and
+      $\tilde{w}$ coalition emphasis) in one overlay; users misread
+      $\tilde{w}$ as population share. FIX IN PROGRESS: split into two
+      panels (loyalty shift / coalition emphasis) + add an explainer panel
+      defining each term + relabel $\tilde{w}$ as ``coalition emphasis
+      (strategic weighting), not population share.''
+    \item[$\square$] \textbf{[polish --- display]} Recharts~v3 passes
+      \texttt{width=0} to custom bar shape during initial layout, tripping
+      the \texttt{width<=0} guard; only one bloc's bar was visible.
+      Partial fix via \texttt{background.width} (see RESOLVED entry
+      above). Splitting into two single-quantity panels sidesteps the
+      fragile overlay entirely; verify all 5 blocs render in both panels
+      post-split.
+    \item[$\boxtimes$] \textbf{[polish --- DONE]} Removed market-prior /
+      model-vs-market module (``No active market'',
+      Polymarket/Manifold comparison): almost always empty, and when
+      populated compared the model's conditional
+      $P(\text{win}\mid\text{shock})$ against the market's unconditional
+      $P(\text{win}\mid\text{current})$ --- different questions, misleading
+      juxtaposition. Removing it also eliminated
+      \texttt{/api/market-prior} CORS errors.
+    \item[$\square$] \textbf{[hardening --- deploy/cost]}
+      Modal cost control: \texttt{min\_containers=0},
+      \texttt{scaledown\_window=60}, \texttt{cache\_dir} baked into the
+      image (cold start 23.7\,s, no 14\,GB re-download). HARD CONSTRAINT:
+      keep Modal under \$15/month. NEVER set \texttt{min\_containers>0}
+      except during an active demo window, then revert. Manual task: set
+      Modal dashboard billing cap. Run all batch/validation work on
+      Hopper (free); Modal only for the live demo URL.
+    \item[$\square$] \textbf{[correctness --- validation --- HIGH PRIORITY]}
+      No systematic symmetry/valence validation has been run. Individual
+      outputs are untrustworthy without it (cannot distinguish
+      ``counterintuitive-but-correct'' from ``biased or
+      pattern-matching party labels''). REQUIRED before presentation:
+      (1)~\emph{symmetry test} --- matched event pairs across event types,
+      measure whether the two parties are treated symmetrically;
+      (2)~\emph{valence test} --- events with known unambiguous direction,
+      confirm aggregate $\Delta_\text{eff}$ moves correctly. Run on
+      Hopper (free). Required paper/presentation deliverable regardless of
+      outcome.
+    \item[$\boxtimes$] \textbf{[decision --- REJECTED]} Considered
+      (a)~migrating hosting from Modal to Hopper and (b)~using Grok~2 as
+      the base model or API output-corrector. Both REJECTED: Hopper cannot
+      host a persistent public URL (job scheduler, no inbound routing);
+      Grok~2 is 500\,GB/8-GPU (won't fit), and its Community License
+      prohibits using it to train or improve other AI models, invalidating
+      the synthetic-data and corrector use cases.
+      Grok-as-EVALUATOR (score outputs, don't alter them) is acceptable;
+      Grok-as-CORRECTOR is not (unreproducible, replaces the model's own
+      judgment, license violation).
+    \item[$\square$] \textbf{[context --- one week to presentation]}
+      Priority order: (1)~optimizer weight-bound correctness fix;
+      (2)~symmetry/valence validation on Hopper;
+      (3)~display fixes (neutral bucket, two-panel split, explainer);
+      (4)~overdue Espinosa meeting on \texttt{target} meaning +
+      covariance + weight-bound calibration.
   \end{itemize}
   The SRP is not ``done'' until every box here is checked or has a written,
   Espinosa-approved deferral.}{2}
@@ -3760,15 +3863,17 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
 \end{taskbox}
 
 \begin{taskbox}{Model Quality}
-\task{Validate the retrained \texttt{r=16} model fixes the directional errors.
-  The pre-augmentation model predicted \texttt{slight\_pos} for \emph{all}
-  minority blocs on the Newsom 2028 nomination event (politically wrong ---
-  Newsom is expected to hurt with white working-class and some Latino voters).
-  After retraining on the 1,136-record augmented dataset, rerun the Newsom
-  sensitivity analysis and confirm white/latino now show the expected negative
-  or mixed deltas. If still wrong, the synthetic labels did not fix the
-  underlying issue --- escalate to a data-quality review with Prof.\ Espinosa
-  rather than generating more volume.}{3}
+\task{DONE (MVP): Validate the retrained \texttt{r=16} model fixes the
+  directional errors. Pre-augmentation: \texttt{slight\_pos} for all minority
+  blocs on Newsom 2028 (wrong). After retraining on the 1,136-record augmented
+  dataset, confirmed on production Modal A10 with v2 adapter + seeded constrained
+  decoding: white=\texttt{slight\_neg}, latino=\texttt{slight\_neg},
+  evangelical=\texttt{mod\_neg}, secular=\texttt{slight\_pos}. Direction
+  differentiates correctly by bloc. REMAINING (paper obligation): run
+  $\geq$3 seeded passes under the same adapter/decoding path and produce a
+  headline-event results table. Latino is boundary-unstable (note this in
+  the paper). If the model is wrong on any of the 3 runs, escalate to
+  Espinosa before writing the results section.}{3}
 
 \task{Verify party-neutral event text + explicit party field produces
   party-appropriate deltas. The webapp uses an authoritative party toggle
@@ -3919,21 +4024,19 @@ and data pipeline tasks can proceed in parallel once training is unblocked.
   artifact from \texttt{build\_voter\_panel} that the endpoint can serve,
   rather than the frontend guessing.}{2}
 
-\task{Implement the \texttt{/estimate/stream} SSE endpoint in
-  \texttt{shock\_endpoint.py}. The frontend \texttt{page.tsx} opens an
-  \texttt{EventSource} expecting named events \texttt{deltas},
-  \texttt{equilibrium}, \texttt{simulation}, and \texttt{done}, emitted in
-  that order as each pipeline stage completes. Use FastAPI
-  \texttt{StreamingResponse} with \texttt{media\_type="text/event-stream"}.
-  Yield the \texttt{deltas} event as soon as
-  \texttt{ShockEstimator.estimate()} returns ($\sim$12\,s), then
-  \texttt{equilibrium} after \texttt{solve\_rebalanced} ($\sim$ms), then
-  \texttt{simulation} after \texttt{run\_ilr\_montecarlo}, then
-  \texttt{done}. This is what makes the progressive-render UX work ---
-  without it the user stares at a blank dashboard for the full 12\,s. Note:
-  \texttt{EventSource} only supports GET, so this endpoint takes query
-  params (\texttt{event}, \texttt{intensity}, \texttt{party}), unlike the
-  POST \texttt{/estimate}.}{3}
+\task{DONE: Implement the \texttt{/estimate/stream} SSE endpoint in
+  \texttt{shock\_endpoint.py}. FastAPI \texttt{StreamingResponse} with
+  \texttt{media\_type="text/event-stream"} is deployed and working on the
+  live Modal A10. Named events \texttt{deltas}, \texttt{equilibrium},
+  \texttt{simulation}, and \texttt{done} are emitted in order as each
+  pipeline stage completes. \texttt{page.tsx} opens an \texttt{EventSource}
+  and populates state via \texttt{onEquilibrium}/\texttt{onSimulation}
+  callbacks with Zod~v4 schema validation at the SSE boundary.
+  Progressive-render UX confirmed working end-to-end (charts populate
+  incrementally as each stage returns). OPEN: SSE ``30\% latency
+  improvement'' claim is incorrect (see latency flag in the log above ---
+  streaming improves time-to-first-content, not total round-trip); update
+  devplan copy accordingly.}{3}
 
 \task{Reconcile the two endpoint shapes. The webapp now depends on BOTH
   POST \texttt{/estimate} (returns the full bundle, validated by

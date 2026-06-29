@@ -83,6 +83,7 @@ from electoral.artifacts import ShockResponseData, ShockResponseSchema
 from electoral.core.io import sanitize_floats
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.llm.inference import ShockEstimator
+from electoral.models.benchmarks import DEM_RACE_BENCHMARKS
 
 log = logging.getLogger(__name__)
 
@@ -93,22 +94,13 @@ _BASE_MODEL: str = os.environ.get("BASE_MODEL", "mistralai/Mistral-7B-v0.3")
 _GLOBAL_SEED: int = int(os.environ.get("GLOBAL_SEED", "42"))
 
 # Nominal baseline within-bloc Democratic vote shares (pre-shock).
-# Approximate historical ANES/exit-poll values; replaced by panel data when available.
+# Sourced from the documented NEP exit-poll 2000–2024 benchmark set
+# (electoral.models.benchmarks.DEM_RACE_BENCHMARKS, ESPINOSA.md §Q1.1–Q1.3) — the
+# single source of truth shared with scripts/inspect_moments.py — rather than the
+# prior undocumented eyeballed constants. Republican = 1 − democrat (two-party).
 _NOMINAL_MU_RACE: dict[str, dict[str, float]] = {
-    "democrat": {
-        "african_american": 0.90,
-        "asian": 0.65,
-        "latino": 0.65,
-        "other_race": 0.60,
-        "white": 0.42,
-    },
-    "republican": {
-        "african_american": 0.10,
-        "asian": 0.35,
-        "latino": 0.35,
-        "other_race": 0.40,
-        "white": 0.58,
-    },
+    "democrat": dict(DEM_RACE_BENCHMARKS),
+    "republican": {b: round(1.0 - v, 4) for b, v in DEM_RACE_BENCHMARKS.items()},
 }
 
 # Nominal within-bloc loyalties for the FIXED strata (religion, gender), used by
@@ -454,7 +446,35 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     app.state.party_config = _load_party_config()  # V_eq thresholds per party
     app.state.seed = _GLOBAL_SEED  # global RNG seed for reproducible Monte Carlo
-    app.state.audit = AuditLogger()  # opens the DuckDB audit log (one shared instance)
+
+    # Real Σ_Δ: the 5×5 Ledoit-Wolf race covariance from the historical panel,
+    # computed ONCE here because it's shock-independent. The live estimator emits an
+    # identity placeholder; we override shock.covariance with this so the deltas
+    # frame, optimizer, and Monte Carlo all see real bloc covariance. The builder
+    # logs a WARNING and returns a small diagonal if the panel parquet is absent —
+    # we re-check here and log loudly so a fallback can never masquerade as real.
+    from electoral.kernels.shock import build_sigma_delta_from_panel
+
+    _artifact_dir = _find_artifact_dir()
+    _panel_path = (
+        (_artifact_dir / "panel" / "panel_race.parquet")
+        if _artifact_dir is not None
+        else Path("artifacts/panel/panel_race.parquet")
+    )
+    app.state.sigma_delta = build_sigma_delta_from_panel(_panel_path)
+    _sd = torch.tensor(app.state.sigma_delta, dtype=torch.float64)
+    _is_diagonal = bool(torch.allclose(_sd, torch.diag(torch.diag(_sd))))
+    if _is_diagonal:
+        log.warning(
+            "Σ_Δ is DIAGONAL — panel parquet missing/insufficient at %s. Win-prob CI "
+            "reflects the isotropic fallback, NOT real bloc covariance. (Modal: ensure "
+            "panel_race.parquet is added to the image; see deploy/modal_app.py.)",
+            _panel_path,
+        )
+    else:
+        log.info("Σ_Δ loaded: real Ledoit-Wolf 5×5 (non-diagonal) from %s", _panel_path)
+    _audit_db = os.environ.get("AUDIT_DB_PATH", "data/audit.duckdb")
+    app.state.audit = AuditLogger(_audit_db)  # persistent on Modal Volume; local fallback
 
     yield  # ← server runs here, handling requests, until it's told to stop
 
@@ -587,6 +607,7 @@ async def estimate_stream(
     party_config: dict[str, Any] = app.state.party_config
     seed: int = app.state.seed
     audit: AuditLogger = app.state.audit
+    sigma_delta: list[list[float]] = app.state.sigma_delta  # real 5×5 Ledoit-Wolf Σ_Δ
 
     target = _target_for_party(party, party_config)
     nominal_mu = _NOMINAL_MU_RACE[party]
@@ -638,7 +659,11 @@ async def estimate_stream(
                 nominal_gen[G] * shock.deltas_gender.get(G, 0.0) for G in CANONICAL_GENDERS
             )
         )
-        shock = dataclasses.replace(shock, delta_eff=float(_eff))
+        # Override the estimator's identity-placeholder covariance with the real
+        # Ledoit-Wolf Σ_Δ computed once at startup. This single replace makes the
+        # deltas frame, the optimizer (cov_list below), and the Monte Carlo all use
+        # real bloc covariance instead of identity.
+        shock = dataclasses.replace(shock, delta_eff=float(_eff), covariance=sigma_delta)
         yield _sse("deltas", shock.to_dict())
 
         # ── Compute mu_tilde (nominal + delta per bloc) ────────────────────────

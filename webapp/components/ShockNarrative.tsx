@@ -20,9 +20,16 @@ import { BLOC_LABEL } from "@/lib/blocs";
 
 interface ShockNarrativeProps {
   deltaBins: Record<string, string> | null;
+  deltas?: Record<string, number> | null; // signed per-bloc deltas (for the neutral band)
   party: Party;
   loading?: boolean;
 }
+
+// A bloc reads as "no measurable effect" when its bin is the neutral token OR its
+// signed delta is within ±NEUTRAL_THRESHOLD of zero. The latter catches a slight_*
+// bin whose actual delta has shrunk below the noise floor (e.g. at low intensity),
+// which would otherwise be reported as a real hurt/help.
+const NEUTRAL_THRESHOLD = 0.006;
 
 // ── Bin → direction + magnitude ───────────────────────────────────────────────
 
@@ -81,6 +88,7 @@ import React from "react";
 
 export default function ShockNarrative({
   deltaBins,
+  deltas,
   party,
   loading,
 }: ShockNarrativeProps) {
@@ -96,22 +104,29 @@ export default function ShockNarrative({
   // Nothing to show before first submit.
   if (deltaBins === null) return null;
 
-  // Partition into hurt / help, skipping neutral and unknown tokens.
+  // Partition into hurt / help / neutral. A bloc is neutral when its bin is the
+  // neutral token OR its signed delta is sub-threshold; neutral blocs must NOT
+  // appear in hurt or help. Unknown tokens are skipped entirely.
   const hurt: BlocEntry[] = [];
   const help: BlocEntry[] = [];
+  const neutral: BlocEntry[] = [];
 
   for (const [bloc, bin] of Object.entries(deltaBins)) {
     const phrase = BIN_PHRASE[bin]; // undefined if unexpected token → skip
-    if (!phrase || phrase.dir === "neutral") continue;
-    const entry: BlocEntry = {
-      label: BLOC_LABEL[bloc] ?? bloc, // raw id as fallback
-      mag: phrase.mag,
-    };
-    if (phrase.dir === "hurt") hurt.push(entry);
-    else help.push(entry);
+    if (!phrase) continue;
+    const label = BLOC_LABEL[bloc] ?? bloc; // raw id as fallback
+    const d = deltas?.[bloc];
+    const subThreshold = typeof d === "number" && Math.abs(d) < NEUTRAL_THRESHOLD;
+
+    if (phrase.dir === "neutral" || subThreshold) {
+      neutral.push({ label, mag: "" });
+      continue;
+    }
+    if (phrase.dir === "hurt") hurt.push({ label, mag: phrase.mag });
+    else help.push({ label, mag: phrase.mag });
   }
 
-  // All-neutral case.
+  // All-neutral case (nothing landed in hurt or help).
   if (hurt.length === 0 && help.length === 0) {
     return (
       <p className="text-sm text-gray-600">
@@ -137,6 +152,12 @@ export default function ShockNarrative({
         <p className="text-green-800">
           {sortedHurt.length > 0 ? "And " : "This shock is predicted to "}
           <strong>help</strong> with: {formatList(sortedHelp)}.
+        </p>
+      )}
+      {neutral.length > 0 && (
+        <p className="text-gray-600">
+          {sortedHurt.length > 0 || sortedHelp.length > 0 ? "And " : ""}
+          <strong>little measurable effect</strong> on: {formatList(neutral)}.
         </p>
       )}
     </div>

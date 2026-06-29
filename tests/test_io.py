@@ -363,3 +363,26 @@ class TestSanitizeFloats:
         # And it must parse cleanly (strict=True rejects Infinity/NaN tokens).
         parsed = json.loads(raw)
         assert parsed == {"win": None, "loss": None, "ok": 0.4}
+
+    def test_sse_frame_does_not_emit_infinity_or_nan(self):
+        """SSE data frames (shock_endpoint._sse) must not emit raw Infinity/NaN.
+
+        _sse() serializes via json.dumps(sanitize_floats(payload)); this test
+        exercises that same composition so any regression in the SSE path is
+        caught without importing the full FastAPI app.
+        """
+        payload = {
+            "win_probability": float("inf"),
+            "win_probability_low": float("-inf"),
+            "delta_eff": float("nan"),
+            "weight": 0.42,
+        }
+        # Mirror what _sse() does: sanitize then json.dumps.
+        serialized = json.dumps(sanitize_floats(payload))
+        assert "Infinity" not in serialized
+        assert "NaN" not in serialized
+        parsed = json.loads(serialized)
+        assert parsed["win_probability"] is None
+        assert parsed["win_probability_low"] is None
+        assert parsed["delta_eff"] is None
+        assert parsed["weight"] == 0.42

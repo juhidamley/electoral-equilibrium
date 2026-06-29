@@ -31,6 +31,15 @@ _DEFAULT_BASE_MODEL = "mistralai/Mistral-7B-v0.3"
 _N_BOOTSTRAP = 100
 _NOISE_STD = 0.01
 
+# Minimum election cycle included when estimating Σ_Δ from the historical panel.
+# WHY 1990: pre-1990 cycles have sparse/imputed cells for the data-thin race blocs
+# (asian/latino are absent before 1968; asian 1968 = 0.0000 is an empty ANES cell
+# that drives a spurious +0.71 first-difference at 1972; other_race 1948–1956 are
+# imputed_carry_1952 carry-forwards). Those artifacts inflate asian/other_race
+# per-bloc std by >2× vs the well-sampled blocs. Restricting to 1990+ collapses all
+# five blocs to a plausible ~0.07–0.12 std. Diagnostic: docs/decisions.md §3.
+COVARIANCE_MIN_CYCLE = 1990
+
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -201,15 +210,24 @@ def _estimate_shock(
 # ── Step 4: Sigma_Delta estimator ────────────────────────────────────────────
 
 
-def _build_sigma_delta(config: PipelineConfig) -> list[list[float]]:
+def build_sigma_delta_from_panel(
+    panel_path: Path, min_cycle: int = COVARIANCE_MIN_CYCLE
+) -> list[list[float]]:
     """Build 5×5 race Σ_Δ via Ledoit-Wolf on historical per-cycle vote-share deltas.
 
-    Loads panel_race.parquet (written by build_voter_panel), pivots to
-    (n_cycles, 5) in CANONICAL_RACES order, computes first-differences, and
-    applies Ledoit-Wolf shrinkage. Column order matches list(CANONICAL_RACES)
-    so rows/cols align with the blocs order expected by solve_rebalanced.
+    Path-based core (no PipelineConfig dependency) so it can be reused by the live
+    API as well as the offline kernel. Loads panel_race.parquet, restricts to cycles
+    ≥ ``min_cycle``, pivots to (n_cycles, 5) in CANONICAL_RACES order, computes
+    first-differences, and applies Ledoit-Wolf shrinkage. Column order matches
+    list(CANONICAL_RACES) so rows/cols align with the blocs order expected by
+    solve_rebalanced.
 
-    Falls back to σ=0.02·I (≈ "slight" magnitude bin) with a warning when:
+    The ``min_cycle`` cutoff (default COVARIANCE_MIN_CYCLE = 1990) is applied BEFORE
+    first-differencing/dropna so sparse/imputed pre-1990 thin-bloc cells can't inflate
+    the covariance (see the constant's comment and docs/decisions.md §3).
+
+    Falls back to σ=0.02·I (≈ "slight" magnitude bin) — an EXPLICIT, WARNING-logged
+    fallback, never a silent default — when:
     - panel_race.parquet doesn't exist (pipeline hasn't reached voter_panel stage)
     - fewer than 3 cycles available (need ≥2 deltas for Ledoit-Wolf)
     - any other parsing/IO error
@@ -218,20 +236,22 @@ def _build_sigma_delta(config: PipelineConfig) -> list[list[float]]:
 
     from electoral.models.bootstrap import ledoit_wolf_cov
 
-    panel_path = Path(config.output_dir) / "panel" / "panel_race.parquet"
     blocs = list(CANONICAL_RACES)
     n = len(blocs)
     _fallback: list[list[float]] = (np.eye(n) * 0.02**2).tolist()
 
     if not panel_path.exists():
         log.warning(
-            "_build_sigma_delta: %s not found — using diagonal fallback σ=0.02",
+            "build_sigma_delta_from_panel: %s not found — using diagonal fallback σ=0.02",
             panel_path,
         )
         return _fallback
 
     try:
         df = pd.read_parquet(panel_path)
+        # Cutoff applied BEFORE pivot/diff/dropna: pre-min_cycle sparse/imputed
+        # thin-bloc cells must never enter the first-differences.
+        df = df[df["cycle"] >= min_cycle]
         pivot = (
             df[df["bloc"].isin(CANONICAL_RACES)]
             .pivot_table(index="cycle", columns="bloc", values="vote_share", aggfunc="mean")
@@ -242,23 +262,39 @@ def _build_sigma_delta(config: PipelineConfig) -> list[list[float]]:
 
         if len(pivot) < 3:
             log.warning(
-                "_build_sigma_delta: only %d complete cycle(s) in panel — "
+                "build_sigma_delta_from_panel: only %d complete cycle(s) at/after %d — "
                 "need ≥3 for first-differences; using diagonal fallback",
                 len(pivot),
+                min_cycle,
             )
             return _fallback
 
         delta_matrix = np.diff(pivot.to_numpy(dtype=float), axis=0)  # (n_cycles-1, 5)
         cov = ledoit_wolf_cov(delta_matrix)
+        cycles = [int(c) for c in pivot.index]
         log.info(
-            "_build_sigma_delta: Ledoit-Wolf Σ_Δ from %d cycle deltas",
-            len(pivot) - 1,
+            "build_sigma_delta_from_panel: Ledoit-Wolf Σ_Δ from %d cycles "
+            "(%d–%d, cutoff ≥%d) → %d first-differences",
+            len(cycles),
+            cycles[0],
+            cycles[-1],
+            min_cycle,
+            len(cycles) - 1,
         )
         return cov.tolist()
 
     except Exception as exc:
-        log.warning("_build_sigma_delta: failed (%s) — using diagonal fallback σ=0.02", exc)
+        log.warning(
+            "build_sigma_delta_from_panel: failed (%s) — using diagonal fallback σ=0.02", exc
+        )
         return _fallback
+
+
+def _build_sigma_delta(config: PipelineConfig) -> list[list[float]]:
+    """Config-based wrapper: resolve the panel path from config.output_dir."""
+    return build_sigma_delta_from_panel(
+        Path(config.output_dir) / "panel" / "panel_race.parquet"
+    )
 
 
 # ── Diagnostic covariance bootstrap (not in production chain) ─────────────────

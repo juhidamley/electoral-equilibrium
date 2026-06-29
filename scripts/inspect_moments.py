@@ -51,50 +51,10 @@ from electoral.models.ml_baseline import (
 )
 
 # ── Espinosa / NEP / Pew benchmark vote shares ───────────────────────────────
-# Democrat two-party vote share per bloc, averaged over competitive cycles
-# (2000–2024) unless noted.  Sources documented in ESPINOSA.md.
-#
-# Race: NEP exit-poll averages (Espinosa cross-ref ESPINOSA.md §Q1.1–Q1.3).
-#   african_american: NEP 2016=89%, 2020=87%, 2024=86% → mean ≈ 0.87
-#   white: NEP 2016=37%, 2020=41%, 2024=39% → mean ≈ 0.39  (ESPINOSA.md §Q1.2)
-#   latino: NEP 2016=66%, 2020=63%, 2024=58% → mean ≈ 0.62
-#   asian: AAPI Data 2016=65%, 2020=72%, 2024=60% → mean ≈ 0.66
-#   other_race: NEP average ≈ 0.58
-#
-# Religion: Pew NPORS + CES cumulative (ESPINOSA.md §Q2.4, §Q6.1).
-#   evangelical: exit-poll avg 2004–2024 ≈ 0.23  (ESPINOSA.md: "near 24%")
-#   catholic: NEP avg ≈ 0.52
-#   protestant: NEP avg (mainline) ≈ 0.46
-#   secular: NEP/Pew avg ≈ 0.68
-#   jewish: exit-poll avg ≈ 0.72
-#   muslim: exit-poll avg (limited data) ≈ 0.80
-#   other_rel: Pew avg ≈ 0.58
-#
-# Gender: NEP averages 2000–2024.
-#   women: avg ≈ 0.54
-#   men: avg ≈ 0.43
-#   other_gender: limited cycles, avg ≈ 0.78
-
-_DEM_BENCHMARKS: dict[str, float] = {
-    # Race
-    "african_american": 0.87,
-    "latino": 0.62,
-    "asian": 0.66,
-    "white": 0.39,
-    "other_race": 0.58,
-    # Religion
-    "evangelical": 0.23,
-    "catholic": 0.52,
-    "protestant": 0.46,
-    "secular": 0.68,
-    "jewish": 0.72,
-    "muslim": 0.80,
-    "other_rel": 0.58,
-    # Gender
-    "women": 0.54,
-    "men": 0.43,
-    "other_gender": 0.78,
-}
+# Documented Democrat two-party benchmarks (NEP exit-poll 2000–2024 + Pew NPORS/CES),
+# now sourced from the single canonical home so this script and the live API can't
+# drift. Provenance per bloc lives in electoral/models/benchmarks.py.
+from electoral.models.benchmarks import DEM_BENCHMARKS as _DEM_BENCHMARKS
 
 # Republican benchmarks = 1 − Democrat benchmark (two-party vote share).
 _REP_BENCHMARKS: dict[str, float] = {k: 1.0 - v for k, v in _DEM_BENCHMARKS.items()}

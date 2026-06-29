@@ -371,6 +371,7 @@ def estimate_moments(
     party: Party,
     *,
     winning_cycles: list[int] | None = None,
+    min_cycle: int | None = None,
     epsilon: float = _EPS_DEFAULT,
 ) -> MomentEstimates:
     """Estimate bloc-level vote-share moments for the given party.
@@ -393,6 +394,14 @@ def estimate_moments(
         misclassifications (1952, 1988, 1992, 2004).
         When None (default), winning cycles are derived from the panel —
         acceptable for synthetic/test panels that lack a real-data anchor.
+    min_cycle:
+        Optional minimum election cycle. When set, restricts the panel to
+        cycles >= min_cycle BEFORE computing BOTH the winning-cycle mu means
+        and the all-cycle Sigma covariance, so sparse/imputed pre-cutoff cells
+        for the data-thin race blocs can't bias mu or inflate Sigma. Production
+        callers pass ``COVARIANCE_MIN_CYCLE`` (electoral.kernels.shock, = 1990);
+        the same cutoff used for the Monte Carlo Sigma_Delta. When None (default)
+        the full panel is used — preserves behavior for synthetic/test panels.
     epsilon:
         PSD safeguard magnitude. If the minimum eigenvalue of Sigma is
         negative, (-min_eig + epsilon) * I is added to Sigma.
@@ -425,6 +434,13 @@ def estimate_moments(
     df = df.dropna(subset=["cycle", "vote_share"]).copy()
     df = correct_three_party_1992(df)
     df["cycle"] = df["cycle"].astype(int)
+
+    # ── 1b. Optional window cutoff (applied to BOTH μ and Σ) ───────────────────
+    # Filtering here — before the race pivot, winning-cycle selection, μ means and
+    # Σ covariance — restricts every downstream moment to cycles ≥ min_cycle in one
+    # place. Excludes pre-cutoff sparse/imputed thin-bloc cells (see param docs).
+    if min_cycle is not None:
+        df = df[df["cycle"] >= min_cycle].copy()
 
     # ── 2. Flip vote_share for Republican ─────────────────────────────────────
     if party == "republican":

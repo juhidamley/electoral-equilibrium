@@ -1334,6 +1334,12 @@ across the held-out shock set.
 
 ---
 
+**[2026-06-29] Σ_Δ estimation window: 9 cycles (1992–2024); pre-1990 excluded for thin blocs**
+
+Covariance Σ_Δ. Estimated via Ledoit-Wolf shrinkage over 9 cycles (1992–2024, 8 first-differences), restricted from the full 1948–2024 panel. Pre-1990 cycles were excluded because the smaller demographic blocs (asian, latino, other_race) had sparse or imputed sampling — e.g. an empty 1968 ANES asian cell produced a spurious 71-point swing, and other_race 1948–1956 is carry-forward imputed — which inflated those blocs' variance >2× (asian 0.27→0.12, other_race 0.21→0.10). Well-sampled blocs were minimally affected. Limitation: the restricted window yields only 8 first-differences; shrinkage mitigates small-sample covariance error but the estimate remains data-limited for the thin blocs (asian, latino at the ~0.12 upper edge).
+
+---
+
 ## Known Smoke Config Limitations
 
 **[2026-06-15] win_probability=1.0 for all Ayatollah sensitivity intensities is expected**

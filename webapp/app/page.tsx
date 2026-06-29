@@ -158,6 +158,7 @@ export default function HomePage() {
 
   // ── Results — each filled by its own SSE event, null until then ──
   const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);  // ← "deltas"
+  const [deltas, setDeltas] = useState<Record<string, number> | null>(null);        // ← "deltas" (numeric)
   const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);      // ← "equilibrium"
   const [simulation, setSimulation] = useState<SimulationData | null>(null);          // ← "simulation"
   const [copied, setCopied] = useState(false);  // transient "Copied!" feedback on the share button
@@ -211,6 +212,7 @@ export default function HomePage() {
     setError(null);
     // Clear prior results so stale charts don't linger while the new run streams in.
     setDeltaBins(null);
+    setDeltas(null);
     setEquilibrium(null);
     setSimulation(null);
 
@@ -220,6 +222,11 @@ export default function HomePage() {
           ...data.delta_bins_race,
           ...data.delta_bins_religion,
           ...data.delta_bins_gender,
+        });
+        setDeltas({
+          ...data.deltas_race,
+          ...data.deltas_religion,
+          ...data.deltas_gender,
         });
       },
       onEquilibrium: (data) => setEquilibrium(data),
@@ -313,6 +320,7 @@ export default function HomePage() {
                 {/* ShockNarrative: populates on "deltas" (~2s) */}
                 <ShockNarrative
                   deltaBins={deltaBins}
+                  deltas={deltas}
                   party={party}
                   loading={loading && !deltaBins}
                 />

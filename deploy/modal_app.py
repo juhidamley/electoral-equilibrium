@@ -141,6 +141,12 @@ image = (
     .add_local_dir("configs", remote_path="/root/configs")
     .add_local_dir("artifacts", remote_path="/root/artifacts",
                    ignore=["**/*.parquet"])
+    # The broad parquet-ignore above keeps large embedding/panel parquets out of the
+    # image, but the live Σ_Δ (Ledoit-Wolf race covariance) needs this ONE small
+    # 3.7 KB file at runtime. Add it back explicitly so the Monte Carlo CI reflects
+    # real bloc covariance instead of the diagonal fallback.
+    .add_local_file("artifacts/panel/panel_race.parquet",
+                    remote_path="/root/artifacts/panel/panel_race.parquet")
 )
 
 # ── Modal app ──────────────────────────────────────────────────────────────────
@@ -221,6 +227,7 @@ def serve() -> Any:
     # Must be set before `from electoral.api.shock_endpoint import app`.
     os.environ["ADAPTER_PATH"] = _ADAPTER_PATH
     os.environ["BASE_MODEL"] = _BASE_MODEL
+    os.environ["AUDIT_DB_PATH"] = _AUDIT_DB_PATH  # persistent Modal Volume path
 
     # Build the CORS allowed-origins list.
     # ALLOWED_ORIGIN comes from the "electoral-secrets" Modal secret.

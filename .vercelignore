@@ -1,0 +1,25 @@
+# The Vercel build only needs webapp/ (Root Directory = webapp). Exclude the
+# heavy ML/data/venv directories so the CLI upload stays under the 2 GiB limit.
+models/
+data/
+elec-equilibrium/
+checkpoints/
+rawdata/
+adapters/
+artifacts/
+logs/
+embeddings/
+
+# Caches / build output / venvs
+**/node_modules/
+**/.next/
+**/__pycache__/
+.git/
+
+# Large binary artifacts
+*.parquet
+*.safetensors
+*.bin
+*.pt
+*.gguf
+*.pdf
