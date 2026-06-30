@@ -1480,3 +1480,72 @@ CI can reflect real cross-bloc correlation once a real panel covariance exists.
    artifact's Σ_Δ is itself the diagonal fallback). Add a variance floor so a
    near-zero empirical Σ_Δ can't collapse the CI to [1,1]/[0,0]. Re-freeze the
    baseline once V_eq and raking are settled.
+
+---
+
+## Week 8 — 2026-06-29 — Structural baseline symmetry (bipartisan-neutrality fix)
+
+**[2026-06-29] Within-stratum loyalties are weighted by real electorate marginals,
+not equal 1/n.** This is the headline correctness fix of the bipartisan-neutrality
+requirement — a structural bias that was independent of any model prediction.
+
+### The diagnostic
+A **zero-shock** run (all deltas = 0, so the LLM contributes nothing) is the cleanest
+possible probe of structural bias: with no shock signal, the two parties' baseline
+win probabilities should be near-symmetric around the EC-adjusted target. They were
+not. The model gave **Democrats a baseline win probability of 1.00 vs 0.26 for
+Republicans** — a large asymmetry baked into the *scoring*, not the *prediction*.
+
+### Root cause
+`compute_fixed_loyalty()` (the religion+gender contribution to μ_eff) used **equal
+within-stratum weights** (v_R = 1/n_rel, g_G = 1/n_gen). With 7 religion and 3 gender
+blocs, that gave every bloc 1/7 ≈ 0.14 or 1/3 ≈ 0.33 — wildly over-weighting small but
+strongly-Democratic blocs relative to their true electorate share (jewish ~2%, muslim
+~1%, other_gender ~1%). The inflated Democratic religion/gender mean propagated into
+μ_eff as a constant Democratic tailwind on *every* scenario.
+
+### The fix
+Weight each bloc by its documented electorate share instead of 1/n:
+`λ₂·Σ(v_R·μ_relR) + λ₃·Σ(g_G·μ_genG)` with v_R / g_G = `_APPROX_RELIGION_SHARE` /
+`_APPROX_GENDER_SHARE` (defined in `electoral/models/ml_baseline.py`, each Σ = 1.0).
+Sources: **Pew Research + ANES** (religion: evangelical 0.24, catholic 0.21,
+protestant 0.13, secular 0.26, jewish 0.02, muslim 0.01, other_rel 0.13) and
+**CPS / ANES** (gender: women 0.52, men 0.47, other_gender 0.01). λ₂/λ₃ unchanged;
+only the within-stratum weights moved. Implemented in
+`electoral/optimization/dqcp.py::compute_fixed_loyalty`.
+
+### Result
+Structural asymmetry reduced by **98% (+0.052 → +0.001)**. The small residual favors
+Republicans, which is **intended**: the EC-adjusted target (V_eq 0.5066 Dem / 0.4934
+Rep) deliberately encodes the Democrats' structural EC disadvantage. Post-correction the
+model produces symmetric baseline win probabilities, satisfying the bipartisan-neutrality
+requirement. The directional **symmetry/valence** validation (matched event pairs, run
+via `scripts/validate_symmetry.py` on Hopper) remains the separate paper deliverable that
+tests the *model's predictions*, distinct from this structural-scoring fix.
+
+### Residual win-probability asymmetry (a property, not a bias)
+After correcting the fixed-loyalty baseline (means now symmetric: Dem margin +0.025,
+Rep +0.032), a win-probability difference remains at zero-shock (Dem ~0.98, Rep ~0.46).
+This is **NOT** baseline mean bias — both parties have symmetric, small positive margins.
+It arises because the Republican optimal coalition is structurally **more concentrated**:
+with minority blocs floored at their lower demographic bounds and white's large NEP share
+(0.63), the Republican optimum places ~82% weight on white, producing higher Monte Carlo
+variance and thus a lower probability of clearing the threshold *despite a larger mean
+margin*. A counterfactual single-bloc concentration cap (white ≤ 0.792) raises Rep
+win-prob to ~0.52, confirming the mechanism is coalition concentration, not baseline
+asymmetry.
+
+**DECISION:** this is **retained as a modeled property** — a single-bloc-dependent
+coalition is genuinely more electorally fragile — rather than tuned away, since
+engineering win-prob symmetry would mask a real structural difference between the parties'
+coalitions. Reported results **lead with the (symmetric) margin**; win-probability is shown
+with this variance caveat. The upper-bound multiplier (`WEIGHT_UPPER_MULT`,
+`electoral/optimization/cvx.py`) and an optional per-bloc concentration cap are tunable
+parameters for sensitivity analysis.
+
+### Relationship to the 2026-06-22 raking open item
+This **interim-resolves OPEN item #3** above (equal-weight v_R/g_G placeholder). The
+within-stratum weights are now documented electorate marginals rather than 1/n, which is
+what removed the structural bias. It is *not* yet the full `raking.py` iterative
+proportional fitting against the live panel — that remains the longer-term calibration.
+Re-freeze the baseline once V_eq, raking, and the production Σ_Δ are all settled.

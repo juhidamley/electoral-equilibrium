@@ -254,6 +254,10 @@ configs/*.local.json  # local overrides that may contain API keys or IPs
 adapters/
 # fine-tuned adapters + full checkpoint dirs (HF Hub is source of truth)
 models/
+# ...but electoral/models/ is a SOURCE package, not weight storage — keep it
+# tracked. Any actual weight files dropped here are still ignored by the
+# *.safetensors/*.bin/*.pt rules above, so this negation is safe.
+!electoral/models/
 # training checkpoints (optimizer state, rng, scheduler)
 checkpoints/
 .cache/              # HuggingFace model download cache

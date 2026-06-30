@@ -69,10 +69,31 @@ import cvxpy as cp
 import numpy as np
 
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
-from electoral.models.ml_baseline import psd_repair
+from electoral.models.ml_baseline import (
+    _APPROX_GENDER_SHARE,
+    _APPROX_RELIGION_SHARE,
+    psd_repair,
+)
 from electoral.portfolios.constraints import ConstraintSpec
 
 log = logging.getLogger(__name__)
+
+# Electorate-share marginals for the fixed (religion/gender) strata, imported from
+# their canonical home (ml_baseline, also used by raking.py) — NOT duplicated.
+# Validate at import so a malformed share table fails loudly rather than silently
+# skewing μ_eff: keys must match the canonical bloc sets and sum to 1.0 per stratum.
+assert set(_APPROX_RELIGION_SHARE) == set(CANONICAL_RELIGIONS), (
+    "_APPROX_RELIGION_SHARE keys must exactly match CANONICAL_RELIGIONS"
+)
+assert set(_APPROX_GENDER_SHARE) == set(CANONICAL_GENDERS), (
+    "_APPROX_GENDER_SHARE keys must exactly match CANONICAL_GENDERS"
+)
+assert abs(sum(_APPROX_RELIGION_SHARE.values()) - 1.0) < 1e-9, (
+    "_APPROX_RELIGION_SHARE must sum to 1.0"
+)
+assert abs(sum(_APPROX_GENDER_SHARE.values()) - 1.0) < 1e-9, (
+    "_APPROX_GENDER_SHARE must sum to 1.0"
+)
 
 _ACCEPTABLE = frozenset([cp.OPTIMAL, cp.OPTIMAL_INACCURATE])
 _CLIP_FLOOR = 0.0
@@ -296,10 +317,12 @@ def compute_fixed_loyalty(
 ) -> float:
     """Compute the religion+gender ("fixed") contribution to μ_eff.
 
-    Returns λ₂·Σ(v_R·μ_relR) + λ₃·Σ(g_G·μ_genG) with EQUAL within-stratum weights
-    (v_R = 1/n_rel, g_G = 1/n_gen — a placeholder until raking.py supplies real
-    panel marginals). This is the value passed as `fixed_loyalty` to the optimizer
-    and Monte Carlo, replacing the old neutral (λ₂+λ₃)·0.5 placeholder.
+    Returns λ₂·Σ(v_R·μ_relR) + λ₃·Σ(g_G·μ_genG) where v_R / g_G are the REAL
+    electorate-share marginals (_APPROX_RELIGION_SHARE / _APPROX_GENDER_SHARE,
+    Σ = 1.0 per stratum), replacing the earlier equal 1/n placeholder that
+    over-weighted tiny strongly-partisan blocs and skewed the baseline toward
+    Democrats. This is the value passed as `fixed_loyalty` to the optimizer and
+    Monte Carlo, replacing the old neutral (λ₂+λ₃)·0.5 placeholder.
 
     "Fixed" because race is the only stratum the optimizer rebalances; religion
     and gender loyalties still SHIFT with the shock, but they aren't decision
@@ -320,8 +343,13 @@ def compute_fixed_loyalty(
     rel = {r: min(1.0, max(0.0, mu_religion[r] + d_rel.get(r, 0.0))) for r in CANONICAL_RELIGIONS}
     gen = {g: min(1.0, max(0.0, mu_gender[g] + d_gen.get(g, 0.0))) for g in CANONICAL_GENDERS}
 
-    n_rel = len(CANONICAL_RELIGIONS)
-    n_gen = len(CANONICAL_GENDERS)
-    religion_term = lambda_2 * sum(rel[r] / n_rel for r in CANONICAL_RELIGIONS)
-    gender_term = lambda_3 * sum(gen[g] / n_gen for g in CANONICAL_GENDERS)
+    # Weight each bloc by its REAL electorate share (Σ share = 1.0 per stratum),
+    # not equal 1/n. The 1/n placeholder over-weighted tiny but strongly-partisan
+    # blocs (jewish 0.02, muslim 0.01, other_gender 0.01 → 1/7 or 1/3 each),
+    # inflating the Democratic religion/gender mean and producing a structural
+    # baseline bias (zero-shock Dem win-prob 1.00 vs Rep 0.26). λ₂/λ₃ unchanged.
+    religion_term = lambda_2 * sum(
+        rel[r] * _APPROX_RELIGION_SHARE[r] for r in CANONICAL_RELIGIONS
+    )
+    gender_term = lambda_3 * sum(gen[g] * _APPROX_GENDER_SHARE[g] for g in CANONICAL_GENDERS)
     return float(religion_term + gender_term)
