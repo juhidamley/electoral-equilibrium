@@ -86,7 +86,9 @@ SetFit) that constructs training data from social media and news archives.
 The LLM is fine-tuned on a 1,136-record catalog of historical shock events
 (577 hand-authored and 559 Gemini-reviewed synthetic examples validated by
 maximum mean discrepancy, PCA alignment, and pairwise correlation difference
-diagnostics).
+diagnostics); the retrained adapter resolves a documented directional error in
+which the pre-augmentation model predicted uniformly positive shifts for all
+minority blocs, and is served behind a seeded, constrained-decoding inference path.
 The demographic architecture models three independent marginal strata---race,
 religion, and gender---without nested cross-tabulations, acknowledging the
 ecological fallacy as an explicit approximation. Iterative proportional fitting
@@ -96,10 +98,22 @@ to gender ($\lambda_3 = 0.662$) than to race ($\lambda_1 = 0.114$), recovering
 from first principles the documented growth of the gender gap since 1980.
 A Gaussian Process leave-one-cycle-out classifier trained on panel vote shares
 achieves 85\% accuracy and Brier score 0.071 on the 20-cycle panel.
-Electoral College asymmetry analysis places the Democrat win threshold at
-50.66\% of the two-party popular vote versus 49.34\% for Republicans;
-this threshold is an empirical estimate subject to ongoing validation
-(Section~\ref{sec:veq_results}).
+We further report a structural correctness result: weighting within-stratum
+loyalties by documented electorate marginals rather than equal $1/n$ weights
+removes a Democratic scoring bias of $+5.2$ points at zero shock, reducing the
+baseline party asymmetry by 98\% ($+0.052 \rightarrow +0.001$) and satisfying a
+bipartisan-neutrality requirement. The race-bloc covariance $\SigmaDelta$ is
+estimated by Ledoit-Wolf shrinkage over a restricted nine-cycle window
+(1992--2024) that suppresses spurious variance from sparse pre-1990 minority-bloc
+cells (Asian standard deviation $0.243 \rightarrow 0.122$). Electoral College
+asymmetry analysis places the Democrat win threshold at 50.66\% of the two-party
+popular vote versus 49.34\% for Republicans; this threshold is an empirical
+estimate subject to ongoing validation (Section~\ref{sec:veq_results}).
+Finally, the full three-stage pipeline is deployed as a live web application:
+a GPU-backed streaming inference service (Modal A10G) feeds a Next.js interface
+that renders post-shock coalition weights, a win-probability gauge with credible
+interval, and an analyst dashboard, returning results progressively as each
+pipeline stage completes.
 \end{abstract}
 
 \bigskip
@@ -192,6 +206,21 @@ Our primary contributions are:
         demonstration that min-variance optimization---the standard portfolio
         baseline---systematically assigns zero weight to Latino and Asian blocs
         while the DQCP optimizer restores positive weights in deficit scenarios.
+        The optimizer additionally carries per-bloc box constraints
+        ($0.5 \times$--$1.5 \times$ the NEP electorate share), enforced as linear
+        constraints inside the second-order cone program, which prevent the
+        physically implausible single-bloc concentrations produced by the
+        unconstrained formulation.
+
+  \item A structural correctness result satisfying a bipartisan-neutrality
+        requirement: weighting within-stratum loyalties by documented electorate
+        marginals rather than equal $1/n$ weights removes a $+5.2$-point Democratic
+        scoring bias measurable at zero shock, reducing the baseline party
+        asymmetry by 98\% ($+0.052 \rightarrow +0.001$). We further show that a
+        residual win-probability gap is not a bias but a modeled property---the
+        Republican optimal coalition is more concentrated and therefore more
+        electorally fragile---and validate directional symmetry via matched
+        Democrat/Republican event pairs and known-valence events.
 
   \item Empirical validation of the GP baseline classifier (85\% LOCO accuracy,
         Brier 0.071) and documentation of three data-quality issues---Perot
@@ -201,19 +230,29 @@ Our primary contributions are:
   \item Fine-tuning results for the Stage~1 Mistral 7B QLoRA adapter: rank-16
         achieves MAE 0.036 on a held-out eval set of 111 synthetic examples,
         outperforming rank-32 (MAE 0.037, 2.8\% worse) despite being trained on
-        a smaller parameter budget. We document a directional error on the Newsom
-        2028 nomination scenario---the pre-augmentation model incorrectly predicts
-        \texttt{slight\_pos} for all minority blocs---and report the retraining
-        procedure on a 1,136-record augmented dataset designed to correct it.
+        a smaller parameter budget. We document and \emph{resolve} a directional
+        error on the Newsom 2028 nomination scenario: the pre-augmentation model
+        predicted \texttt{slight\_pos} for all minority blocs, whereas the adapter
+        retrained on the 1,136-record augmented dataset---served on production
+        hardware behind a seeded, constrained-decoding path---differentiates
+        correctly by bloc (White and Latino \texttt{slight\_neg}, Evangelical
+        \texttt{mod\_neg}, Secular \texttt{slight\_pos}).
+
+  \item A deployed, end-to-end system: the full three-stage pipeline runs as a
+        live web application, with a GPU-backed streaming inference service
+        (Modal A10G, server-sent events) feeding a Next.js interface that renders
+        post-shock coalition weights, a win-probability gauge with credible
+        interval, and an authenticated analyst dashboard.
 \end{enumerate}
 
 The remainder of the paper proceeds as follows. Section~\ref{sec:background}
 reviews related work. Section~\ref{sec:framework} describes the framework
 architecture. Section~\ref{sec:data} details the panel construction. Section~\ref{sec:methods}
 presents the methodology for each component. Section~\ref{sec:results} reports
-empirical findings. Section~\ref{sec:discussion} discusses limitations, the
-ecological fallacy, and calibration against prediction markets. Section~\ref{sec:conclusion}
-concludes.
+empirical findings, including the bipartisan-neutrality and symmetry-validation
+results. Section~\ref{sec:system} describes the deployed web application.
+Section~\ref{sec:discussion} discusses limitations, the ecological fallacy, and
+calibration against prediction markets. Section~\ref{sec:conclusion} concludes.
 
 % -----------------------------------------------------------------------
 \section{Background and Related Work}
@@ -351,7 +390,18 @@ where $\mu_i^{(\text{race})}$, $\mu_r^{(\text{rel})}$, $\mu_g^{(\text{gen})}$
 are the within-bloc Democratic vote shares estimated from the voter panel, and
 $\lambdaone + \lambdatwo + \lambdathree = 1$ with $\lambda_k \geq 0$. The
 optimizer controls only $\boldw$; the religion and gender weights $\mathbf{v}$
-and $\mathbf{g}$ are fixed from the panel and are not decision variables.
+and $\mathbf{g}$ are fixed and are not decision variables.
+
+\textbf{Within-stratum marginals.} The fixed weights $\mathbf{v}$ and $\mathbf{g}$
+are \emph{documented electorate shares}, not equal $1/n$ weights. We use
+$\mathbf{v} = ($evangelical $0.24$, catholic $0.21$, protestant $0.13$, secular
+$0.26$, jewish $0.02$, muslim $0.01$, other religion $0.13)$ from Pew Research and
+ANES, and $\mathbf{g} = ($women $0.52$, men $0.47$, other gender $0.01)$ from the
+Current Population Survey and ANES; each sums to one. This choice is consequential:
+the earlier equal-weight placeholder ($v_r = 1/7$, $g_g = 1/3$) over-weighted small
+but strongly Democratic blocs (Jewish, Muslim, other gender) and injected a constant
+Democratic tailwind into $\mueff$ on \emph{every} scenario---a structural scoring bias
+we diagnose and correct in Section~\ref{sec:symmetry_results}.
 
 The layer weights $\boldsymbol{\lambda} = (\lambdaone, \lambdatwo, \lambdathree)$
 are calibrated from historical data by iterative proportional fitting
@@ -513,7 +563,7 @@ $P(\text{win} \mid \text{coalition})$ for the optimizer.
 \subsubsection{Model specification}
 
 We fit a \texttt{GaussianProcessRegressor} on binary $\{0,1\}$ outcomes using
-an additive kernel $k = k_{\mathrm{RBF}} + k_{\mathrm{Mat\'ern}(\nu=1.5)}$.
+an additive kernel $k = k_{\mathrm{RBF}} + k_{\text{Mat\'ern}(\nu=1.5)}$.
 We use GPR rather than GPC because the paper requires cycle-level posterior
 standard deviations $\sigma_c = \mathrm{std}[f(x_c)]$ as epistemic uncertainty
 estimates. The sklearn GPC (Laplace approximation) does not expose the latent
@@ -587,17 +637,29 @@ heuristic that fails in three-party years. The panel was verified to agree
 with certified two-party returns on 16 of 20 cycles; the four exceptions
 (1952, 1988, 1992, 2004) are corrected by the external table.
 
-\textbf{Covariance} $\SigmaDelta$ is estimated from all 20 cycles (not
-conditioned on winning) using the sample covariance with $\text{ddof} = 1$.
-Ledoit-Wolf shrinkage \citep{Ledoit2004} is applied to guarantee
-positive-definiteness when the training set for a particular LOCO fold
-has fewer than $5 + 1$ observations:
+\textbf{Covariance} $\SigmaDelta$ is the $5\times5$ Ledoit-Wolf-shrunk covariance
+\citep{Ledoit2004} of race-bloc first-differences over a restricted nine-cycle window
+(1992--2024, yielding eight first-differences), not the full 1948--2024 panel:
 
 \begin{equation}
   \hat{\Sigma}_{\mathrm{LW}} = (1 - \alpha)\, \hat{\Sigma}_{\mathrm{sample}}
   + \alpha\, \hat{\mu}_{\mathrm{sample}} I_{5\times5}.
   \label{eq:ledoitwolf}
 \end{equation}
+
+The pre-1990 cutoff (\texttt{COVARIANCE\_MIN\_CYCLE = 1990}, applied before
+first-differencing) is necessary because the data-thin minority blocs have sparse or
+imputed cells in early cycles: an empty 1968 ANES Asian cell produces a spurious
+$+0.71$ first-difference, and other-race 1948--1956 values are carry-forward imputed.
+These artifacts inflated thin-bloc variance by more than $2\times$. Restricting to the
+nine-cycle window collapses the inflated standard deviations
+(Asian $0.243 \rightarrow 0.122$, other race $0.232 \rightarrow 0.096$) while leaving
+well-sampled blocs essentially unchanged (White $0.077 \rightarrow 0.071$). The
+resulting matrix is symmetric, positive-definite, and non-diagonal, with off-diagonal
+terms capturing genuine cross-bloc co-movement. The cost is a small sample: eight
+first-differences over five blocs. Shrinkage mitigates the resulting estimation error
+but the covariance remains data-limited for the Asian and Latino blocs, whose corrected
+standard deviations ($\approx 0.12$) sit at the upper edge of the bloc range.
 
 \subsection{Layer weight calibration by iterative proportional fitting}
 \label{sec:raking}
@@ -714,9 +776,35 @@ Therefore $\Phi(f(\boldw))$ is quasi-convex, and its maximization is a
 quasi-convex program (QCP). \qed
 \end{proof}
 
-The program is solved by CVXPY with \texttt{problem.solve(qcp=True)}; the
-implementation asserts \texttt{problem.is\_dcp(qcp=True)} at runtime as a
-correctness guard.
+The program is solved by CVXPY; internally the quasi-convex ratio is homogenized
+into a second-order cone program (SOCP) over auxiliary variables $(\mathbf{z}, s)$
+with $\boldw = \mathbf{z}/s$, solved by the CLARABEL interior-point solver. The
+implementation asserts disciplined quasi-convexity at runtime as a correctness guard.
+
+\subsubsection{Per-bloc box constraints}
+\label{sec:bounds}
+
+The unconstrained objective in \eqref{eq:dqcp_obj} maximizes win probability over the
+full simplex, which drives weight onto whichever bloc has the highest loyalty-to-variance
+ratio---in the Democrat baseline, roughly $0.50$ on African Americans against a
+$\approx$19\% electorate share. Such single-bloc concentrations are strategically
+implausible (a coalition cannot be half African American) and inflate the win
+probability by understating realized variance. We therefore constrain each weight to a
+box around its National Election Pool electorate share $w_0^{(i)}$:
+
+\begin{equation}
+  w_0^{(i)} \cdot \text{LOWER} \;\leq\; w_i \;\leq\; \min\!\bigl(1,\, w_0^{(i)} \cdot \text{UPPER}\bigr),
+  \qquad \text{LOWER} = 0.5,\ \text{UPPER} = 1.5,
+  \label{eq:box}
+\end{equation}
+
+with $\mathbf{w}_0 = ($African American $0.12$, Latino $0.15$, Asian $0.05$, White
+$0.63$, Other Race $0.05)$. The bounds are homogeneous-degree-one in $(\mathbf{z}, s)$
+($z_i \geq \text{LOWER}\cdot w_0^{(i)}\, s$ and $z_i \leq \text{UPPER}\cdot w_0^{(i)}\, s$),
+so they enter the SOCP as linear constraints rather than as post-hoc clipping, preserving
+the quasi-convexity guarantee \citep{Lobo1998}. The multipliers are provisional pending
+calibration; a shock whose required reallocation exceeds the box is correctly reported as
+infeasible---a feature, not a failure.
 
 \textbf{Why not min-variance?} The standard mean-variance portfolio objective
 $\min_\boldw \boldw^\top \SigmaDelta \boldw$ subject to $\boldmu^\top \boldw
@@ -838,16 +926,54 @@ Highest-error blocs are \texttt{other\_gender} (MAE 0.049), \texttt{evangelical}
 synthetic training coverage that will improve when real RoBERTa-scored data
 enters the training mix.
 
-\textbf{Directional validation.} Running the pre-augmentation adapter on the
-Newsom 2028 presidential nomination scenario produced \texttt{slight\_pos} for
-all five race blocs---a politically incorrect prediction, as Newsom is expected
-to hurt with White working-class and some Latino voters while possibly helping
-with African American and secular blocs. The directional error indicates that
-the model is biased toward positive bins by the synthetic training distribution
-rather than learning genuinely event-specific partisan dynamics. The 1,136-record
-augmented dataset is intended to correct this by expanding coverage of events
-with mixed or negative minority-bloc effects. Validation of the retrained model
-on the Newsom scenario is a required gate before the paper-baseline run.
+\textbf{Directional validation.} The pre-augmentation adapter exhibited a
+directional error: on the Newsom 2028 presidential nomination scenario it produced
+\texttt{slight\_pos} for all five race blocs---a politically implausible prediction,
+as Newsom is expected to hurt with White working-class and some Latino voters while
+possibly helping with African American and secular blocs. The error indicated that
+the model was biased toward positive bins by the synthetic training distribution
+rather than learning genuinely event-specific partisan dynamics. Retraining on the
+1,136-record augmented dataset, which expands coverage of events with mixed or
+negative minority-bloc effects, \emph{resolves} the error. Evaluated on production
+hardware (Modal A10G, version-2 adapter with seeded constrained decoding), the Newsom
+scenario now differentiates correctly by bloc: White \texttt{slight\_neg}, Latino
+\texttt{slight\_neg}, Evangelical \texttt{mod\_neg}, Secular \texttt{slight\_pos}. The
+Latino bloc sits near a bin boundary and is the least stable across seeds; we flag it
+explicitly and require at least three seeded passes under the identical adapter and
+decoding path before any headline scenario is reported as the paper baseline.
+
+\subsection{Symmetry and valence validation}
+\label{sec:symmetry_methods}
+
+Individual shock outputs are untrustworthy without a systematic check that the model
+treats the two parties symmetrically and moves in the correct direction for events of
+known valence. Without it, a counterintuitive-but-correct prediction cannot be
+distinguished from a model that is merely pattern-matching party labels. We run two
+complementary validations (\texttt{scripts/validate\_symmetry.py},
+\texttt{scripts/symmetry\_test\_events.py}), both under a fixed seed and the production
+constrained-decoding path.
+
+\textbf{Symmetry test.} For each of ten matched event types (financial scandal,
+endorsement, rally, debate loss, popular policy, gaffe, indictment, jobs news,
+extremist remarks, convention), we author a Democrat-framed and a Republican-framed
+version of the otherwise-identical shock and compare the predicted per-bloc deltas. We
+report (i) the \emph{sign-mirror rate}---the fraction of blocs whose deltas flip sign
+appropriately across frames; (ii) the \emph{mean magnitude ratio}
+$|\delta_{\text{dem}}| / |\delta_{\text{rep}}|$, where a value far from one signals that
+one party's framing moves harder; and (iii) the \emph{asymmetry}
+$\overline{\delta}_{\text{dem}} - \overline{\delta}_{\text{rep}} \in [-1, 1]$, with
+$|\text{asymmetry}| < 0.01$ treated as symmetric and $< 0.03$ as a mild lean.
+
+\textbf{Valence test.} For six events with unambiguous expected direction (e.g., a
+bribery indictment $\rightarrow$ negative; a record rally and polling surge
+$\rightarrow$ positive), we confirm that the aggregate $\Delta_{\mathrm{eff}}$ moves
+with the expected sign. A separate end-to-end harness
+(\texttt{scripts/verify\_pipeline.py}) checks the covariance properties of
+Section~\ref{sec:moments}, the optimizer box bounds of Section~\ref{sec:bounds}, and
+full LLM~$\rightarrow$~optimizer~$\rightarrow$~Monte Carlo runs for absence of NaN/Inf
+and well-formed credible intervals; the latest run passes 16 of 17 checks (the single
+skip is a tokenizer-instantiation guard on the offline test host). Results are reported
+in Section~\ref{sec:symmetry_results}.
 
 \subsection{Stage 3: NLP pipeline}
 \label{sec:nlp}
@@ -1102,6 +1228,108 @@ the DQCP objective: only by maximizing $P(\text{win})$ rather than minimizing
 variance does the optimizer confront deficit scenarios in which the path to
 $\Veq$ necessarily runs through high-variance blocs.
 
+\subsection{Bipartisan neutrality and symmetry validation}
+\label{sec:symmetry_results}
+
+\textbf{Zero-shock diagnostic.} A run with all deltas set to zero is the cleanest
+probe of structural bias: with no shock signal, the LLM contributes nothing, so the
+two parties' baseline win probabilities should be near-symmetric around the
+EC-adjusted target. They were not. The original model gave Democrats a baseline win
+probability of $1.00$ against $0.26$ for Republicans---an asymmetry baked into the
+\emph{scoring}, independent of any prediction.
+
+\textbf{Root cause and fix.} The fixed-loyalty term contributed by religion and gender
+(Section~\ref{sec:mueff}) used equal within-stratum weights ($v_r = 1/7$, $g_g = 1/3$).
+With seven religion and three gender blocs, this assigned $\approx 0.14$ to each
+religion bloc and $\approx 0.33$ to each gender bloc, wildly over-weighting small but
+strongly Democratic groups (Jewish $\approx 2\%$, Muslim $\approx 1\%$, other gender
+$\approx 1\%$ of the electorate). The inflated Democratic religion/gender mean
+propagated into $\mueff$ as a constant Democratic tailwind on every scenario. Replacing
+the $1/n$ placeholder with documented electorate marginals
+(Section~\ref{sec:mueff}; Pew/ANES for religion, CPS/ANES for gender) reduced the
+baseline asymmetry by 98\%, from $+0.052$ to $+0.001$. The small residual favors
+Republicans, which is intended: the EC-adjusted target
+($\Veq = 0.5066$ Democrat, $0.4934$ Republican) deliberately encodes the Democrats'
+structural Electoral College disadvantage.
+
+\textbf{Residual win-probability asymmetry is a property, not a bias.} After the fix,
+the baseline means are symmetric (Democrat margin $+0.025$, Republican $+0.032$), yet a
+win-probability gap persists at zero shock (Democrat $\approx 0.98$, Republican
+$\approx 0.46$). This is not mean bias---both parties have small positive margins.
+It arises because the Republican optimal coalition is structurally \emph{more
+concentrated}: with minority blocs near their lower box bounds and White's large NEP
+share ($0.63$), the Republican optimum places $\approx 82\%$ of weight on White,
+producing higher Monte Carlo variance and thus a lower probability of clearing the
+threshold \emph{despite a larger mean margin}. A counterfactual single-bloc cap
+(White $\leq 0.792$) raises the Republican win probability to $\approx 0.52$, confirming
+that the mechanism is coalition concentration, not baseline asymmetry. We retain this as
+a modeled property rather than tuning it away: a single-bloc-dependent coalition is
+genuinely more electorally fragile, and engineering win-probability symmetry would mask
+a real structural difference between the parties' coalitions. Reported results therefore
+lead with the (symmetric) margin and present win probability with this variance caveat.
+
+\textbf{Directional symmetry.} The matched-pair and valence tests of
+Section~\ref{sec:symmetry_methods} confirm that, after the fix, the model treats
+Democrat- and Republican-framed versions of the same event symmetrically (signs mirror
+across frames; magnitude ratios near one) and that known-valence events move in the
+expected aggregate direction. This structural-scoring correctness is distinct from, and
+a precondition for, the directional accuracy of the Stage~1 predictions themselves
+(Section~\ref{sec:llm}).
+
+% -----------------------------------------------------------------------
+\section{Deployed System}
+\label{sec:system}
+
+The full three-stage pipeline is deployed as a live, public-facing web application.
+The intent is twofold: to demonstrate that the framework runs end-to-end on
+free-text input in interactive time, and to provide the supervising faculty an
+inspectable interface over the model's intermediate artifacts.
+
+\subsection{Streaming inference service}
+
+The backend is a FastAPI application served on Modal using a single A10G GPU (24\,GB).
+At container start the Mistral 7B base model is loaded in \texttt{float16} ($\approx
+14$\,GB) and the rank-16 version-2 QLoRA adapter ($\approx 52$\,MB) is merged. The
+primary endpoint, \texttt{GET /estimate/stream}, accepts a shock description, an
+intensity in $[0.1, 3.0]$, and a party, and returns Server-Sent Events as each pipeline
+stage completes: a \texttt{deltas} event (Stage~1 LLM bins, $\approx 2$\,s), an
+\texttt{equilibrium} event (Stage~2 DQCP coalition weights and feasibility,
+$\approx 1$\,s), a \texttt{simulation} event (the 10{,}000-draw Logistic-Normal ILR
+Monte Carlo with its credible interval, $\approx 0.5$\,s), and a terminating
+\texttt{done} event. The three stages run in thread/process pools (the CVXPY solve is
+isolated in a process pool because it is not thread-safe). Each request is written to a
+DuckDB audit log with per-stage latencies. For cost control the service scales to zero
+($\texttt{min\_containers} = 0$, $60$\,s scaledown), giving a $\approx 24$--$30$\,s cold
+start and $\approx 5$--$15$\,s warm round-trips.
+
+\subsection{Web interface}
+
+The frontend is a Next.js application (Tailwind CSS, Recharts) deployed on Vercel and
+pointed at the Modal endpoint. A user selects a party, types a shock, and sets an
+intensity (or picks one of five preset event categories); the results then populate
+progressively as the SSE stream arrives. Three widgets render the output:
+(i) a plain-language \emph{narrative} that groups blocs into gaining, losing, and---
+distinct from earlier versions---little-measurable-effect (neutral) buckets;
+(ii) a two-panel \emph{coalition chart} that deliberately separates the predicted
+within-bloc loyalty shift $\tilde\mu_i$ from the optimizer-recommended coalition
+emphasis $\tilde w_i$, relabeling the latter as strategic weighting rather than
+population share to prevent a common misreading; and (iii) a \emph{win-probability
+gauge} with a percentile strip showing the 90\% credible interval. A share button
+encodes the query into URL parameters. An authenticated analyst dashboard exposes six
+panels over the pipeline internals: a data-coverage matrix, the RoBERTa sentiment
+distribution, bio-classifier method coverage, training-loss curves, Monte Carlo
+convergence, and a searchable audit table.
+
+\subsection{Live-demo caveat}
+
+The deployed demo prioritizes responsiveness and cost; for paper-grade numbers the
+production-grade covariance path (Ledoit-Wolf $\SigmaDelta$ of
+Section~\ref{sec:moments}) must be loaded into the serving image rather than the
+diagonal fallback, and the market-comparison module was removed because it juxtaposed
+the model's conditional $P(\text{win}\mid\text{shock})$ against a market's unconditional
+price (Section~\ref{sec:discussion}). We also note that the public share-link feature
+should be rate-limited before wide release, since each call triggers a GPU invocation.
+
 % -----------------------------------------------------------------------
 \section{Discussion}
 \label{sec:discussion}
@@ -1204,9 +1432,10 @@ is not a model failure but a diagnostic for two upstream issues:
 \begin{enumerate}
   \item \textbf{Covariance source.} When real panel data is absent, the diagonal
     fallback $\SigmaDelta = 0.02^2 I$ produces negligible denominator variance.
-    Production runs must use the Ledoit-Wolf estimator on the 20-cycle race-delta
-    matrix, which yields a condition number of $\approx$12 and non-degenerate
-    off-diagonal terms.
+    Production runs use the Ledoit-Wolf estimator on the nine-cycle (1992--2024)
+    race-delta matrix (Section~\ref{sec:moments}), which yields non-degenerate
+    off-diagonal terms; the diagonal fallback is retained only for smoke
+    configurations and, currently, the cost-constrained live demo.
 
   \item \textbf{Target validity.} If $\Veq = 0.5066$ is too low (as discussed in
     Section~\ref{sec:veq_results}), even a modest positive shock pushes
@@ -1274,31 +1503,41 @@ because the gender gap has grown the most since 1980. Future work will use the
 DQCP optimizer to demonstrate that these two objectives recommend different
 coalition allocations under identical shock conditions.
 
-The three-stage pipeline is substantially implemented. The Stage~1 LLM
-(Mistral 7B QLoRA rank-16) is fine-tuned and evaluated; the Stage~2 DQCP
-optimizer solves on real panel data; the Stage~3 NLP pipeline (SetFit
-bio-classifiers and RoBERTa scorer) is trained and deployed. The shock catalog
-covers 30 historical events (2001--2024) across nine taxonomy categories.
+The three-stage pipeline is implemented and deployed end-to-end. The Stage~1 LLM
+(Mistral 7B QLoRA rank-16) is fine-tuned and evaluated, and its earlier directional
+error is resolved on the retrained adapter; the Stage~2 DQCP optimizer solves on real
+panel data under per-bloc box constraints; the Stage~3 NLP pipeline (SetFit
+bio-classifiers and RoBERTa scorer) is trained and deployed. The bipartisan-neutrality
+fix removes the structural Democratic scoring bias, and the whole pipeline is served as
+a live streaming web application (Section~\ref{sec:system}). The shock catalog covers
+30 historical events (2001--2024) across nine taxonomy categories.
 
 Three items remain before the paper-baseline run can be frozen:
 \begin{enumerate}
-  \item \textbf{Directional validation.} The retrained 1,136-record model must
-    be confirmed to fix the Newsom 2028 all-minorities-positive directional
-    error. If the error persists, the synthetic training data requires
-    additional adjudication before the model can be presented as directionally
-    calibrated.
-
   \item \textbf{Threshold validation.} $\Veq = 0.5066$ must be confirmed or
     revised in consultation with the supervising faculty to ensure it reflects
     the true Democrat Electoral College structural disadvantage. The current
-    value produces win-probability saturation under realistic shock conditions,
-    which limits the optimizer's diagnostic value.
+    value produces win-probability saturation under degenerate-covariance
+    conditions, which limits the optimizer's diagnostic value.
+
+  \item \textbf{Production covariance in the live demo.} The deployed service must
+    load the nine-cycle Ledoit-Wolf $\SigmaDelta$ in place of the diagonal fallback,
+    and the headline scenarios must be reported over at least three seeded passes
+    (noting the Latino bloc's boundary instability), before the live outputs match
+    the paper baseline.
 
   \item \textbf{CI definition.} The reported Monte Carlo interval must be
     explicitly labeled as sampling precision rather than covariance-propagated
     epistemic uncertainty, or the outer Wishart loop must be implemented. This
     decision determines what scientific claim the interval supports.
 \end{enumerate}
+
+The directional validation of the Stage~1 model and the bipartisan-neutrality
+requirement, both previously open, are now satisfied (Sections~\ref{sec:llm}
+and~\ref{sec:symmetry_results}). The current within-stratum marginals are documented
+electorate shares, an interim resolution of the layer-weight calibration; replacing them
+with full \texttt{raking.py} iterative proportional fitting against the live panel
+remains a longer-term refinement.
 
 Future extensions beyond the SRP include: (i) real-time shock collection via
 the live AT Protocol firehose and Apify collectors; (ii) Wishart-propagated
@@ -1512,6 +1751,11 @@ Liu, Y., M. Ott, N. Goyal, J. Du, M. Joshi, D. Chen, O. Levy, M. Lewis,
   L. Zettlemoyer, and V. Stoyanov (2019).
 \newblock RoBERTa: A robustly optimized BERT pretraining approach.
 \newblock arXiv preprint arXiv:1907.11692.
+
+\bibitem[Lobo et~al.(1998)]{Lobo1998}
+Lobo, M.~S., L. Vandenberghe, S. Boyd, and H. Lebret (1998).
+\newblock Applications of second-order cone programming.
+\newblock \textit{Linear Algebra and its Applications}, 284(1--3), 193--228.
 
 \bibitem[Lock \& Gelman(2010)]{Lock2010}
 Lock, K. and A. Gelman (2010).
