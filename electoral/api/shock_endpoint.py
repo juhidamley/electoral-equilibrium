@@ -89,7 +89,7 @@ log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-_ADAPTER_PATH: str = os.environ.get("ADAPTER_PATH", "models/mistral-r16")
+_ADAPTER_PATH: str = os.environ.get("ADAPTER_PATH", "models/mistral-r16-v3")
 _BASE_MODEL: str = os.environ.get("BASE_MODEL", "mistralai/Mistral-7B-v0.3")
 _GLOBAL_SEED: int = int(os.environ.get("GLOBAL_SEED", "42"))
 

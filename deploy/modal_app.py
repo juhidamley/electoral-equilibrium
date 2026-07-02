@@ -6,7 +6,7 @@ Volume "electoral-adapters".  Populate it ONCE from this machine before deployin
 
     modal volume create electoral-adapters
     cd /path/to/electoral-equilibrium            # repo root
-    modal volume put electoral-adapters models/mistral-r16/ /mistral-r16/
+    modal volume put electoral-adapters models/mistral-r16-v3/ /mistral-r16-v3/
 
 The base model (mistralai/Mistral-7B-v0.3, ~14 GB) is downloaded from HuggingFace
 during image build and baked into the cached image layer.  This is a one-time ~30 min
