@@ -157,10 +157,12 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   // ── Results — each filled by its own SSE event, null until then ──
-  const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);  // ← "deltas"
-  const [deltas, setDeltas] = useState<Record<string, number> | null>(null);        // ← "deltas" (numeric)
-  const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);      // ← "equilibrium"
-  const [simulation, setSimulation] = useState<SimulationData | null>(null);          // ← "simulation"
+  const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);       // ← "deltas" (bins)
+  const [deltas, setDeltas] = useState<Record<string, number> | null>(null);             // ← "deltas" (numeric, all 15 blocs merged)
+  const [deltasReligion, setDeltasReligion] = useState<Record<string, number> | null>(null); // ← "deltas" religion stratum
+  const [deltasGender, setDeltasGender] = useState<Record<string, number> | null>(null);     // ← "deltas" gender stratum
+  const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);          // ← "equilibrium"
+  const [simulation, setSimulation] = useState<SimulationData | null>(null);              // ← "simulation"
   const [copied, setCopied] = useState(false);  // transient "Copied!" feedback on the share button
 
   // Holds the active SSE connection so we can close a stale one before starting a
@@ -213,6 +215,8 @@ export default function HomePage() {
     // Clear prior results so stale charts don't linger while the new run streams in.
     setDeltaBins(null);
     setDeltas(null);
+    setDeltasReligion(null);
+    setDeltasGender(null);
     setEquilibrium(null);
     setSimulation(null);
 
@@ -228,6 +232,8 @@ export default function HomePage() {
           ...data.deltas_religion,
           ...data.deltas_gender,
         });
+        setDeltasReligion(data.deltas_religion);
+        setDeltasGender(data.deltas_gender);
       },
       onEquilibrium: (data) => setEquilibrium(data),
       onSimulation: (data) => setSimulation(data),
@@ -334,6 +340,8 @@ export default function HomePage() {
                   baseline={null}
                   shifted={equilibrium?.mu_shifted ?? null}
                   rebalanced={equilibrium?.weights ?? null}
+                  deltasReligion={deltasReligion}
+                  deltasGender={deltasGender}
                   feasible={equilibrium?.feasible ?? true}
                   targetMet={equilibrium?.target_met ?? null}
                   muEffShifted={equilibrium?.mu_eff_shifted ?? null}
@@ -365,7 +373,7 @@ export default function HomePage() {
           <p className="text-xs leading-relaxed text-gray-400">
             This is a research tool, not a forecast. It estimates the directional effect
             of <em>hypothetical</em> events on coalition structure — it does not predict
-            real election outcomes. Built as a CMC Senior Research Project.
+            real election outcomes. Built as a CMC Summer Research Project by Juhi Damley.
           </p>
         </div>
       </footer>

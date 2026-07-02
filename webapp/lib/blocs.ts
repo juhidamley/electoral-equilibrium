@@ -11,6 +11,26 @@ export const RACE_BLOCS = [
 
 export type RaceBlocId = (typeof RACE_BLOCS)[number];
 
+export const RELIGION_BLOCS = [
+  "evangelical",
+  "catholic",
+  "protestant",
+  "secular",
+  "jewish",
+  "muslim",
+  "other_rel",
+] as const;
+
+export type ReligionBlocId = (typeof RELIGION_BLOCS)[number];
+
+export const GENDER_BLOCS = [
+  "women",
+  "men",
+  "other_gender",
+] as const;
+
+export type GenderBlocId = (typeof GENDER_BLOCS)[number];
+
 export const BLOC_LABEL: Record<string, string> = {
   // Race
   african_american: "Black voters",
