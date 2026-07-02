@@ -1549,3 +1549,52 @@ within-stratum weights are now documented electorate marginals rather than 1/n, 
 what removed the structural bias. It is *not* yet the full `raking.py` iterative
 proportional fitting against the live panel — that remains the longer-term calibration.
 Re-freeze the baseline once V_eq, raking, and the production Σ_Δ are all settled.
+
+---
+
+## Week 8 — 2026-07-01 — Residual model lean (base-model pretrained priors)
+
+**[2026-07-01] The fine-tuned model carries a +0.028 Democratic lean that localizes to
+the base model's pretrained political priors — disclosed as a limitation, not tuned away.**
+
+Distinct from the two *scoring/aggregation* fixes logged above (which concern how μ_eff and
+win-probability are computed from the model's outputs), this concerns a lean in the
+**model's predictions themselves**, measured on matched-event symmetry testing
+(`scripts/validate_symmetry.py`: same shock framed for each party, an unbiased model should
+produce mirror-image deltas).
+
+### Root-cause analysis (elimination)
+The +0.028 lean was chased through three candidate causes, two of which were real bugs now
+corrected and one of which was ruled out empirically:
+
+1. **Baseline aggregation bias — ELIMINATED (corrected).** The equal-weight within-stratum
+   loyalty that over-weighted small strongly-Democratic blocs. Fixed by weighting to real
+   electorate marginals — see *Structural baseline symmetry* (2026-06-29) above. Removed the
+   structural mean bias but **not** this behavioral lean.
+2. **Covariance artifacts — ELIMINATED (corrected).** Monte Carlo now consumes the real
+   Σ_Δ rather than a degenerate diagonal — see *Decision: Monte Carlo consumes the real
+   Σ_Δ* (2026-06-22) above. Not the source either.
+3. **Synthetic corpus label imbalance — ELIMINATED (rebalanced + retrained).** The seed
+   corpus was rebalanced to a −0.0007 label asymmetry and the adapter retrained; the
+   behavioral lean **persisted at +0.028**, so the training-data composition is not the
+   driver.
+
+### Conclusion: pretrained priors survive light LoRA
+With aggregation, covariance, and corpus imbalance all eliminated, the residual localizes to
+the **base model's pretrained political priors**, which survive light LoRA fine-tuning. It
+concentrates in **valence-interpretation events** — e.g. a Republican gaffe read as more
+damaging than the Democratic equivalent; positive economic news read as more Democrat-helping.
+This is consistent with the corpus-rebalance result: a low-rank adapter re-weights the base
+model's behavior at the margin but does not overwrite the priors encoded in the frozen weights.
+
+### DECISION: disclose as a limitation, do not tune away
+This is **retained and disclosed as a known limitation**, not engineered out. Suppressing a
++0.028 lean with an output-side correction would hide a real property of the underlying model
+rather than fix it, and would not generalize beyond the tested event set. The paper reports
+the lean magnitude, its localization to valence events, and the elimination trail above.
+
+**Future work** to fully neutralize pretrained-model lean (any of, escalating in cost):
+- heavier fine-tuning (higher LoRA rank / more epochs / full-parameter tuning) to overwrite
+  more of the pretrained priors;
+- base-model selection (evaluate less politically-leaning base checkpoints);
+- a disclosed, documented output-side calibration applied symmetrically and reported as such.
