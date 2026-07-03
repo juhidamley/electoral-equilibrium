@@ -18,6 +18,7 @@ import * as Collapsible from "@radix-ui/react-collapsible";
 import { ChevronDown, Link2 } from "lucide-react";
 
 import type { EquilibriumData, Party, SimulationData } from "@/lib/types";
+import { injectRulingContext, type RulingParty } from "@/lib/rulingParty";
 import { estimateShockStream } from "@/lib/api";
 import CoalitionChart from "@/components/CoalitionChart";
 import ErrorBanner from "@/components/ErrorBanner";
@@ -150,6 +151,9 @@ function WhatDoTheseMean() {
 export default function HomePage() {
   // ── Form inputs (driven by the ShockInput controls) ──
   const [party, setParty] = useState<Party>("democrat");
+  // Governing context — distinct from `party` (the modeled coalition). "none" is the
+  // default and leaves the event text untouched. See lib/rulingParty.ts.
+  const [rulingParty, setRulingParty] = useState<RulingParty>("none");
   const [event, setEvent] = useState<string>("");
   const [intensity, setIntensity] = useState<number>(1.0);
   // ── Request lifecycle ──
@@ -159,6 +163,7 @@ export default function HomePage() {
   // ── Results — each filled by its own SSE event, null until then ──
   const [deltaBins, setDeltaBins] = useState<Record<string, string> | null>(null);       // ← "deltas" (bins)
   const [deltas, setDeltas] = useState<Record<string, number> | null>(null);             // ← "deltas" (numeric, all 15 blocs merged)
+  const [deltasRace, setDeltasRace] = useState<Record<string, number> | null>(null);         // ← "deltas" race stratum
   const [deltasReligion, setDeltasReligion] = useState<Record<string, number> | null>(null); // ← "deltas" religion stratum
   const [deltasGender, setDeltasGender] = useState<Record<string, number> | null>(null);     // ← "deltas" gender stratum
   const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);          // ← "equilibrium"
@@ -175,6 +180,9 @@ export default function HomePage() {
 
     const p = params.get("party");
     if (p === "democrat" || p === "republican") setParty(p);
+
+    const r = params.get("ruling");
+    if (r === "democrat" || r === "republican" || r === "none") setRulingParty(r);
 
     const e = params.get("event");
     if (e) setEvent(e);
@@ -194,11 +202,14 @@ export default function HomePage() {
   }, []);
 
   const handleShare = () => {
+    // Share the RAW event + ruling party (not the injected text) so the recipient's
+    // page reconstructs an identical request, injection included.
     const params = new URLSearchParams({
       party,
       event,
       intensity: String(intensity),
     });
+    if (rulingParty !== "none") params.set("ruling", rulingParty);
     const shareUrl = `${window.location.origin}${window.location.pathname}?${params}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
@@ -215,12 +226,18 @@ export default function HomePage() {
     // Clear prior results so stale charts don't linger while the new run streams in.
     setDeltaBins(null);
     setDeltas(null);
+    setDeltasRace(null);
     setDeltasReligion(null);
     setDeltasGender(null);
     setEquilibrium(null);
     setSimulation(null);
 
-    const es = estimateShockStream(event, intensity, party, {
+    // Weave governing context into the free-text event before it reaches the model.
+    // "none" → unchanged. The model was trained on free text, so this is the only
+    // channel for ruling-party context (no separate backend field exists).
+    const eventText = injectRulingContext(event, rulingParty);
+
+    const es = estimateShockStream(eventText, intensity, party, {
       onDeltas: (data) => {
         setDeltaBins({
           ...data.delta_bins_race,
@@ -232,6 +249,7 @@ export default function HomePage() {
           ...data.deltas_religion,
           ...data.deltas_gender,
         });
+        setDeltasRace(data.deltas_race);
         setDeltasReligion(data.deltas_religion);
         setDeltasGender(data.deltas_gender);
       },
@@ -265,14 +283,6 @@ export default function HomePage() {
               political shocks.
             </p>
           </div>
-          <a
-            href="/devplan.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-none whitespace-nowrap text-xs text-blue-600 hover:text-blue-800 hover:underline sm:text-sm"
-          >
-            Methodology&nbsp;↗
-          </a>
         </div>
       </header>
 
@@ -291,6 +301,8 @@ export default function HomePage() {
             <ShockInput
               party={party}
               setParty={setParty}
+              rulingParty={rulingParty}
+              setRulingParty={setRulingParty}
               event={event}
               setEvent={setEvent}
               intensity={intensity}
@@ -340,6 +352,7 @@ export default function HomePage() {
                   baseline={null}
                   shifted={equilibrium?.mu_shifted ?? null}
                   rebalanced={equilibrium?.weights ?? null}
+                  deltasRace={deltasRace}
                   deltasReligion={deltasReligion}
                   deltasGender={deltasGender}
                   feasible={equilibrium?.feasible ?? true}

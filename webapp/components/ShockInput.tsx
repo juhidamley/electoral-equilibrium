@@ -4,10 +4,17 @@ import * as Slider from "@radix-ui/react-slider";
 import { Loader2 } from "lucide-react";
 
 import type { Party } from "@/lib/types";
+import {
+  injectRulingContext,
+  willInjectRulingContext,
+  type RulingParty,
+} from "@/lib/rulingParty";
 
 interface ShockInputProps {
   party: Party;
   setParty: (p: Party) => void;
+  rulingParty: RulingParty;
+  setRulingParty: (r: RulingParty) => void;
   event: string;
   setEvent: (e: string) => void;
   intensity: number;
@@ -15,6 +22,14 @@ interface ShockInputProps {
   onSubmit: () => void;
   loading: boolean;
 }
+
+// "Party currently in power" segmented control. None-specified is the default and
+// preserves the original behavior (event text sent unchanged).
+const RULING_OPTIONS: { value: RulingParty; label: string; active: string }[] = [
+  { value: "democrat",   label: "Democratic",     active: "bg-blue-600 text-white shadow-sm" },
+  { value: "republican", label: "Republican",     active: "bg-red-600 text-white shadow-sm" },
+  { value: "none",       label: "None specified", active: "bg-gray-600 text-white shadow-sm" },
+];
 
 // Mirrors the backend 422 guard — descriptions shorter than 10 chars are rejected.
 const MIN_EVENT_LENGTH = 10;
@@ -39,6 +54,8 @@ const COLOR_CLASSES: Record<string, string> = {
 export default function ShockInput({
   party,
   setParty,
+  rulingParty,
+  setRulingParty,
   event,
   setEvent,
   intensity,
@@ -51,12 +68,21 @@ export default function ShockInput({
 
   const partyColor = party === "democrat" ? "blue" : "red";
 
+  // Preview the governing-context injection so the user sees exactly what the model
+  // will read. Only shown when a ruling party is set AND the clause actually applies
+  // (i.e. the text doesn't already establish an administration).
+  const injectionApplies = willInjectRulingContext(event, rulingParty);
+  const sentText = injectRulingContext(event, rulingParty);
+
   return (
     <div className="space-y-6">
-      {/* ── (i) Party toggle — primary decision, visually dominant ── */}
+      {/* ── (i) Modeling party toggle — primary decision, visually dominant ── */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
           Modeling party
+        </p>
+        <p className="mb-2 text-xs text-gray-400">
+          Whose coalition the optimizer rebalances.
         </p>
         <div className="inline-flex rounded-lg border border-gray-200 p-1 shadow-sm">
           <button
@@ -86,6 +112,39 @@ export default function ShockInput({
         </div>
       </div>
 
+      {/* ── (i-b) Ruling party — governing context, distinct from Modeling party ── */}
+      <div>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
+          Party currently in power
+        </p>
+        <p className="mb-2 text-xs text-gray-400">
+          Who governs when the event happens — <span className="font-medium text-gray-500">not</span>{" "}
+          the same as the modeling party above.
+        </p>
+        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-1 shadow-sm">
+          {RULING_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setRulingParty(opt.value)}
+              aria-pressed={rulingParty === opt.value}
+              className={[
+                "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
+                rulingParty === opt.value
+                  ? opt.active
+                  : "bg-transparent text-gray-500 hover:text-gray-700",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs leading-snug text-gray-400">
+          Sets which party holds power, so the model can interpret incumbent-relative
+          events (e.g. a recession) correctly. This is added to the event description.
+        </p>
+      </div>
+
       {/* ── (ii) Event description textarea ── */}
       <div>
         <label
@@ -106,6 +165,17 @@ export default function ShockInput({
           <p className="mt-1 text-xs text-amber-600">
             Enter at least {MIN_EVENT_LENGTH} characters
           </p>
+        )}
+
+        {/* Governing-context preview — shows the exact text the model will read once
+            the ruling-party clause is injected. Only rendered when it changes the text. */}
+        {injectionApplies && (
+          <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Sent to model as
+            </p>
+            <p className="mt-0.5 text-xs leading-snug text-gray-600">{sentText}</p>
+          </div>
         )}
 
         {/* ── Preset pills — fill textarea only, do not submit ── */}

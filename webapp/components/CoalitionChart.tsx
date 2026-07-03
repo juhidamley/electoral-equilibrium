@@ -4,19 +4,20 @@
 // CoalitionChart — three strata: Race / Religion / Gender
 // ============================================================================
 // STRUCTURE:
-//   Race    — two side-by-side panels: loyalty shift (μ̃) + coalition emphasis (w̃).
-//             Both come from the "equilibrium" SSE event (mu_shifted, weights).
-//   Religion + Gender — loyalty-shift delta panel ONLY. The optimizer rebalances
-//             only race weights; religion/gender enter as FIXED loyalty (no w̃).
-//             Values come from the "deltas" SSE event: deltas_religion/deltas_gender
-//             (numeric shifts Δμ ∈ [−0.15, 0.15]).  We render them on a symmetric
-//             delta axis [−0.15, 0.15] with a zero reference line, labeled "Δ loyalty".
+//   All three strata show Δ loyalty (change) on a symmetric [−0.15, 0.15] axis
+//   with green/red bars and a zero reference line.
+//
+//   Race    — two side-by-side panels:
+//               LEFT:  Δ loyalty per race bloc (DeltaPanel) — from "deltas" event
+//               RIGHT: coalition emphasis (w̃, [0,1]) — from "equilibrium" event
+//   Religion + Gender — Δ loyalty panel only; fixed strata (no optimizer weight).
+//             Values come from the "deltas" SSE event.
 //
 // SSE fields consumed:
-//   "equilibrium" → equilibrium.mu_shifted  (race μ̃, [0,1])
-//                 → equilibrium.weights     (race w̃, [0,1])
-//   "deltas"      → deltas_religion         (Δμ per religion bloc, already available
-//                 → deltas_gender            before equilibrium arrives)
+//   "deltas"      → deltas_race             (Δμ per race bloc)
+//                 → deltas_religion         (Δμ per religion bloc)
+//                 → deltas_gender           (Δμ per gender bloc)
+//   "equilibrium" → equilibrium.weights     (race w̃, [0,1])
 
 import React, { useMemo } from "react";
 import {
@@ -42,8 +43,9 @@ import {
 
 interface CoalitionChartProps {
   baseline: Record<string, number> | null;
-  shifted: Record<string, number> | null;         // equilibrium.mu_shifted (race, [0,1])
+  shifted: Record<string, number> | null;         // equilibrium.mu_shifted (race, [0,1]) — gates skeleton
   rebalanced: Record<string, number> | null;      // equilibrium.weights    (race, [0,1])
+  deltasRace: Record<string, number> | null;      // deltas_race     (Δμ, from "deltas" event)
   deltasReligion: Record<string, number> | null;  // deltas_religion (Δμ, from "deltas" event)
   deltasGender: Record<string, number> | null;    // deltas_gender   (Δμ, from "deltas" event)
   feasible: boolean;
@@ -327,6 +329,7 @@ export default function CoalitionChart({
   baseline,
   shifted,
   rebalanced,
+  deltasRace,
   deltasReligion,
   deltasGender,
   feasible,
@@ -342,10 +345,6 @@ export default function CoalitionChart({
     muEffShifted !== null && target !== null ? (muEffShifted - target) * 100 : null;
 
   // Constant hook count — must be before any early return
-  const LoyaltyShape = useMemo(
-    () => makeLoyaltyShape({ valueKey: "shifted", color: partyColor, fillOpacity: 1, showBaseline: true }),
-    [partyColor],
-  );
   const WeightShape = useMemo(
     () => makeLoyaltyShape({ valueKey: "weight", color: partyColor, fillOpacity: 0.55,
         stripeWhenInfeasible: true, feasible }),
@@ -382,9 +381,9 @@ export default function CoalitionChart({
       weight: w,
       delta: s != null && b != null ? s - b : null,
     };
-  }).sort((a, b_) => (b_.shifted ?? 0) - (a.shifted ?? 0));
+  }).sort((a, b_) => (b_.weight ?? 0) - (a.weight ?? 0));
 
-  // ── Religion/gender delta data ─────────────────────────────────────────────
+  // ── Delta data for all three strata ───────────────────────────────────────
   function toDeltaEntries(
     blocs: readonly string[],
     deltas: Record<string, number> | null,
@@ -396,8 +395,9 @@ export default function CoalitionChart({
     });
   }
 
-  const religionData = toDeltaEntries(RELIGION_BLOCS, deltasReligion);
-  const genderData   = toDeltaEntries(GENDER_BLOCS,   deltasGender);
+  const raceDeltaData  = toDeltaEntries(RACE_BLOCS,     deltasRace);
+  const religionData   = toDeltaEntries(RELIGION_BLOCS, deltasReligion);
+  const genderData     = toDeltaEntries(GENDER_BLOCS,   deltasGender);
 
   return (
     <div className="rounded-md border border-gray-100 bg-white p-4">
@@ -407,16 +407,18 @@ export default function CoalitionChart({
         </div>
       )}
 
-      {/* ── RACE: loyalty [0,1] + emphasis [0,1] ── */}
+      {/* ── RACE: Δ loyalty + emphasis (w̃) ── */}
       <StratumHeader label="Race" />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <LoyaltyPanel
-          title="Predicted loyalty shift"
-          subtitle="Per-bloc support for the party after the shock (μ̃)"
-          data={raceData}
-          dataKey="shifted"
-          shape={LoyaltyShape}
-        />
+        {raceDeltaData.length > 0 ? (
+          <DeltaPanel
+            title="Predicted loyalty shift"
+            subtitle="Δ loyalty toward the party after the shock (Δμ)"
+            data={raceDeltaData}
+          />
+        ) : (
+          <SkeletonRows n={5} />
+        )}
         <LoyaltyPanel
           title="Optimizer-recommended emphasis"
           subtitle="Strategic weighting (w̃) — not population share"
