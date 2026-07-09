@@ -159,6 +159,7 @@ def predict(model, tokenizer, text: str, party: str) -> dict[str, float]:
         tokenizer=tokenizer,
         use_constrained=True,
         seed=SEED,
+        base_model=BASE_MODEL,
     )
     return numeric_deltas(bins)
 
