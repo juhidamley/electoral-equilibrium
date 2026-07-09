@@ -1,0 +1,12 @@
+{
+  "base_model": "google/gemma-2-9b",
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "learning_rate": 2e-4,
+  "epochs": 3,
+  "batch_size": 4,
+  "train_path": "data/finetune/train.jsonl",
+  "eval_path": "data/finetune/eval.jsonl",
+  "output_dir": "models/gemma2-9b-r16",
+  "backend": "hpc"
+}

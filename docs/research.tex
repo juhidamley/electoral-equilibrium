@@ -51,22 +51,22 @@
 % -----------------------------------------------------------------------
 \begin{document}
 
-\title{Electoral Equilibrium: A Stochastic Optimization Framework\\
+\title{Electoral Equilibrium: A Stochastic Optimization Framework
        for Coalition Rebalancing Under Political Shocks}
 
 \author{
   Juhi Damley \\
-  Department of Mathematics \\
+  Department of Religious Studies \\
   Claremont McKenna College \\
   \texttt{jdamley@cmc.edu}
   \and
   Gaston Espinosa \\
-  Department of Mathematics \\
+  Department of Religious Studies  \\
   Claremont McKenna College \\
   \texttt{gespinosa@cmc.edu}
 }
 
-\date{June 2026}
+\date{July 2026}
 
 \maketitle
 
@@ -102,7 +102,12 @@ We further report a structural correctness result: weighting within-stratum
 loyalties by documented electorate marginals rather than equal $1/n$ weights
 removes a Democratic scoring bias of $+5.2$ points at zero shock, reducing the
 baseline party asymmetry by 98\% ($+0.052 \rightarrow +0.001$) and satisfying a
-bipartisan-neutrality requirement. The race-bloc covariance $\SigmaDelta$ is
+bipartisan-neutrality requirement. Matched-pair symmetry testing on the corrected
+baseline additionally isolates a residual $+0.028$ Democratic lean in the model's
+own predictions; a three-way elimination analysis (aggregation, covariance,
+training-corpus imbalance) localizes it to the base model's pretrained political
+priors, which survive light LoRA adaptation, and we disclose it as a limitation
+rather than tuning it away. The race-bloc covariance $\SigmaDelta$ is
 estimated by Ledoit-Wolf shrinkage over a restricted nine-cycle window
 (1992--2024) that suppresses spurious variance from sparse pre-1990 minority-bloc
 cells (Asian standard deviation $0.243 \rightarrow 0.122$). Electoral College
@@ -220,7 +225,13 @@ Our primary contributions are:
         residual win-probability gap is not a bias but a modeled property---the
         Republican optimal coalition is more concentrated and therefore more
         electorally fragile---and validate directional symmetry via matched
-        Democrat/Republican event pairs and known-valence events.
+        Democrat/Republican event pairs and known-valence events. Matched-pair
+        testing on the corrected baseline additionally isolates a residual
+        $+0.028$ Democratic lean in the model's own predictions; an elimination
+        analysis across three candidate causes (aggregation, covariance,
+        training-corpus imbalance) localizes it to the base model's pretrained
+        political priors, which we disclose as a limitation rather than tune
+        away (Section~\ref{sec:model_lean}).
 
   \item Empirical validation of the GP baseline classifier (85\% LOCO accuracy,
         Brier 0.071) and documentation of three data-quality issues---Perot
@@ -843,6 +854,18 @@ making it impossible to model wave elections where all blocs shift together.
 The delta method with a floor at $w_i \geq 0.01$ was rejected because the
 perturbation is not uniform in Aitchison geometry.
 
+Two consistency properties tie the Monte Carlo to the optimizer. First, the
+simulation consumes the \emph{same} shock covariance $\SigmaDelta$ used by the
+optimizer (the Ledoit-Wolf estimate of Section~\ref{sec:moments}), rather than
+an isotropic diagonal fallback, so the credible interval reflects real
+cross-bloc correlation. Second, the fixed-strata (religion and gender)
+contribution to the win condition is derived directly from the optimizer's
+reported $\tilde{\mu}_{\mathrm{eff}}(\boldw^*)$ rather than recomputed from a
+neutral $\mu = 0.50$ prior; an earlier implementation held the fixed strata at
+a flat neutral value, which could make the Monte Carlo's win check disagree
+with the optimizer's own feasibility determination. With the current
+construction, the two stages threshold the identical post-shock loyalty scalar.
+
 \begin{remark}[Scope of the reported CI]
 The 90\% interval reported here reflects \emph{Monte Carlo sampling variance}:
 how precisely we estimate the win fraction across $N = 10{,}000$ draws of
@@ -896,6 +919,18 @@ $>70\%$ of synthetic variance explained by the top-2 real principal components;
 (iii) pairwise correlation difference (PCD) Frobenius norm. Per-row soft weights
 $w = 0.5 \cdot \exp(-\lambda \cdot \mathrm{MMD}^2)$ downweight synthetic records
 with poor distributional alignment; hard rejection is not applied.
+
+Because the synthetic records are produced by external APIs whose model
+versions cannot be pinned, two additional safeguards apply. First, the
+committed JSONL files are the frozen artifacts: training always reads the
+committed records, never a fresh API query. Second, an ablation protocol is a
+paper deliverable: we report held-out MAE for (a) the base model with no
+fine-tuning, (b) an adapter trained on hand-authored records only, and (c) an
+adapter trained on the full augmented set. If (c) does not improve on (b), the
+synthetic rows are excluded from the final dataset. As part of the residual-lean
+investigation (Section~\ref{sec:model_lean}), the seed corpus was additionally
+rebalanced to a $-0.0007$ party label asymmetry---effectively zero---so that
+training-data composition can be ruled out as a source of directional bias.
 
 \textbf{Fine-tuning results.} Table~\ref{tab:lora_ranks} reports evaluation
 metrics for rank-16 and rank-32 adapters trained on an 80/20 stratified
@@ -1068,10 +1103,13 @@ fit but may be too low to guarantee an EC win under modern geographic efficiency
 conditions. Two-party analyses of 2000 and 2016 suggest Democrats have needed
 approximately 52\% of the two-party vote for a comfortable EC majority, and
 recent literature on EC bias \citep[see, e.g.,][]{Linzer2013} suggests a higher
-structural threshold. A threshold near 0.507 combined with a near-zero covariance
-fallback produces win-probability saturation ($P(\text{win}) \approx 1.0$) that
-is not meaningful for sensitivity analysis. This value will be validated and
-potentially revised in consultation with the supervising faculty (Section~\ref{sec:conclusion}).
+structural threshold. We note that the win-probability saturation observed under
+smoke-configuration conditions ($P(\text{win}) \approx 1.0$) was initially
+attributed in part to this threshold being too low, but was subsequently
+root-caused to the near-zero diagonal covariance fallback alone
+(Section~\ref{sec:saturation}); the threshold question stands on its own merits.
+This value will be validated and potentially revised in consultation with the
+supervising faculty (Section~\ref{sec:conclusion}).
 \end{remark}
 
 \subsection{Layer weight calibration}
@@ -1276,6 +1314,23 @@ expected aggregate direction. This structural-scoring correctness is distinct fr
 a precondition for, the directional accuracy of the Stage~1 predictions themselves
 (Section~\ref{sec:llm}).
 
+\textbf{Residual behavioral lean.} With the structural baseline leveled, the
+matched-pair test isolates a remaining $+0.028$ Democratic lean in the Stage~1
+model's \emph{predictions} (mean asymmetry
+$\overline{\delta}_{\text{dem}} - \overline{\delta}_{\text{rep}}$ across matched
+event pairs). Three candidate causes were tested by elimination. (i)
+\emph{Baseline aggregation bias}: corrected by the electorate-marginal fix above;
+the lean persisted. (ii) \emph{Covariance artifacts}: corrected by threading the
+real Ledoit-Wolf $\SigmaDelta$ through the Monte Carlo (Section~\ref{sec:mc});
+not the source. (iii) \emph{Synthetic corpus label imbalance}: the seed corpus was
+rebalanced to a $-0.0007$ label asymmetry and the adapter retrained; the lean
+persisted at $+0.028$, ruling out training-data composition. With all three
+eliminated, the residual localizes to the base model's pretrained political
+priors, and it concentrates in \emph{valence-interpretation} events---a
+Republican gaffe is read as more damaging than the Democratic equivalent, and
+positive economic news as more Democrat-helping. Section~\ref{sec:model_lean}
+discusses why we disclose this rather than correct it post hoc.
+
 % -----------------------------------------------------------------------
 \section{Deployed System}
 \label{sec:system}
@@ -1307,7 +1362,14 @@ start and $\approx 5$--$15$\,s warm round-trips.
 The frontend is a Next.js application (Tailwind CSS, Recharts) deployed on Vercel and
 pointed at the Modal endpoint. A user selects a party, types a shock, and sets an
 intensity (or picks one of five preset event categories); the results then populate
-progressively as the SSE stream arrives. Three widgets render the output:
+progressively as the SSE stream arrives. Because many shocks are
+incumbent-relative---a recession or an administration scandal reads differently
+depending on which party holds power---the interface also offers a ruling-party
+selector. Since the Stage~1 model consumes free text rather than a structured
+governing-party field, the selection is woven into the event description itself
+as a natural-language clause (``\ldots under the current Republican
+administration''), skipped when the text already establishes governing context,
+with a preview of the exact string sent to the model. Three widgets render the output:
 (i) a plain-language \emph{narrative} that groups blocs into gaining, losing, and---
 distinct from earlier versions---little-measurable-effect (neutral) buckets;
 (ii) a two-panel \emph{coalition chart} that deliberately separates the predicted
@@ -1354,6 +1416,47 @@ misses. Second, the paper compares optimizer outputs under both $\boldsymbol{\la
 calibrations; substantial divergence ($>2$ pp in $\mueff$) would indicate
 that intersectional interactions are load-bearing and MRP should be pursued
 in a follow-on study.
+
+A related caveat concerns the win condition itself. The optimizer thresholds
+$\mueff$---a $\boldsymbol{\lambda}$-weighted blend over three
+\emph{overlapping} strata---against $\Veq$, which is defined on the national
+two-party popular-vote share. The two quantities coincide only under the
+additive independence approximation: each stratum independently covers the
+electorate, so each stratum average is separately an estimate of the national
+share, and a convex combination of the three inherits that interpretation
+exactly when the approximation holds. Where intersectional interactions are
+material, $\mueff$ is a biased estimator of the popular-vote share and the
+comparison to $\Veq$ inherits that bias. We state this explicitly as a
+limitation; the additive-versus-raked comparison above is the empirical check
+on its severity.
+
+\subsection{Residual model lean from pretrained priors}
+\label{sec:model_lean}
+
+The $+0.028$ Democratic lean documented in Section~\ref{sec:symmetry_results}
+is a property of the Stage~1 model's predictions, not of the scoring pipeline.
+The elimination analysis is what licenses this attribution: with the baseline
+aggregation corrected, the covariance path corrected, and the training corpus
+rebalanced to a $-0.0007$ label asymmetry---after which the lean persisted
+unchanged---the only remaining candidate is the base model's pretrained
+political priors. This is consistent with the mechanics of low-rank
+adaptation: a rank-16 LoRA adapter re-weights the base model's behavior at the
+margin but does not overwrite priors encoded in the frozen weights
+\citep{Hu2022}. The lean concentrates in valence-interpretation events, where
+the model must judge \emph{how damaging} or \emph{how helpful} an event is
+rather than merely which blocs it touches.
+
+We retain and disclose the lean rather than engineering it out. An output-side
+correction tuned to zero the asymmetry on the tested event set would hide a
+real property of the underlying model without fixing it, and there is no
+guarantee it would generalize beyond that set. Users of the framework should
+read Democrat-favorable predictions on valence-ambiguous events with a
+$\approx 3$-point discount in delta-bin units. Three escalating mitigations
+are available to future work: heavier fine-tuning (higher LoRA rank, more
+epochs, or full-parameter tuning) to overwrite more of the pretrained priors;
+base-model selection across less politically leaning open-weight checkpoints;
+or a documented output-side calibration applied symmetrically to both parties
+and reported as such.
 
 \subsection{Data quality issues and their corrections}
 \label{sec:1988}
@@ -1426,27 +1529,28 @@ near-zero diagonal covariance fallback $\SigmaDelta = 0.02^2 I$) produces
 $P(\text{win}) \approx 1.0$ for all shock intensities. This is mathematically
 expected: with $\Veq = 0.5066$ and a shock pushing $\mueff$ to 0.52, the
 Sharpe ratio $(\mueff - \Veq) / \sqrt{\lambdaone^2\, \boldw^\top \SigmaDelta
-\boldw}$ is dominated by the near-zero denominator and diverges. The saturation
-is not a model failure but a diagnostic for two upstream issues:
+\boldw}$ is dominated by the near-zero denominator and diverges.
 
-\begin{enumerate}
-  \item \textbf{Covariance source.} When real panel data is absent, the diagonal
-    fallback $\SigmaDelta = 0.02^2 I$ produces negligible denominator variance.
-    Production runs use the Ledoit-Wolf estimator on the nine-cycle (1992--2024)
-    race-delta matrix (Section~\ref{sec:moments}), which yields non-degenerate
-    off-diagonal terms; the diagonal fallback is retained only for smoke
-    configurations and, currently, the cost-constrained live demo.
+The root cause is the covariance source, not the threshold. When real panel
+data is absent, the diagonal fallback $\SigmaDelta = 0.02^2 I$ produces
+negligible denominator variance, and \emph{any} positive margin---however
+small---maps to a saturated win probability. An earlier diagnosis attributed
+the saturation partly to $\Veq = 0.5066$ being too low
+(Section~\ref{sec:veq_results}); subsequent testing with the Ledoit-Wolf
+$\SigmaDelta$ threaded through the full pipeline showed that the saturation
+disappears once the covariance is non-degenerate, regardless of the threshold
+value. A lower threshold enlarges the margin and thus amplifies the effect,
+but does not cause it. Production runs use the Ledoit-Wolf estimator on the
+nine-cycle (1992--2024) race-delta matrix (Section~\ref{sec:moments}), which
+yields non-degenerate off-diagonal terms; the diagonal fallback is retained
+only for smoke configurations and, currently, the cost-constrained live demo.
+A variance floor on the supplied $\SigmaDelta$ additionally prevents a
+near-zero empirical covariance from collapsing the credible interval to a
+degenerate $[1,1]$ or $[0,0]$.
 
-  \item \textbf{Target validity.} If $\Veq = 0.5066$ is too low (as discussed in
-    Section~\ref{sec:veq_results}), even a modest positive shock pushes
-    $\mueff$ safely above the threshold, making the win probability trivially
-    high. The saturation is therefore also a symptom of a potentially
-    underestimated win threshold.
-\end{enumerate}
-
-Results are only interpretable once both conditions are resolved: real panel
-data loaded (Ledoit-Wolf active) and $\Veq$ validated against EC efficiency
-models.
+Results are interpretable once the real covariance is loaded; validating
+$\Veq$ against EC efficiency models remains a separate open item on its own
+merits.
 
 \subsection{Era sensitivity and the pre-realignment panel}
 
@@ -1516,9 +1620,11 @@ Three items remain before the paper-baseline run can be frozen:
 \begin{enumerate}
   \item \textbf{Threshold validation.} $\Veq = 0.5066$ must be confirmed or
     revised in consultation with the supervising faculty to ensure it reflects
-    the true Democrat Electoral College structural disadvantage. The current
-    value produces win-probability saturation under degenerate-covariance
-    conditions, which limits the optimizer's diagnostic value.
+    the true Democrat Electoral College structural disadvantage. The
+    win-probability saturation once attributed to this value has been
+    root-caused to the degenerate covariance fallback instead
+    (Section~\ref{sec:saturation}); the threshold question remains open on
+    its own merits.
 
   \item \textbf{Production covariance in the live demo.} The deployed service must
     load the nine-cycle Ledoit-Wolf $\SigmaDelta$ in place of the diagonal fallback,
@@ -1534,7 +1640,11 @@ Three items remain before the paper-baseline run can be frozen:
 
 The directional validation of the Stage~1 model and the bipartisan-neutrality
 requirement, both previously open, are now satisfied (Sections~\ref{sec:llm}
-and~\ref{sec:symmetry_results}). The current within-stratum marginals are documented
+and~\ref{sec:symmetry_results}). The remaining $+0.028$ Democratic lean in the
+model's predictions is root-caused to the base model's pretrained priors and
+disclosed as a limitation with a quantified magnitude and localization
+(Section~\ref{sec:model_lean}), rather than masked by an output-side
+correction. The current within-stratum marginals are documented
 electorate shares, an interim resolution of the layer-weight calibration; replacing them
 with full \texttt{raking.py} iterative proportional fitting against the live panel
 remains a longer-term refinement.
@@ -1543,8 +1653,10 @@ Future extensions beyond the SRP include: (i) real-time shock collection via
 the live AT Protocol firehose and Apify collectors; (ii) Wishart-propagated
 uncertainty intervals; (iii) MRP as an alternative to the additive independence
 approximation, contingent on access to full race $\times$ religion $\times$
-gender cross-tabulations; and (iv) post-election 2026--2028 validation against
-observed party strategic responses to the Iran conflict and the 2026 midterms.
+gender cross-tabulations; (iv) neutralization of the pretrained-prior lean via
+heavier fine-tuning or base-model selection (Section~\ref{sec:model_lean});
+and (v) post-election 2026--2028 validation against observed party strategic
+responses to the Iran conflict and the 2026 midterms.
 
 \appendix
 

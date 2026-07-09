@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from electoral.core.types import (
@@ -33,7 +34,7 @@ from electoral.core.types import (
     CANONICAL_RELIGIONS,
     DELTA_BINS,
 )
-from electoral.llm.trainer import format_prompt
+from electoral.llm.trainer import format_prompt, model_family
 
 log = logging.getLogger(__name__)
 
@@ -103,9 +104,20 @@ def load_model(
             "Install with: pip install transformers torch"
         ) from exc
 
+    # Gemma 2 weights are gated (need HF token) and want eager attention + bf16;
+    # all of this is empty/float16 for Mistral, so its load path is unchanged.
+    family = model_family(base_model)
+    hf_token = os.environ.get("HF_TOKEN")
+    tok_kwargs = {"token": hf_token} if family == "gemma" else {}
+    gemma_kwargs = (
+        {"attn_implementation": "eager", "token": hf_token} if family == "gemma" else {}
+    )
+    load_dtype = torch.bfloat16 if family == "gemma" else torch.float16
+
     tokenizer = AutoTokenizer.from_pretrained(
         base_model,
         use_fast=True,
+        **tok_kwargs,
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -117,7 +129,7 @@ def load_model(
             quant_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_compute_dtype=load_dtype,
                 bnb_4bit_use_double_quant=True,
             )
         except ImportError:
@@ -127,6 +139,7 @@ def load_model(
             base_model,
             quantization_config=quant_config,
             device_map="auto",
+            **gemma_kwargs,
         )
     else:
         # device_map="auto" on MPS (Apple Silicon) places some layers in meta tensors,
@@ -135,13 +148,15 @@ def load_model(
         if torch.backends.mps.is_available():
             model = AutoModelForCausalLM.from_pretrained(
                 base_model,
-                torch_dtype=torch.float16,
+                torch_dtype=load_dtype,
+                **gemma_kwargs,
             ).to("mps")
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 base_model,
-                torch_dtype=torch.float16,
+                torch_dtype=load_dtype,
                 device_map="auto",
+                **gemma_kwargs,
             )
 
     if adapter_path:
@@ -167,6 +182,7 @@ def _predict_constrained(
     tokenizer: Any,
     max_tokens: int = 512,
     seed: int = 42,
+    base_model: str = "mistralai/Mistral-7B-v0.3",
 ) -> dict[str, str]:
     """Use outlines for constrained JSON generation."""
     import outlines
@@ -183,7 +199,11 @@ def _predict_constrained(
         "news_roberta_scores": {},
         "social_roberta_scores": {},
     }
-    prompt = f"<s>{format_prompt(_example)}\n"
+    prompt = (
+        format_prompt(_example, base_model)
+        if model_family(base_model) == "gemma"
+        else f"<s>{format_prompt(_example)}\n"
+    )
     # outlines needs its own model wrapper (capital-T Transformers); passing the
     # bare HF model makes outlines reach for model.tokenizer, which a
     # MistralForCausalLM does not have. Disable KV cache to avoid the
@@ -220,6 +240,7 @@ def _predict_greedy(
     model: Any,
     tokenizer: Any,
     max_tokens: int = 512,
+    base_model: str = "mistralai/Mistral-7B-v0.3",
 ) -> dict[str, str]:
     """Fallback: greedy decode + regex extraction of bin tokens."""
     import re
@@ -233,7 +254,11 @@ def _predict_greedy(
         "news_roberta_scores": {},
         "social_roberta_scores": {},
     }
-    prompt = f"<s>{format_prompt(_example)}\n"
+    prompt = (
+        format_prompt(_example, base_model)
+        if model_family(base_model) == "gemma"
+        else f"<s>{format_prompt(_example)}\n"
+    )
     inputs = tokenizer(prompt, return_tensors="pt")
     if hasattr(model, "device") and str(model.device) != "cpu":
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
@@ -291,6 +316,7 @@ def predict_delta_bins(
     use_constrained: bool = True,
     max_tokens: int = 512,
     seed: int = 42,
+    base_model: str = "mistralai/Mistral-7B-v0.3",
 ) -> dict[str, str]:
     """Predict delta bins for all 15 demographic blocs.
 
@@ -318,14 +344,16 @@ def predict_delta_bins(
 
     if use_constrained:
         try:
-            result = _predict_constrained(shock_text, party, model, tokenizer, max_tokens, seed=seed)
+            result = _predict_constrained(
+                shock_text, party, model, tokenizer, max_tokens, seed=seed, base_model=base_model
+            )
             return _fill_missing(result)
         except ImportError as exc:
             log.warning("outlines not available (%s); falling back to greedy decode", exc)
         except Exception as exc:
             log.warning("constrained generation failed (%s); falling back to greedy decode", exc)
 
-    return _predict_greedy(shock_text, party, model, tokenizer, max_tokens)
+    return _predict_greedy(shock_text, party, model, tokenizer, max_tokens, base_model=base_model)
 
 
 # ── ShockEstimator ────────────────────────────────────────────────────────────

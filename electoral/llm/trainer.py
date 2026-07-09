@@ -105,8 +105,28 @@ _RELIGION_BLOCS = _BLOCS_ORDERED[5:12]
 _GENDER_BLOCS = _BLOCS_ORDERED[12:]
 
 
-def format_prompt(example: dict[str, Any]) -> str:
-    """Build the [INST]...[/INST] prompt from a finetune record.
+_MISTRAL_BASE = "mistralai/Mistral-7B-v0.3"
+
+
+def model_family(base_model: str) -> str:
+    """Dispatch key for prompt formatting: 'gemma' or 'mistral'.
+
+    Derived from the base model id, so the single `base_model` parameter (which
+    already flows end-to-end) selects the chat template — no separate config
+    flag needed. Anything that is not Gemma keeps the Mistral instruction format.
+    """
+    return "gemma" if "gemma" in base_model.lower() else "mistral"
+
+
+def format_prompt(example: dict[str, Any], base_model: str = _MISTRAL_BASE) -> str:
+    """Build the model-specific prompt from a finetune record.
+
+    Mistral: ``[INST] ...body... [/INST]``
+    Gemma 2: ``<start_of_turn>user\\n...body...<end_of_turn>\\n<start_of_turn>model\\n``
+
+    The semantic BODY (system framing, event, RoBERTa score blocks, closing
+    instruction with the 15-bloc canonical keys) is IDENTICAL for both models;
+    only the surrounding chat template differs.
 
     Six required elements:
       (i)   System context establishing political science framing and party.
@@ -168,13 +188,19 @@ def format_prompt(example: dict[str, Any]) -> str:
         "For non-gendered shocks, gender bins may be identical across women/men."
     )
 
-    return (
-        f"[INST] {system}\n\n"
+    body = (
+        f"{system}\n\n"
         f"{event_block}\n\n"
         f"{news_block}\n\n"
         f"{social_block}\n\n"
-        f"{closing} [/INST]"
+        f"{closing}"
     )
+    if model_family(base_model) == "gemma":
+        # <bos> is prepended automatically by the Gemma tokenizer; Gemma 2 has no
+        # system role, so the system framing lives inside the user turn (in body).
+        return f"<start_of_turn>user\n{body}<end_of_turn>\n<start_of_turn>model\n"
+    # Mistral instruction template — byte-identical to the pre-Gemma output.
+    return f"[INST] {body} [/INST]"
 
 
 def format_completion(record: dict[str, Any]) -> str:
@@ -215,8 +241,15 @@ def format_completion(record: dict[str, Any]) -> str:
     return json.dumps(sanitize_floats(output), ensure_ascii=False)
 
 
-def format_training_text(record: dict[str, Any]) -> str:
-    """Format a finetune JSONL record as a full <s>prompt\ncompletion</s> string."""
+def format_training_text(record: dict[str, Any], base_model: str = _MISTRAL_BASE) -> str:
+    """Format a finetune JSONL record as a full training string.
+
+    Mistral: ``<s>[INST] ... [/INST]\\ncompletion</s>``
+    Gemma 2: ``<start_of_turn>user ...<end_of_turn>\\n<start_of_turn>model\\ncompletion<end_of_turn>``
+             (``<bos>`` is prepended by the Gemma tokenizer at tokenization time).
+    """
+    if model_family(base_model) == "gemma":
+        return f"{format_prompt(record, base_model)}{format_completion(record)}<end_of_turn>"
     return f"<s>{format_prompt(record)}\n{format_completion(record)}</s>"
 
 
@@ -236,7 +269,13 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 # ── Evaluation ───────────────────────────────────────────────────────────────
 
 
-def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str) -> float:
+def _eval_mae(
+    model: Any,
+    tokenizer: Any,
+    eval_records: list[dict],
+    device: str,
+    base_model: str = _MISTRAL_BASE,
+) -> float:
     """Greedy-decode predictions on eval set and return MAE in delta units."""
     from electoral.llm.eval import mae_in_delta_units
     from electoral.core.types import DELTA_BINS
@@ -249,8 +288,11 @@ def _eval_mae(model: Any, tokenizer: Any, eval_records: list[dict], device: str)
 
     with torch.no_grad():
         for rec in eval_records:
-            prompt = format_prompt(rec)
-            inputs = tokenizer(f"<s>{prompt}\n", return_tensors="pt").to(device)
+            prompt = format_prompt(rec, base_model)
+            # Gemma's prompt already ends with the model-turn opener; <bos> is
+            # auto-added. Mistral keeps the literal <s>…\n exactly as before.
+            text = prompt if model_family(base_model) == "gemma" else f"<s>{prompt}\n"
+            inputs = tokenizer(text, return_tensors="pt").to(device)
             out = model.generate(
                 **inputs,
                 max_new_tokens=256,
@@ -336,10 +378,13 @@ def train(
     eval_records = load_jsonl(eval_path)
     log.info("Train: %d examples, Eval: %d examples", len(train_records), len(eval_records))
 
-    train_texts = [format_training_text(r) for r in train_records]
+    train_texts = [format_training_text(r, base_model) for r in train_records]
 
     # ── Load tokenizer ────────────────────────────────────────────────────────
-    tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
+    family = model_family(base_model)
+    hf_token = os.environ.get("HF_TOKEN")  # gated Gemma download; None for public Mistral
+    tok_kwargs = {"token": hf_token} if family == "gemma" else {}
+    tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True, **tok_kwargs)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
@@ -356,6 +401,11 @@ def train(
     tokenized = hf_dataset.map(tokenize, remove_columns=["text"])
 
     # ── Load model ────────────────────────────────────────────────────────────
+    # Gemma 2 needs eager attention (correct logit soft-capping in training) and an
+    # HF token (gated weights). Empty for Mistral, so its load path is unchanged.
+    gemma_kwargs: dict[str, Any] = (
+        {"attn_implementation": "eager", "token": hf_token} if family == "gemma" else {}
+    )
     if use_4bit:
         from transformers import BitsAndBytesConfig
 
@@ -369,6 +419,7 @@ def train(
             base_model,
             quantization_config=bnb_config,
             device_map="auto",
+            **gemma_kwargs,
         )
         from peft import prepare_model_for_kbit_training
 
@@ -380,6 +431,7 @@ def train(
             base_model,
             torch_dtype=torch.bfloat16,
             device_map="auto",
+            **gemma_kwargs,
         )
 
     # ── LoRA config ───────────────────────────────────────────────────────────
@@ -402,7 +454,10 @@ def train(
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
-        fp16=(device == "cuda"),
+        # Gemma 2 trains in bf16 (fp16 overflows its large activations); Mistral
+        # keeps fp16 exactly as before (bf16 defaults to False for non-Gemma).
+        fp16=(device == "cuda" and family != "gemma"),
+        bf16=(device == "cuda" and family == "gemma"),
         logging_steps=10,
         save_strategy="epoch",
         save_total_limit=1,
@@ -434,7 +489,7 @@ def train(
 
     # ── Evaluate MAE ─────────────────────────────────────────────────────────
     log.info("Evaluating on %d examples...", len(eval_records))
-    eval_mae = _eval_mae(model, tokenizer, eval_records, device)
+    eval_mae = _eval_mae(model, tokenizer, eval_records, device, base_model)
     log.info("Eval MAE: %.4f", eval_mae)
 
     trainer_state = {
