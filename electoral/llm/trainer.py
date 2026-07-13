@@ -54,6 +54,7 @@ class TrainConfig:
     eval_path: str = "data/finetune/eval.jsonl"
     output_dir: str = "models/mistral-r16"
     backend: str = "hpc"
+    bf16: bool = False  # Gemma 2 requires bf16 training; Mistral stays fp16 (False)
 
 
 def load_config(path: str | Path) -> TrainConfig:
@@ -350,6 +351,7 @@ def train(
     grad_accum: int,
     lr: float,
     seed: int,
+    bf16: bool = False,
 ) -> dict[str, Any]:
     """Run QLoRA fine-tuning. Returns trainer_state dict."""
     try:
@@ -409,18 +411,27 @@ def train(
     if use_4bit:
         from transformers import BitsAndBytesConfig
 
+        # (#2) Quantized-matmul compute dtype: bf16, required for Gemma 2's
+        # soft-capping. This is also the pre-existing Mistral value (bfloat16),
+        # so the Mistral 4-bit path is unchanged.
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model,
+        quant_kwargs: dict[str, Any] = dict(
             quantization_config=bnb_config,
             device_map="auto",
             **gemma_kwargs,
         )
+        # (#3) Force bf16 for the NON-quantized modules (embeddings, norms, lm_head).
+        # Without this they load in fp32/fp16 and Gemma 2's soft-cap index_put raises
+        # "source and destination dtypes match" (Half vs Float). Mistral omits
+        # torch_dtype exactly as before, so its 4-bit load is byte-for-byte unchanged.
+        if family == "gemma":
+            quant_kwargs["torch_dtype"] = torch.bfloat16
+        model = AutoModelForCausalLM.from_pretrained(base_model, **quant_kwargs)
         from peft import prepare_model_for_kbit_training
 
         model = prepare_model_for_kbit_training(model)
@@ -446,6 +457,11 @@ def train(
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
+    # (#1) Precision: config `bf16` drives this; Gemma 2 also forces it as a hard
+    # guard (fp16 overflows its activations and trips the soft-cap dtype check).
+    # Mistral configs leave bf16 unset → fp16, exactly as before.
+    use_bf16 = bf16 or family == "gemma"
+
     # ── Training args ─────────────────────────────────────────────────────────
     output_dir.mkdir(parents=True, exist_ok=True)
     training_args = TrainingArguments(
@@ -454,10 +470,8 @@ def train(
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
-        # Gemma 2 trains in bf16 (fp16 overflows its large activations); Mistral
-        # keeps fp16 exactly as before (bf16 defaults to False for non-Gemma).
-        fp16=(device == "cuda" and family != "gemma"),
-        bf16=(device == "cuda" and family == "gemma"),
+        fp16=(device == "cuda" and not use_bf16),
+        bf16=(device == "cuda" and use_bf16),
         logging_steps=10,
         save_strategy="epoch",
         save_total_limit=1,
@@ -488,9 +502,19 @@ def train(
     log.info("Adapter saved to %s", output_dir)
 
     # ── Evaluate MAE ─────────────────────────────────────────────────────────
-    log.info("Evaluating on %d examples...", len(eval_records))
-    eval_mae = _eval_mae(model, tokenizer, eval_records, device, base_model)
-    log.info("Eval MAE: %.4f", eval_mae)
+    if family == "gemma":
+        # Gemma 2's sliding-window KV cache has a bf16-cache vs fp32-key_states dtype
+        # bug in _sliding_update that crashes model.generate(). This in-loop eval is
+        # diagnostic-only and the adapter has already been saved above, so skip it.
+        log.info(
+            "in-loop MAE eval skipped for Gemma 2 (sliding-cache dtype bug in generate); "
+            "evaluate post-hoc via validation scripts."
+        )
+        eval_mae = None
+    else:
+        log.info("Evaluating on %d examples...", len(eval_records))
+        eval_mae = _eval_mae(model, tokenizer, eval_records, device, base_model)
+        log.info("Eval MAE: %.4f", eval_mae)
 
     trainer_state = {
         "base_model": base_model,
@@ -500,7 +524,7 @@ def train(
         "n_train": len(train_records),
         "n_eval": len(eval_records),
         "training_loss": float(train_result.training_loss),
-        "eval_mae": None if math.isinf(eval_mae) else float(eval_mae),
+        "eval_mae": None if (eval_mae is None or math.isinf(eval_mae)) else float(eval_mae),
         "seed": seed,
     }
     state_path = output_dir / "trainer_state.json"
@@ -534,12 +558,14 @@ def train_hpc(config: TrainConfig, grad_accum: int = 4, seed: int = 42) -> dict[
         grad_accum=grad_accum,
         lr=config.learning_rate,
         seed=seed,
+        bf16=config.bf16,
     )
+    eval_mae_val = state.get("eval_mae")
     log.info(
-        "train_hpc: complete  output=%s  loss=%.4f  eval_mae=%.4f",
+        "train_hpc: complete  output=%s  loss=%.4f  eval_mae=%s",
         config.output_dir,
         state.get("training_loss", float("nan")),
-        state.get("eval_mae", float("nan")),
+        "skipped" if eval_mae_val is None else f"{eval_mae_val:.4f}",
     )
     return state
 

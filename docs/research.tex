@@ -350,15 +350,21 @@ probability under those shifts. Stage~3 continuously generates training data
 for Stage~1 from social media and news sources.
 
 Each stage produces a frozen artifact (\texttt{ShockResponseData},
-\texttt{EquilibriumData}, \texttt{SimulationData}) written to disk in a
+\texttt{EquilibriumData}, \texttt{SimulationData})\footnote{Defined as frozen
+dataclasses in \texttt{electoral/artifacts.py}.} written to disk in a
 deterministic format keyed by a global random seed. All stochastic operations
 derive their seeds from a single top-level seed via $\texttt{derive\_seed}(s_0,
-\text{stage\_name})$, ensuring byte-identical reproducibility across runs.
+\text{stage\_name})$, ensuring byte-identical reproducibility across
+runs.\footnote{\texttt{derive\_seed} and \texttt{make\_rng} are implemented in
+\texttt{electoral/core/rng.py}.}
 
 \subsection{Demographic architecture: three parallel strata}
 
 The U.S. electorate is modeled as three independent marginal strata, each
-covering approximately 100\% of voters:
+covering approximately 100\% of voters:\footnote{Canonical bloc identifiers are
+defined in \texttt{electoral/core/types.py}; panel ingestion and validation are
+implemented in \texttt{electoral/data/panel.py} and
+\texttt{electoral/data/cleaning.py}.}
 
 \begin{itemize}
   \item \textbf{Stratum~1 (Race/Ethnicity):} Five blocs---African American
@@ -387,7 +393,8 @@ in Section~\ref{sec:eco_fallacy}.
 \subsection{Effective loyalty scalar}
 \label{sec:mueff}
 
-The three-stratum effective loyalty scalar is:
+The three-stratum effective loyalty scalar is:\footnote{Computed by
+\texttt{compute\_mu\_eff} in \texttt{electoral/optimization/dqcp.py}.}
 
 \begin{equation}
   \mueff(\boldw) \;=\;
@@ -404,7 +411,11 @@ optimizer controls only $\boldw$; the religion and gender weights $\mathbf{v}$
 and $\mathbf{g}$ are fixed and are not decision variables.
 
 \textbf{Within-stratum marginals.} The fixed weights $\mathbf{v}$ and $\mathbf{g}$
-are \emph{documented electorate shares}, not equal $1/n$ weights. We use
+are \emph{documented electorate shares}, not equal $1/n$
+weights.\footnote{Stored as \texttt{\_APPROX\_RELIGION\_SHARE} and
+\texttt{\_APPROX\_GENDER\_SHARE} in \texttt{electoral/models/ml\_baseline.py},
+consumed by \texttt{compute\_fixed\_loyalty} in
+\texttt{electoral/optimization/dqcp.py}.} We use
 $\mathbf{v} = ($evangelical $0.24$, catholic $0.21$, protestant $0.13$, secular
 $0.26$, jewish $0.02$, muslim $0.01$, other religion $0.13)$ from Pew Research and
 ANES, and $\mathbf{g} = ($women $0.52$, men $0.47$, other gender $0.01)$ from the
@@ -416,7 +427,9 @@ we diagnose and correct in Section~\ref{sec:symmetry_results}.
 
 The layer weights $\boldsymbol{\lambda} = (\lambdaone, \lambdatwo, \lambdathree)$
 are calibrated from historical data by iterative proportional fitting
-(Section~\ref{sec:raking}). We maintain two calibrations in parallel: an
+(Section~\ref{sec:raking}).\footnote{Implemented in
+\texttt{electoral/kernels/raking.py}; the result is written to
+\texttt{configs/layer\_weights.json}.} We maintain two calibrations in parallel: an
 \textit{additive prior} (50/30/20) reflecting conventional wisdom about race's
 primacy in U.S. electoral politics, and a \textit{raked} calibration
 (11.4/22.4/66.2) derived from historical two-party vote shares. The divergence
@@ -427,7 +440,9 @@ between the two is itself a substantive finding (Section~\ref{sec:raking_results
 
 The optimizer targets $\mueff(\boldw) \geq \Veq$, where $\Veq$ is the
 popular-vote two-party share at which $P(\text{party wins EC}) = 0.50$. We
-derive $\Veq$ by logistic regression:
+derive $\Veq$ by logistic regression:\footnote{Implemented as
+\texttt{derive\_ec\_veq} in \texttt{electoral/models/ml\_baseline.py}; the
+fitted values are cached in \texttt{configs/party\_config.json}.}
 
 \begin{equation}
   P(\text{Dem EC win}) \;=\;
@@ -486,7 +501,9 @@ cells (78.0\%); all 15 blocs are present in every cycle from 2004 to 2024
 (100\% modern coverage).
 
 When multiple sources report a vote share for the same bloc-cycle cell,
-conflicts are resolved by inverse-standard-error weighting:
+conflicts are resolved by inverse-standard-error weighting:\footnote{Implemented
+in \texttt{electoral/kernels/data.py} (\texttt{\_agg\_stratum}), using Kish
+effective sample size for ANES/GSS/CES weighting.}
 \begin{equation}
   \hat{v}_{\text{merged}} = \frac{\sum_s w_s\, v_s}{\sum_s w_s},
   \qquad
@@ -504,7 +521,9 @@ Survey panels record the raw Democratic fraction of all votes cast, including
 third-party votes. In 1992, Ross Perot received 18.9\% of the popular vote;
 Clinton's raw Democratic fraction ($\approx$43\%) substantially understates
 his two-party share (53.5\%). We correct each 1992 bloc using bloc-specific
-Perot support from the 1992 National Exit Poll:
+Perot support from the 1992 National Exit Poll:\footnote{Implemented as
+\texttt{correct\_three\_party\_1992} in
+\texttt{electoral/models/ml\_baseline.py}.}
 
 \begin{equation}
   v_{i,1992}^{(2p)} = \frac{v_{i,1992}^{(\text{raw})}}{1 - p_{i,1992}},
@@ -525,7 +544,8 @@ are similarly sparse before the 1965 Immigration Act. We do not impute these
 structural gaps; instead, LLM fine-tuning for these blocs is restricted to
 2004--2024 cycles where data exists. Three isolated cells (other\_gender for
 five cycles, Muslim 2004, other\_race 1948) are imputed from documented
-external sources with explicit source tags.
+external sources with explicit source tags.\footnote{Imputation is implemented
+in \texttt{impute\_missing\_cells} in \texttt{electoral/data/cleaning.py}.}
 
 \subsection{Panel quality benchmarks}
 
@@ -569,7 +589,8 @@ Men              & 0.487 & 0.430 & $+$5.7 pp & NEP; pre-1980 gender gap \\
 
 The GP classifier validates that panel vote-share features are informative
 about realized election outcomes and provides a calibrated prior on
-$P(\text{win} \mid \text{coalition})$ for the optimizer.
+$P(\text{win} \mid \text{coalition})$ for the optimizer.\footnote{Implemented
+as \texttt{fit\_gp\_classifier} in \texttt{electoral/models/ml\_baseline.py}.}
 
 \subsubsection{Model specification}
 
@@ -633,14 +654,18 @@ all below $\Veq = 0.507$.
 LOCO-CV trains on 19 of 20 cycles and predicts the held-out cycle. For each
 fold $c$, we refit the scaler and GP on the training set and report
 \texttt{prob\_win}$_c$ and \texttt{prob\_std}$_c$ (the GP posterior standard
-deviation) on the held-out cycle.
+deviation) on the held-out cycle.\footnote{The LOCO-CV loop is implemented in
+\texttt{electoral/models/ml\_baseline.py} and driven by
+\texttt{scripts/run\_loco\_validation.py}; per-fold results are written by
+\texttt{save\_loco\_json}.}
 
 \subsection{Moment estimation}
 \label{sec:moments}
 
 The optimizer requires $\boldmu^{(P)}$ (mean within-bloc Democratic vote share
 across winning cycles for party $P$) and $\SigmaDelta$ (the $5\times5$
-empirical race-bloc covariance across all cycles).
+empirical race-bloc covariance across all cycles).\footnote{Implemented as
+\texttt{estimate\_moments} in \texttt{electoral/models/ml\_baseline.py}.}
 
 \textbf{Winning cycles} are identified from the external ground-truth table
 \texttt{\_PRES\_DEM\_2P\_SHARE}, not from the panel-derived vote-share
@@ -650,7 +675,10 @@ with certified two-party returns on 16 of 20 cycles; the four exceptions
 
 \textbf{Covariance} $\SigmaDelta$ is the $5\times5$ Ledoit-Wolf-shrunk covariance
 \citep{Ledoit2004} of race-bloc first-differences over a restricted nine-cycle window
-(1992--2024, yielding eight first-differences), not the full 1948--2024 panel:
+(1992--2024, yielding eight first-differences), not the full 1948--2024
+panel:\footnote{Implemented as \texttt{build\_sigma\_delta\_from\_panel} in
+\texttt{electoral/kernels/shock.py}, calling \texttt{ledoit\_wolf\_cov} in
+\texttt{electoral/models/bootstrap.py}.}
 
 \begin{equation}
   \hat{\Sigma}_{\mathrm{LW}} = (1 - \alpha)\, \hat{\Sigma}_{\mathrm{sample}}
@@ -701,7 +729,10 @@ multiplicative IPF required $\approx$288 iterations; projected gradient descent
 required $\approx$101 iterations; FISTA (Nesterov momentum) required
 $\approx$35 iterations.
 
-The correct approach is Tikhonov regularization toward an equal-weight prior:
+The correct approach is Tikhonov regularization toward an equal-weight
+prior:\footnote{The regularized normal-equations solve and the exact-simplex
+projection are implemented in \texttt{rake\_layer\_weights} in
+\texttt{electoral/kernels/raking.py}.}
 
 \begin{equation}
   \left(\mathbf{S}^\top\mathbf{S} + \rho I\right)\, \boldsymbol{\lambda}
@@ -724,7 +755,8 @@ pass. The total iteration count is two.
 
 \subsubsection{Objective formulation}
 
-The post-shock effective loyalty scalar is:
+The post-shock effective loyalty scalar is:\footnote{Implemented as
+\texttt{solve\_dqcp} in \texttt{electoral/optimization/dqcp.py}.}
 
 \begin{equation}
   \tilde{\mu}_{\mathrm{eff}}(\boldw) \;=\;
@@ -790,7 +822,10 @@ quasi-convex program (QCP). \qed
 The program is solved by CVXPY; internally the quasi-convex ratio is homogenized
 into a second-order cone program (SOCP) over auxiliary variables $(\mathbf{z}, s)$
 with $\boldw = \mathbf{z}/s$, solved by the CLARABEL interior-point solver. The
-implementation asserts disciplined quasi-convexity at runtime as a correctness guard.
+implementation asserts disciplined quasi-convexity at runtime as a correctness
+guard.\footnote{The SOCP reformulation, solver call, and \texttt{is\_dcp(qcp=True)}
+runtime assertion are implemented in \texttt{electoral/optimization/dqcp.py}
+(\texttt{solve\_dqcp}).}
 
 \subsubsection{Per-bloc box constraints}
 \label{sec:bounds}
@@ -815,12 +850,16 @@ $0.63$, Other Race $0.05)$. The bounds are homogeneous-degree-one in $(\mathbf{z
 so they enter the SOCP as linear constraints rather than as post-hoc clipping, preserving
 the quasi-convexity guarantee \citep{Lobo1998}. The multipliers are provisional pending
 calibration; a shock whose required reallocation exceeds the box is correctly reported as
-infeasible---a feature, not a failure.
+infeasible---a feature, not a failure.\footnote{The box bounds are constructed in
+\texttt{solve\_rebalanced} in \texttt{electoral/portfolios/cvx.py} (NEP shares from
+\texttt{DEFAULT\_NEP\_SHARES} in \texttt{electoral/kernels/baseline.py}) and enforced as
+a \texttt{ConstraintSpec} in \texttt{electoral/portfolios/constraints.py}.}
 
 \textbf{Why not min-variance?} The standard mean-variance portfolio objective
 $\min_\boldw \boldw^\top \SigmaDelta \boldw$ subject to $\boldmu^\top \boldw
 \geq \Veq$ is equivalent to asking: ``minimize uncertainty given the win
-constraint.'' When $\boldmu^\top \boldw$ already exceeds $\Veq$ for the
+constraint.''\footnote{Implemented as \texttt{solve\_baseline} in
+\texttt{electoral/portfolios/cvx.py}.} When $\boldmu^\top \boldw$ already exceeds $\Veq$ for the
 high-loyalty blocs, this approach concentrates weight there and assigns zero
 weight to blocs that add variance without a proportional loyalty gain.
 In our Democrat baseline, this produces $w_{\text{Latino}} = w_{\text{Asian}} = 0$
@@ -833,7 +872,10 @@ requires accepting additional variance.
 \label{sec:mc}
 
 The 90\% credible interval on $P(\text{win})$ is computed via 10,000
-Logistic-Normal ILR draws. Let $\boldw^*$ be the optimizer solution.
+Logistic-Normal ILR draws. Let $\boldw^*$ be the optimizer
+solution.\footnote{Implemented in \texttt{electoral/simulation/montecarlo.py}
+(\texttt{helmert\_matrix}, \texttt{ilr}, \texttt{ilr\_inv},
+\texttt{run\_ilr\_montecarlo}).}
 
 \begin{enumerate}
   \item Map $\boldw^*$ to ILR coordinates: $\mathbf{z}^* = \mathbf{V}^\top
@@ -886,7 +928,9 @@ reported CI should be read as ``simulation precision'' rather than
 Stage~1 translates a user-supplied political shock narrative into per-stratum
 loyalty shift bins. We fine-tune Mistral 7B Instruct v0.3 \citep{Jiang2023}
 via QLoRA (rank~16, $\alpha = 32$, 4-bit NF4 quantization) on a catalog of
-historical shock events.
+historical shock events.\footnote{QLoRA training is implemented in
+\texttt{electoral/llm/trainer.py} (\texttt{train}, \texttt{LoraConfig}),
+orchestrated as a pipeline stage in \texttt{electoral/kernels/finetune.py}.}
 
 \textbf{Output vocabulary.} The model is constrained to produce exactly one of
 nine tokens per bloc:
@@ -894,7 +938,10 @@ $\{$\texttt{strong\_neg}, \texttt{mod\_neg}, \texttt{mild\_neg},
 \texttt{slight\_neg}, \texttt{neutral}, \texttt{slight\_pos},
 \texttt{mild\_pos}, \texttt{mod\_pos}, \texttt{strong\_pos}$\}$,
 implemented via the \texttt{outlines} constrained decoding library
-\citep{Willard2023}. Token midpoints span $[-0.12, +0.12]$ in vote-share
+\citep{Willard2023}.\footnote{Constrained and greedy decoding are implemented
+as \texttt{\_predict\_constrained} and \texttt{\_predict\_greedy} in
+\texttt{electoral/llm/inference.py}, orchestrated by \texttt{ShockEstimator}.}
+Token midpoints span $[-0.12, +0.12]$ in vote-share
 space. Per-bin uncertainty $\sigma_b$ is empirically estimated from
 historical variation and stored in \texttt{configs/bin\_uncertainty.json};
 conservative priors are used for bins with fewer than five historical examples.
@@ -904,9 +951,11 @@ per-stratum delta bins derived from pre/post-event changes in survey vote
 shares. The current training set contains \textbf{1,136 records}: 577 hand-authored
 from historical shock events and 559 Gemini-reviewed synthetic examples. Synthetic
 records are generated via a three-stage pipeline: (i) DeepSeek constrained to
-the four-axis taxonomy (stratum $\times$ valence $\times$ intensity $\times$ party),
+the four-axis taxonomy (stratum $\times$ valence $\times$ intensity $\times$
+party),\footnote{Implemented in \texttt{scripts/synthetic/generate\_deepseek.py}.}
 (ii) Gemini 2.5 Flash plausibility review (APPROVE / REVISE / HUMAN\_REVIEW
-verdicts), and (iii) a mandatory 5\% human spot-check. Every synthetic row carries
+verdicts),\footnote{Implemented in \texttt{scripts/synthetic/gemini\_review.py}.}
+and (iii) a mandatory 5\% human spot-check. Every synthetic row carries
 a \texttt{source} provenance tag and \texttt{\_seed\_meta} block linking it to its
 generating event and party. An additional 647 records flagged for human review are
 \emph{excluded} from the current training set; their inclusion is contingent on
@@ -916,7 +965,9 @@ Synthetic batches are validated before inclusion by three diagnostics:
 (i) maximum mean discrepancy (MMD) with RBF kernel and the median heuristic
 $\lambda = 1/(2\sigma^2)$ \citep{Gretton2012}; (ii) PCA alignment requiring
 $>70\%$ of synthetic variance explained by the top-2 real principal components;
-(iii) pairwise correlation difference (PCD) Frobenius norm. Per-row soft weights
+(iii) pairwise correlation difference (PCD) Frobenius
+norm.\footnote{The MMD/PCA/PCD diagnostics and per-row soft weights are
+implemented in \texttt{scripts/generate\_synthetic.py}.} Per-row soft weights
 $w = 0.5 \cdot \exp(-\lambda \cdot \mathrm{MMD}^2)$ downweight synthetic records
 with poor distributional alignment; hard rejection is not applied.
 
@@ -1015,7 +1066,9 @@ in Section~\ref{sec:symmetry_results}.
 
 Stage~3 generates training data for Stage~1 from social media and news archives.
 Author demographic inference uses a three-stage pipeline: (i) a SetFit
-few-shot classifier \citep{Tunstall2022} on bio text, served from a
+few-shot classifier \citep{Tunstall2022} on bio text,\footnote{Implemented as
+\texttt{BioClassifier} in \texttt{electoral/nlp/bio\_classifier.py}, served by
+\texttt{scripts/pi\_bio\_server.py}.} served from a
 Raspberry Pi 5 running \texttt{all-MiniLM-L6-v2} via sentence-transformers
 in CPU mode ($\approx$20\,ms per bio; Hailo NPU compilation deferred
 pending vendor SDK availability); (ii) a keyword lexicon fallback
@@ -1027,9 +1080,11 @@ estimation---including them in only one would bifurcate the data-generating
 process and violate the mean-variance optimizer's assumptions.
 
 Sentiment toward each demographic bloc is scored by a bloc-weighted RoBERTa
-sentence encoder \citep{Liu2019}. The resulting ElasticityScore scalars
+sentence encoder \citep{Liu2019}.\footnote{Implemented as \texttt{RoBERTaScorer}
+in \texttt{electoral/nlp/scorer.py}.} The resulting ElasticityScore scalars
 $\in [-1, 1]$ serve as input features to the Stage~1 LLM alongside the
-free-text shock description.
+free-text shock description.\footnote{Implemented as \texttt{estimate\_elasticity}
+/ \texttt{fit\_elasticity} in \texttt{electoral/nlp/elasticity.py}.}
 
 \subsubsection{Bio classifier validation}
 \label{sec:bio_val}
@@ -1212,8 +1267,9 @@ silently and produces random-baseline predictions with no visible error
 message. This failure mode will recur in any subsequent application of GP
 classifiers to vote-share data; we document it explicitly.
 
-\textbf{Platt scaling.} We implemented jackknife Platt scaling as a post-hoc
-calibration step and found that it degraded every metric (accuracy: 0.800
+\textbf{Platt scaling.}\footnote{Implemented as \texttt{platt\_scale\_loco} in
+\texttt{electoral/models/ml\_baseline.py}.} We implemented jackknife Platt
+scaling as a post-hoc calibration step and found that it degraded every metric (accuracy: 0.800
 $\to$ 0.750; Brier: 0.122 $\to$ 0.162; 2024 market divergence: 12.9 pp
 $\to$ 31.2 pp). The diagnosis is that the apparent ``calibration error'' is
 not a calibration error: GP features are drawn from post-election voter panel
@@ -1342,7 +1398,10 @@ inspectable interface over the model's intermediate artifacts.
 
 \subsection{Streaming inference service}
 
-The backend is a FastAPI application served on Modal using a single A10G GPU (24\,GB).
+The backend is a FastAPI application served on Modal using a single A10G GPU
+(24\,GB).\footnote{The FastAPI application is implemented in
+\texttt{electoral/api/shock\_endpoint.py}; the Modal container/GPU configuration
+is defined in \texttt{deploy/modal\_app.py}.}
 At container start the Mistral 7B base model is loaded in \texttt{float16} ($\approx
 14$\,GB) and the rank-16 version-2 QLoRA adapter ($\approx 52$\,MB) is merged. The
 primary endpoint, \texttt{GET /estimate/stream}, accepts a shock description, an
@@ -1353,14 +1412,18 @@ $\approx 1$\,s), a \texttt{simulation} event (the 10{,}000-draw Logistic-Normal 
 Monte Carlo with its credible interval, $\approx 0.5$\,s), and a terminating
 \texttt{done} event. The three stages run in thread/process pools (the CVXPY solve is
 isolated in a process pool because it is not thread-safe). Each request is written to a
-DuckDB audit log with per-stage latencies. For cost control the service scales to zero
+DuckDB audit log with per-stage latencies.\footnote{Implemented as
+\texttt{AuditLogger} in \texttt{electoral/api/audit.py}.} For cost control the service
+scales to zero
 ($\texttt{min\_containers} = 0$, $60$\,s scaledown), giving a $\approx 24$--$30$\,s cold
 start and $\approx 5$--$15$\,s warm round-trips.
 
 \subsection{Web interface}
 
 The frontend is a Next.js application (Tailwind CSS, Recharts) deployed on Vercel and
-pointed at the Modal endpoint. A user selects a party, types a shock, and sets an
+pointed at the Modal endpoint.\footnote{Top-level state machine and SSE progressive
+reveal implemented in \texttt{webapp/app/page.tsx}.} A user selects a party, types a
+shock, and sets an
 intensity (or picks one of five preset event categories); the results then populate
 progressively as the SSE stream arrives. Because many shocks are
 incumbent-relative---a recession or an administration scandal reads differently
@@ -1369,18 +1432,28 @@ selector. Since the Stage~1 model consumes free text rather than a structured
 governing-party field, the selection is woven into the event description itself
 as a natural-language clause (``\ldots under the current Republican
 administration''), skipped when the text already establishes governing context,
-with a preview of the exact string sent to the model. Three widgets render the output:
+with a preview of the exact string sent to the model.\footnote{Implemented as
+\texttt{injectRulingContext} in \texttt{webapp/lib/rulingParty.ts}, with the
+selector UI in \texttt{webapp/components/ShockInput.tsx}.} Three widgets render the output:
 (i) a plain-language \emph{narrative} that groups blocs into gaining, losing, and---
-distinct from earlier versions---little-measurable-effect (neutral) buckets;
+distinct from earlier versions---little-measurable-effect (neutral)
+buckets;\footnote{Implemented in \texttt{webapp/components/ShockNarrative.tsx}.}
 (ii) a two-panel \emph{coalition chart} that deliberately separates the predicted
 within-bloc loyalty shift $\tilde\mu_i$ from the optimizer-recommended coalition
 emphasis $\tilde w_i$, relabeling the latter as strategic weighting rather than
-population share to prevent a common misreading; and (iii) a \emph{win-probability
-gauge} with a percentile strip showing the 90\% credible interval. A share button
-encodes the query into URL parameters. An authenticated analyst dashboard exposes six
+population share to prevent a common misreading;\footnote{Implemented in
+\texttt{webapp/components/CoalitionChart.tsx}.} and (iii) a \emph{win-probability
+gauge} with a percentile strip showing the 90\% credible interval.\footnote{Implemented
+in \texttt{webapp/components/WinGauge.tsx} and
+\texttt{webapp/components/PercentileStrip.tsx}.} A share button
+encodes the query into URL parameters.\footnote{Implemented as \texttt{handleShare}
+in \texttt{webapp/app/page.tsx}.} An authenticated analyst dashboard exposes six
 panels over the pipeline internals: a data-coverage matrix, the RoBERTa sentiment
 distribution, bio-classifier method coverage, training-loss curves, Monte Carlo
-convergence, and a searchable audit table.
+convergence, and a searchable audit table.\footnote{Assembled in
+\texttt{webapp/app/dashboard/page.tsx} from
+\texttt{webapp/components/dashboard/\{CoverageMatrix,SentimentDistribution,
+BioCoverage,LossCurves,Convergence,AuditTable\}.tsx}.}
 
 \subsection{Live-demo caveat}
 
@@ -1496,7 +1569,10 @@ should be treated with corresponding caution.
 \subsection{Prediction market calibration}
 
 Post-shock model win-probability estimates are compared against Polymarket
-and PredictIt contract prices. We use prediction markets as post-hoc
+and PredictIt contract prices.\footnote{Implemented as \texttt{MarketCollector}
+in \texttt{electoral/markets/collector.py} and \texttt{MarketAggregator} in
+\texttt{electoral/markets/aggregator.py}; contract IDs are configured in
+\texttt{configs/market\_contracts.json}.} We use prediction markets as post-hoc
 calibration benchmarks only---never as training inputs. Two reasons:
 
 \begin{enumerate}
@@ -1668,7 +1744,9 @@ $\mathbf{v} \in \mathbb{R}^n$ to $\Pi_{\Delta^{n-1}}(\mathbf{v})$ in
 $\mathcal{O}(n \log n)$ time. For our calibration problem ($n = 3$), the
 algorithm is equivalent to a three-element sort followed by a closed-form
 threshold computation. We use the general $\mathcal{O}(n \log n)$
-implementation for correctness in the domain-agnostic case.
+implementation for correctness in the domain-agnostic case.\footnote{Implemented
+as \texttt{project\_simplex} / \texttt{project\_simplex\_batch} in
+\texttt{electoral/optimization/simplex.py}.}
 
 The algorithm: sort $\mathbf{v}$ descending as $u_1 \geq \cdots \geq u_n$;
 compute cumulative sums $\rho = \max\{j : u_j > (\sum_{k=1}^j u_k - 1)/j\}$;
