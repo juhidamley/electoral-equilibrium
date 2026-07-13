@@ -4,11 +4,7 @@ import * as Slider from "@radix-ui/react-slider";
 import { Loader2 } from "lucide-react";
 
 import type { Party } from "@/lib/types";
-import {
-  injectRulingContext,
-  willInjectRulingContext,
-  type RulingParty,
-} from "@/lib/rulingParty";
+import { type RulingParty } from "@/lib/rulingParty";
 
 interface ShockInputProps {
   party: Party;
@@ -67,12 +63,6 @@ export default function ShockInput({
   const submitDisabled = loading || event.trim().length < MIN_EVENT_LENGTH;
 
   const partyColor = party === "democrat" ? "blue" : "red";
-
-  // Preview the governing-context injection so the user sees exactly what the model
-  // will read. Only shown when a ruling party is set AND the clause actually applies
-  // (i.e. the text doesn't already establish an administration).
-  const injectionApplies = willInjectRulingContext(event, rulingParty);
-  const sentText = injectRulingContext(event, rulingParty);
 
   return (
     <div className="space-y-6">
@@ -139,10 +129,6 @@ export default function ShockInput({
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs leading-snug text-gray-400">
-          Sets which party holds power, so the model can interpret incumbent-relative
-          events (e.g. a recession) correctly. This is added to the event description.
-        </p>
       </div>
 
       {/* ── (ii) Event description textarea ── */}
@@ -165,17 +151,6 @@ export default function ShockInput({
           <p className="mt-1 text-xs text-amber-600">
             Enter at least {MIN_EVENT_LENGTH} characters
           </p>
-        )}
-
-        {/* Governing-context preview — shows the exact text the model will read once
-            the ruling-party clause is injected. Only rendered when it changes the text. */}
-        {injectionApplies && (
-          <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Sent to model as
-            </p>
-            <p className="mt-0.5 text-xs leading-snug text-gray-600">{sentText}</p>
-          </div>
         )}
 
         {/* ── Preset pills — fill textarea only, do not submit ── */}

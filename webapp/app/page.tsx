@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { ChevronDown, Link2 } from "lucide-react";
+import { ChevronDown, LayoutDashboard, Link2 } from "lucide-react";
 
 import type {
   EmpiricalSupport,
@@ -297,6 +297,17 @@ export default function HomePage() {
               political shocks.
             </p>
           </div>
+
+          {/* Link to the analyst dashboard. Plain <a> = full navigation; the
+              /dashboard route is a server component that gates on the session
+              cookie and shows its own login form when unauthenticated. */}
+          <a
+            href="/dashboard"
+            className="flex flex-none items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 sm:text-sm"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Dashboard
+          </a>
         </div>
       </header>
 
