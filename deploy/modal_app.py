@@ -147,6 +147,15 @@ image = (
     # real bloc covariance instead of the diagonal fallback.
     .add_local_file("artifacts/panel/panel_race.parquet",
                     remote_path="/root/artifacts/panel/panel_race.parquet")
+    # Empirical-support / refinement grounding data. The endpoint reads these from
+    # CWD-relative "data/..." (WORKDIR is /root) and from a repo-root fallback that
+    # also resolves to /root, so both must land under /root/data/. If EITHER is
+    # missing the feature no-ops (empirical_support: null) and base predictions are
+    # unaffected — see electoral/llm/{real_sentiment,empirical_support}.py guards.
+    .add_local_file("data/finetune/shock_sentiment_aggregates.json",
+                    remote_path="/root/data/finetune/shock_sentiment_aggregates.json")
+    .add_local_file("data/validation/oos_sentiment_alignment.json",
+                    remote_path="/root/data/validation/oos_sentiment_alignment.json")
 )
 
 # ── Modal app ──────────────────────────────────────────────────────────────────

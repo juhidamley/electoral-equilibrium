@@ -27,8 +27,8 @@ FastAPI concepts you'll see below:
     progressively. The wire format is plain text: "event: <name>\\ndata: <json>".
 
 Routes:
-  POST /estimate              — run the LLM once → ShockResponseData (JSON)
-  GET  /estimate/stream       — SSE streaming: deltas → equilibrium → simulation → done
+  POST /estimate              — run the LLM once → delta bins + optional refinement (JSON)
+  GET  /estimate/stream       — SSE streaming: [refinement?] → deltas → equilibrium → simulation → done
   GET  /api/market-prior      — market consensus price for calibration display
   GET  /api/audit[/count]     — recent estimate log rows / total count (dashboard)
   GET  /api/coverage          — panel data-coverage matrix (dashboard)
@@ -83,6 +83,7 @@ from electoral.artifacts import ShockResponseData, ShockResponseSchema
 from electoral.core.io import sanitize_floats
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
 from electoral.llm.inference import ShockEstimator
+from electoral.llm.real_sentiment import lookup_real_social_sentiment
 from electoral.models.benchmarks import DEM_RACE_BENCHMARKS
 
 log = logging.getLogger(__name__)
@@ -514,18 +515,111 @@ class EstimateRequest(BaseModel):
     event: dict[str, Any]
     intensity: float = 1.0
     party: str = "democrat"
+    # OPTIONAL, OFF by default. When True and the event has real archive coverage
+    # (data/finetune/shock_sentiment_aggregates.json), the measured per-bloc social
+    # sentiment is injected into the prompt to softly refine the prediction toward
+    # real reactions. Non-default → base model behavior is unchanged when omitted.
+    refine_with_real_sentiment: bool = False
+
+
+class EmpiricalBloc(BaseModel):
+    """One bloc's predicted delta compared against its real archived sentiment."""
+
+    bloc: str
+    predicted_delta: Optional[float] = None
+    predicted_bin: Optional[str] = None
+    real_social_sentiment: Optional[float] = None  # None → not fabricated
+    n_posts: int = 0
+    agreement: str  # aligned | diverged | no_data
+
+
+class EmpiricalSupport(BaseModel):
+    """Per-bloc out-of-sample comparison of the BASE prediction vs real reactions."""
+
+    shock_id: str
+    regime: str  # aligned | divergent
+    n_aligned: int
+    n_diverged: int
+    n_no_data: int
+    blocs: list[EmpiricalBloc]
+    note: str
+
+
+class RefinedPrediction(BaseModel):
+    bins: dict[str, str]
+    deltas: dict[str, float]
+
+
+class Refinement(BaseModel):
+    """Refinement status. Applied ONLY on the aligned regime; else base-only."""
+
+    regime: str  # aligned | divergent | uncovered
+    refinable: bool
+    applied: bool
+    reason: Optional[str] = None
+    refined_prediction: Optional[RefinedPrediction] = None
+    note: str
+
+
+class EstimateResponse(BaseModel):
+    """Base prediction + empirical grounding + optional (aligned-only) refinement."""
+
+    delta_bins_race: dict[str, str]
+    delta_bins_religion: dict[str, str]
+    delta_bins_gender: dict[str, str]
+    delta_eff: float
+    empirical_support: Optional[EmpiricalSupport] = None  # covered events only
+    refinement: Optional[Refinement] = None
+
+
+def _flatten_bins(result: ShockResponseData) -> dict[str, str]:
+    """Flatten the three stratum bin dicts into one {bloc: bin} map."""
+    return {
+        **result.delta_bins_race,
+        **result.delta_bins_religion,
+        **result.delta_bins_gender,
+    }
+
+
+def _maybe_refined_bins(
+    estimator: "ShockEstimator",
+    event: dict[str, Any],
+    event_text: str,
+    intensity: float,
+    want_refine: bool,
+) -> Optional[dict[str, str]]:
+    """Run a refined prediction and return its flat bins, ONLY for aligned events.
+
+    Strictly gated: refinement is skipped for divergent and uncovered events (the
+    critical safety rule — injecting sentiment on mobilizing events pushes the
+    wrong way). Returns None when not run.
+    """
+    if not want_refine:
+        return None
+    from electoral.llm.empirical_support import classify_event
+
+    _sid, regime = classify_event(event_text)
+    if regime != "aligned":
+        return None
+    match = lookup_real_social_sentiment(event_text)
+    if match is None:  # defensive; aligned implies coverage
+        return None
+    refined_event = dict(event)
+    refined_event["social_roberta_scores"] = match["scores"]
+    refined = estimator.estimate(refined_event, intensity=intensity)
+    return _flatten_bins(refined)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
-@app.post("/estimate", response_model=ShockResponseSchema)
+@app.post("/estimate", response_model=EstimateResponse)
 def estimate(request: EstimateRequest) -> Any:
     """Run ShockEstimator.estimate() and return constrained delta bins.
 
-    The response_model is ShockResponseSchema — the same Pydantic model used
-    by outlines for constrained decoding — so the API contract and the
-    generation constraint are always identical.
+    The delta-bin fields match ShockResponseSchema (the same Pydantic model used
+    by outlines for constrained decoding). An optional ``refinement`` object is
+    added when ``refine_with_real_sentiment`` is set — additive, null otherwise.
     """
     event_text = (
         request.event.get("description", "")
@@ -537,14 +631,31 @@ def estimate(request: EstimateRequest) -> Any:
     if not (0.1 <= request.intensity <= 3.0):
         raise HTTPException(status_code=422, detail="Intensity out of range")
 
+    event = dict(request.event)  # copy; never mutate the caller's dict
+
     estimator: ShockEstimator = app.state.estimator
+    # BASE prediction (never injected — this is always the un-refined output).
     t0 = time.perf_counter()
     try:
-        result: ShockResponseData = estimator.estimate(request.event, intensity=request.intensity)
+        result: ShockResponseData = estimator.estimate(event, intensity=request.intensity)
     except Exception:
         log.exception("Unhandled error in /estimate")
         raise HTTPException(status_code=500, detail="Internal inference error")
     llm_ms = int((time.perf_counter() - t0) * 1000)
+
+    # Empirical grounding for every covered event; a REFINED prediction only for
+    # the aligned regime when requested (divergent/uncovered stay base-only).
+    from electoral.llm.empirical_support import build_grounding
+
+    base_bins = _flatten_bins(result)
+    try:
+        refined_bins = _maybe_refined_bins(
+            estimator, event, event_text, request.intensity, request.refine_with_real_sentiment
+        )
+    except Exception:
+        log.exception("/estimate: refined prediction failed — returning base only")
+        refined_bins = None
+    grounding = build_grounding(event_text, base_bins, refined_bins=refined_bins)
 
     app.state.audit.log_estimate(
         event_text=event_text,
@@ -560,12 +671,14 @@ def estimate(request: EstimateRequest) -> Any:
         party=request.party,
     )
 
-    # Convert frozen dataclass → nested dict matching ShockResponseSchema shape.
+    # Base delta bins + empirical grounding (covered) + refinement (aligned-only).
     return {
         "delta_bins_race": result.delta_bins_race,
         "delta_bins_religion": result.delta_bins_religion,
         "delta_bins_gender": result.delta_bins_gender,
         "delta_eff": result.delta_eff,
+        "empirical_support": grounding["empirical_support"],
+        "refinement": grounding["refinement"],
     }
 
 
@@ -574,14 +687,23 @@ async def estimate_stream(
     event: str,
     intensity: float = 1.0,
     party: str = "democrat",
+    refine_with_real_sentiment: bool = False,
 ) -> StreamingResponse:
     """Progressive SSE stream: deltas → equilibrium → simulation → done.
 
-    Yields four named events in order:
-      event: deltas       — ShockResponseData (LLM stage)
-      event: equilibrium  — EquilibriumData   (CVXPY DQCP optimizer)
-      event: simulation   — SimulationData    (Logistic-Normal ILR Monte Carlo)
-      event: done         — empty payload     (stream complete)
+    Yields named events in order:
+      event: deltas            — ShockResponseData  (base, un-refined LLM prediction)
+      event: empirical_support — per-bloc base-vs-real-sentiment comparison (COVERED events)
+      event: refinement        — regime + refined prediction (aligned-only; COVERED events)
+      event: equilibrium       — EquilibriumData    (CVXPY DQCP optimizer)
+      event: simulation        — SimulationData     (Logistic-Normal ILR Monte Carlo)
+      event: done              — empty payload      (stream complete)
+
+    Empirical support (real per-bloc sentiment + agreement) is attached for every
+    covered event. ``refine_with_real_sentiment`` (default False) additionally
+    produces a REFINED second prediction, but STRICTLY only for aligned-regime
+    events — divergent/mobilizing and uncovered events are never refined. The
+    optimizer/Monte-Carlo stages always run on the base prediction.
 
     On any stage failure, yields:
       event: stream_error — {"stage": "...", "message": "..."}
@@ -624,6 +746,8 @@ async def estimate_stream(
         # SEPARATE worker (in `pool`) and `await`s its result without freezing the
         # event loop — so other requests keep being served while the LLM thinks.
         # Here: estimator.estimate({"description": event, "party": party}, intensity).
+        # BASE prediction — always un-refined. Empirical grounding + the optional
+        # aligned-only refined prediction are emitted AFTER the deltas frame below.
         t0 = time.perf_counter()
         try:
             shock: ShockResponseData = await loop.run_in_executor(
@@ -665,6 +789,39 @@ async def estimate_stream(
         # real bloc covariance instead of identity.
         shock = dataclasses.replace(shock, delta_eff=float(_eff), covariance=sigma_delta)
         yield _sse("deltas", shock.to_dict())
+
+        # ── Empirical grounding + optional (aligned-only) refined prediction ───
+        # Behavior 1 (empirical support) runs for every COVERED event. Behavior 2
+        # (a REFINED second prediction) runs only when the flag is on AND the event
+        # is in the aligned regime — never for divergent/uncovered events. Emitted
+        # only for covered events, so uncovered/normal streams are unchanged.
+        from electoral.llm.empirical_support import build_grounding, classify_event
+
+        base_bins = {**shock.delta_bins_race, **shock.delta_bins_religion, **shock.delta_bins_gender}
+        refined_bins: Optional[dict[str, str]] = None
+        _sid, _regime = classify_event(event)
+        if refine_with_real_sentiment and _regime == "aligned":
+            _match = lookup_real_social_sentiment(event)
+            if _match is not None:
+                try:
+                    _refined: ShockResponseData = await loop.run_in_executor(
+                        thread_pool,
+                        estimator.estimate,
+                        {"description": event, "party": party,
+                         "social_roberta_scores": _match["scores"]},
+                        intensity,
+                    )
+                    refined_bins = {
+                        **_refined.delta_bins_race,
+                        **_refined.delta_bins_religion,
+                        **_refined.delta_bins_gender,
+                    }
+                except Exception:
+                    log.exception("SSE: refined prediction failed — base only")
+        _grounding = build_grounding(event, base_bins, refined_bins=refined_bins)
+        if _grounding["empirical_support"] is not None:  # covered events only
+            yield _sse("empirical_support", _grounding["empirical_support"])
+            yield _sse("refinement", _grounding["refinement"])
 
         # ── Compute mu_tilde (nominal + delta per bloc) ────────────────────────
         mu_tilde = {

@@ -131,3 +131,44 @@ export interface TrainingRun {
   val_loss: number | null; // null when in-loop eval is disabled (eval_mae=inf case)
   mae: number | null;
 }
+
+// ── Real-reaction grounding (empirical support + optional refinement) ─────────
+// Emitted by /estimate/stream as `empirical_support` and `refinement` frames for
+// events with real archive coverage. Purely informational display; the base
+// prediction, optimizer, and Monte Carlo are unaffected.
+
+export type Agreement = "aligned" | "diverged" | "no_data";
+export type Regime = "aligned" | "divergent" | "uncovered";
+
+export interface EmpiricalBloc {
+  bloc: string;
+  predicted_delta: number | null;
+  predicted_bin: string | null;
+  real_social_sentiment: number | null; // null → never fabricated
+  n_posts: number;
+  agreement: Agreement;
+}
+
+export interface EmpiricalSupport {
+  shock_id: string;
+  regime: Regime;
+  n_aligned: number;
+  n_diverged: number;
+  n_no_data: number;
+  blocs: EmpiricalBloc[];
+  note: string;
+}
+
+export interface RefinedPrediction {
+  bins: Record<string, string>;
+  deltas: Record<string, number>;
+}
+
+export interface Refinement {
+  regime: Regime;
+  refinable: boolean;
+  applied: boolean;
+  reason: string | null;
+  refined_prediction: RefinedPrediction | null;
+  note: string;
+}

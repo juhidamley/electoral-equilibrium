@@ -183,6 +183,7 @@ def _predict_constrained(
     max_tokens: int = 512,
     seed: int = 42,
     base_model: str = "mistralai/Mistral-7B-v0.3",
+    social_roberta_scores: dict[str, float] | None = None,
 ) -> dict[str, str]:
     """Use outlines for constrained JSON generation."""
     import outlines
@@ -197,7 +198,7 @@ def _predict_constrained(
         "year": "",
         "source": "",
         "news_roberta_scores": {},
-        "social_roberta_scores": {},
+        "social_roberta_scores": social_roberta_scores or {},
     }
     prompt = (
         format_prompt(_example, base_model)
@@ -241,6 +242,7 @@ def _predict_greedy(
     tokenizer: Any,
     max_tokens: int = 512,
     base_model: str = "mistralai/Mistral-7B-v0.3",
+    social_roberta_scores: dict[str, float] | None = None,
 ) -> dict[str, str]:
     """Fallback: greedy decode + regex extraction of bin tokens."""
     import re
@@ -252,7 +254,7 @@ def _predict_greedy(
         "year": "",
         "source": "",
         "news_roberta_scores": {},
-        "social_roberta_scores": {},
+        "social_roberta_scores": social_roberta_scores or {},
     }
     prompt = (
         format_prompt(_example, base_model)
@@ -317,8 +319,14 @@ def predict_delta_bins(
     max_tokens: int = 512,
     seed: int = 42,
     base_model: str = "mistralai/Mistral-7B-v0.3",
+    social_roberta_scores: dict[str, float] | None = None,
 ) -> dict[str, str]:
     """Predict delta bins for all 15 demographic blocs.
+
+    ``social_roberta_scores`` (optional, additive): real per-bloc social
+    sentiment to inject into the prompt's Social field for inference-time
+    refinement. Default None → empty field → unchanged base behavior. This is a
+    SOFT correction (the model trained on empty fields), not a strong driver.
 
     Parameters
     ----------
@@ -345,7 +353,8 @@ def predict_delta_bins(
     if use_constrained:
         try:
             result = _predict_constrained(
-                shock_text, party, model, tokenizer, max_tokens, seed=seed, base_model=base_model
+                shock_text, party, model, tokenizer, max_tokens, seed=seed,
+                base_model=base_model, social_roberta_scores=social_roberta_scores,
             )
             return _fill_missing(result)
         except ImportError as exc:
@@ -353,7 +362,10 @@ def predict_delta_bins(
         except Exception as exc:
             log.warning("constrained generation failed (%s); falling back to greedy decode", exc)
 
-    return _predict_greedy(shock_text, party, model, tokenizer, max_tokens, base_model=base_model)
+    return _predict_greedy(
+        shock_text, party, model, tokenizer, max_tokens,
+        base_model=base_model, social_roberta_scores=social_roberta_scores,
+    )
 
 
 # ── ShockEstimator ────────────────────────────────────────────────────────────

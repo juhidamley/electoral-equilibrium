@@ -17,10 +17,17 @@ import { useEffect, useRef, useState } from "react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { ChevronDown, Link2 } from "lucide-react";
 
-import type { EquilibriumData, Party, SimulationData } from "@/lib/types";
+import type {
+  EmpiricalSupport,
+  EquilibriumData,
+  Party,
+  Refinement,
+  SimulationData,
+} from "@/lib/types";
 import { injectRulingContext, type RulingParty } from "@/lib/rulingParty";
 import { estimateShockStream } from "@/lib/api";
 import CoalitionChart from "@/components/CoalitionChart";
+import EmpiricalSupportPanel from "@/components/EmpiricalSupport";
 import ErrorBanner from "@/components/ErrorBanner";
 import ShockInput from "@/components/ShockInput";
 import ShockNarrative from "@/components/ShockNarrative";
@@ -168,6 +175,9 @@ export default function HomePage() {
   const [deltasGender, setDeltasGender] = useState<Record<string, number> | null>(null);     // ← "deltas" gender stratum
   const [equilibrium, setEquilibrium] = useState<EquilibriumData | null>(null);          // ← "equilibrium"
   const [simulation, setSimulation] = useState<SimulationData | null>(null);              // ← "simulation"
+  const [empiricalSupport, setEmpiricalSupport] = useState<EmpiricalSupport | null>(null); // ← "empirical_support"
+  const [refinement, setRefinement] = useState<Refinement | null>(null);                  // ← "refinement"
+  const [refineEnabled, setRefineEnabled] = useState<boolean>(false);  // opt-in: refine aligned events
   const [copied, setCopied] = useState(false);  // transient "Copied!" feedback on the share button
 
   // Holds the active SSE connection so we can close a stale one before starting a
@@ -231,6 +241,8 @@ export default function HomePage() {
     setDeltasGender(null);
     setEquilibrium(null);
     setSimulation(null);
+    setEmpiricalSupport(null);
+    setRefinement(null);
 
     // Weave governing context into the free-text event before it reaches the model.
     // "none" → unchanged. The model was trained on free text, so this is the only
@@ -255,6 +267,8 @@ export default function HomePage() {
       },
       onEquilibrium: (data) => setEquilibrium(data),
       onSimulation: (data) => setSimulation(data),
+      onEmpiricalSupport: (data) => setEmpiricalSupport(data),
+      onRefinement: (data) => setRefinement(data),
       onDone: () => {
         setLoading(false);
         esRef.current = null;
@@ -265,7 +279,7 @@ export default function HomePage() {
         setLoading(false);
         esRef.current = null;
       },
-    });
+    }, refineEnabled);
     esRef.current = es;
   };
 
@@ -310,6 +324,25 @@ export default function HomePage() {
               loading={loading}
               onSubmit={handleSubmit}
             />
+
+            {/* Opt-in: refine with real archived reactions (aligned events only). */}
+            <label className="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={refineEnabled}
+                onChange={(e) => setRefineEnabled(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Refine with real reactions
+                <span className="block text-[11px] text-gray-400">
+                  For events with real archive coverage in the sentiment-aligned regime,
+                  also show a soft, sentiment-injected refined prediction (not a retrained
+                  driver). Divergent/uncovered events stay base-only.
+                </span>
+              </span>
+            </label>
+
             <HowItWorks />
 
             {/* Share button — disabled until event meets the backend's ≥10-char guard */}
@@ -361,6 +394,14 @@ export default function HomePage() {
                   target={equilibrium?.target ?? null}
                   party={party}
                   loading={loading}
+                />
+
+                {/* Real-reaction grounding: per-bloc predicted-vs-real comparison
+                    (+ refined prediction for aligned events). Renders nothing for
+                    uncovered events. */}
+                <EmpiricalSupportPanel
+                  empiricalSupport={empiricalSupport}
+                  refinement={refinement}
                 />
 
                 {/* Plain-language definitions for the two panels + the gauge */}

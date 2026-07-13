@@ -30,7 +30,14 @@ import {
   SimulationDataSchema,
   type EstimateResponse,
 } from "./schemas";
-import type { EquilibriumData, Party, ShockResponseData, SimulationData } from "./types";
+import type {
+  EmpiricalSupport,
+  EquilibriumData,
+  Party,
+  Refinement,
+  ShockResponseData,
+  SimulationData,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -157,14 +164,19 @@ export function estimateShockStream(
     onDeltas?: (data: ShockResponseData) => void;
     onEquilibrium?: (data: EquilibriumData) => void;
     onSimulation?: (data: SimulationData) => void;
+    onEmpiricalSupport?: (data: EmpiricalSupport) => void;
+    onRefinement?: (data: Refinement) => void;
     onError?: (message: string) => void;
     onDone?: () => void;
   },
+  refine = false,
 ): EventSource {
   const url = new URL(`${API_URL}/estimate/stream`);
   url.searchParams.set("event", event);
   url.searchParams.set("intensity", String(intensity));
   url.searchParams.set("party", party);
+  // Off by default — only opt in when the caller wants aligned-event refinement.
+  if (refine) url.searchParams.set("refine_with_real_sentiment", "1");
 
   const es = new EventSource(url.toString());
 
@@ -216,6 +228,25 @@ export function estimateShockStream(
     } else {
       const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
       callbacks.onError?.(`simulation schema error: ${msg}`);
+    }
+  });
+
+  // Real-reaction grounding frames (covered events only). Informational — parse
+  // leniently and NEVER surface a schema error to the user; a malformed frame
+  // just skips the grounding UI, leaving the base results untouched.
+  es.addEventListener("empirical_support", (e: MessageEvent) => {
+    try {
+      callbacks.onEmpiricalSupport?.(JSON.parse(e.data) as EmpiricalSupport);
+    } catch {
+      /* ignore malformed grounding frame */
+    }
+  });
+
+  es.addEventListener("refinement", (e: MessageEvent) => {
+    try {
+      callbacks.onRefinement?.(JSON.parse(e.data) as Refinement);
+    } catch {
+      /* ignore malformed refinement frame */
     }
   });
 
