@@ -155,6 +155,13 @@ export default function PercentileStrip({ percentiles }: PercentileStripProps) {
           />
         </BarChart>
       </ResponsiveContainer>
+      <p className="mt-1.5 text-[11px] leading-snug text-gray-400">
+        In plain English: the simulation re-runs this coalition thousands of times with
+        small random variations, and each bar shows the range of weight a bloc could end up
+        with. The bar spans the 5th to 95th percentile (its likely range) and the darker box
+        is the middle 50%. A wide bar means there&apos;s more uncertainty about how heavily to
+        lean on that bloc; a narrow bar means the recommendation is stable.
+      </p>
     </div>
   );
 }
