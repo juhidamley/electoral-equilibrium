@@ -38,8 +38,8 @@ export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 cd "${REPO_DIR}"
 python -m electoral.llm.trainer \
       --config $REPO_DIR/configs/train_r16.json \
-      --train-data $SCRATCH/finetune/train.jsonl \
-      --eval-data $SCRATCH/finetune/eval.jsonl \
+      --train-data $SCRATCH/finetune/train_grounded_v2.jsonl \
+      --eval-data $SCRATCH/finetune/eval_grounded_v2.jsonl \
       --output-dir $SCRATCH/models/mistral-r16 \
       --lora-rank 16 \
       --lora-alpha 32 \

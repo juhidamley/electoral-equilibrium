@@ -1,0 +1,148 @@
+% =====================================================================
+% research_summary.tex — Electoral Equilibrium
+% ~2-page standalone project summary (prose). No fabricated numbers:
+% real values or \todo{}. Compile: pdflatex research_summary.tex
+% =====================================================================
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{amsmath,amssymb}
+\usepackage{parskip}
+
+\newcommand{\todo}[1]{{\color{red}\textbf{[TODO:} #1\textbf{]}}}
+
+\title{Electoral Equilibrium: A Two-Page Summary}
+\author{Juhi Damley, Claremont McKenna College; supervised by
+Prof.\ Gaston Espinosa}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{The problem}
+Political shocks --- scandals, endorsements, economic surprises, institutional
+rulings --- do not move the electorate uniformly. Different demographic blocs
+react differently, so after a shock a party's \emph{optimal} coalition emphasis
+shifts. Electoral Equilibrium asks a single question: given a hypothetical shock
+described in plain text, what race-bloc coalition weighting best keeps a party
+above its win threshold, with what probability does that coalition win, and is
+the estimate partisan-neutral? The hard constraint is data scarcity: with only
+about twenty U.S.\ presidential cycles (1948--2024), the shock-to-response
+mapping cannot be regressed directly from history, so uncertainty must be modeled
+explicitly rather than assumed away.
+
+\section*{The approach and pipeline}
+The system is a three-stage pipeline over three parallel demographic strata ---
+race (5 blocs), religion (7), and gender (3), each independently covering the
+whole electorate, deliberately without cross-tabulation.
+
+\emph{Stage 1 --- language model.} A \texttt{Mistral-7B-v0.3} model, fine-tuned
+with QLoRA (rank 16, $\alpha{=}32$, 4-bit NF4, learning rate $2\times10^{-4}$,
+3 epochs), maps a shock description to per-bloc loyalty shifts across all 15
+blocs. Output is emitted as one of nine ordinal ``delta bins''
+(\texttt{strong\_neg} through \texttt{strong\_pos}) via constrained decoding
+(the \texttt{outlines} library with a Pydantic schema), which guarantees every
+token is schema-valid. Held-out mean absolute error in delta units was
+\textbf{0.0362} on the \emph{pre-rebalance Mistral v2} model (111-example eval)
+\todo{re-run MAE on the current v3 model against the 246-example eval set ---
+0.0362 is NOT the current figure}.
+
+\emph{Stage 2 --- optimizer.} A disciplined quasi-convex program maximizes win
+probability in Sharpe-ratio form,
+$\max_w \Phi\!\big((\mu_{\text{eff}}(w)-V_{eq})/(\lambda_1\sqrt{w^\top\Sigma_\Delta
+w})\big)$, where $\mu_{\text{eff}}$ is a $\lambda$-weighted blend of the three
+strata and $V_{eq}$ is an electoral-college--adjusted win threshold
+($0.5066$ Democrat, $0.4934$ Republican). The five race-bloc weights are the
+decision variables, bounded to $[0.5\times,1.5\times]$ their baseline
+population shares for demographic plausibility; the objective is provably
+quasi-convex and solved as a second-order cone program. Minimum-variance
+optimization is deliberately \emph{not} used --- it zeroes out small blocs, which
+is mathematically valid but politically nonsensical.
+
+\emph{Stage 3 --- Monte Carlo.} Small-sample uncertainty is propagated with a
+Logistic-Normal isometric-log-ratio (ILR) simulation: coalition weights are
+mapped to unconstrained space via a Helmert contrast, the race-level covariance
+$\Sigma_\Delta$ is pushed through the ILR Jacobian, 10{,}000 draws are taken, and
+each is mapped back through a softmax to a valid coalition. The result is a
+win-probability point estimate with a 5th/95th-percentile confidence interval.
+$\Sigma_\Delta$ is a race-only $5\times5$ matrix estimated by Ledoit--Wolf
+shrinkage over \textbf{9 cycles (1992--2024, 8 first-differences)}; pre-1990
+cycles are excluded because thin blocs (\texttt{asian}, \texttt{latino},
+\texttt{other\_race}) had sparse or imputed sampling that more than doubled their
+apparent variance.
+% CONFLICT: an earlier decision described a 20-cycle (1948-2024) covariance;
+% superseded 2026-06-29 by the 9-cycle 1990+ window used here.
+
+\emph{Data.} Two distinct demographic inputs feed the model and must not be
+conflated. Per-bloc \emph{loyalty} --- how Democratic each bloc votes --- is a
+multi-source survey merge over NEP exit polls, ANES, GSS, and CES, each first
+aggregated with its own sampling weights and then reconciled across sources by
+inverse-standard-error weighting (Pew NPORS and the Democracy Fund VOTER panel are
+wired into the loader but deferred), with a bloc-specific 1992 Perot two-party
+correction. Electorate \emph{composition} --- how large each bloc is, used to form
+the baseline coalition weights --- comes separately from NEP exit-poll shares. One
+cycle is a known weak spot: ANES 2020's sampling-weight column is null, so it falls
+back to equal-weighting (inflating the White Democratic share by $\sim$3.6\,pp) and
+is down-weighted or excluded from the affected merges. Supervision signal also comes
+from social media, tiered by how reliably a user's demographics can be inferred:
+individual-bio posts feed both the mean and the covariance, while group- and
+platform-level proxies feed the mean only, and pure language-fallback posts are
+held out entirely --- a discipline that protects the optimizer's
+mean/variance-independence assumption. Because historical shock--response labels
+are scarce, the fine-tuning corpus is augmented with synthetic events generated
+by DeepSeek and reviewed by Gemini over a balanced taxonomy of event type,
+valence, electoral effect, and party. An earlier, label-skewed version (Mistral
+v2 era) was rebalanced and the model retrained; the current merged corpus is
+\textbf{1{,}228} records (\texttt{data/finetune/synthetic.jsonl}), split 982
+train / 246 eval (\texttt{train.jsonl}, \texttt{eval.jsonl}), verified by line
+count.
+
+\section*{Headline contribution: neutrality validation}
+The project's strongest result is a protocol for proving the system is
+partisan-neutral --- and using it to find and fix a real bias. A
+\textbf{zero-shock null test} feeds all-zero deltas through the full pipeline for
+both parties; a neutral system must return symmetric baselines. It did not: the
+Democratic baseline showed $\mu_{\text{eff}}=0.5575$ (margin $+0.0509$, win
+probability $1.00$) against the Republican $0.5000$ (margin $+0.0066$, win
+probability $0.26$). The cause was not the machine-learning model but an
+\textbf{equal-within-stratum weighting placeholder} that over-weighted small,
+strongly-Democratic religion and gender blocs by 7--33$\times$. Replacing it with
+real electorate marginals cut the structural asymmetry from $+0.052$ to $+0.001$
+--- a roughly \textbf{98\% reduction} --- with the tiny residual now slightly
+favoring Republicans, exactly as the EC-adjusted threshold intends.
+
+A \textbf{matched-pair symmetry test} (the same shock framed for each party) then
+exposed a smaller residual behavioral lean of \textbf{$+0.028$} toward Democrats.
+This was traced by elimination: baseline aggregation was fixed; the Monte Carlo
+was switched to the real covariance; and the synthetic corpus was rebalanced to a
+$-0.0007$ label asymmetry and the adapter retrained --- yet the lean persisted at
+$+0.028$. The conclusion is that the residual comes from the base model's
+pretrained political priors, which survive light LoRA fine-tuning and concentrate
+in valence-interpretation events (e.g.\ a Republican gaffe read as more damaging
+than its Democratic mirror). It is disclosed as a limitation rather than tuned
+away, and a controlled comparison against a \texttt{Gemma-2-9b} model (identical
+corpus and hyperparameters) is set up to test whether the lean is base-model
+specific \todo{Gemma comparison run pending}.
+
+\section*{Honest limitations}
+The three strata are combined additively without cross-tabulation, so the model
+inherits the ecological fallacy (Robinson 1950); $\mu_{\text{eff}}$ and the
+popular-vote threshold coincide only under that approximation. Only the five race
+blocs are rebalanced, with religion and gender held fixed and treated as neutral
+in the simulation, which understates uncertainty. The win threshold is a
+model-internal effective-loyalty quantity, not a literal vote count. Synthetic
+labels are LLM-generated, a documented deviation from the project's
+reproducibility rule for this stage. And even after shrinkage the covariance
+rests on only eight first-differences, so the thinnest blocs remain data-limited.
+The residual $+0.028$ base-model lean is reported, not hidden.
+
+\section*{Status}
+The pipeline runs end to end and is deployed behind a streaming web interface;
+the neutrality-validation finding is the paper's central methodological
+contribution. Remaining work is final-number consolidation (fine-tuning MAE, the
+full symmetry table, and the Gemma comparison), IPF raking to replace the fixed
+religion/gender weights, and a covariance sensitivity analysis.
+\todo{insert final results table once runs complete.}
+
+\end{document}

@@ -180,7 +180,7 @@ audit_vol = modal.Volume.from_name("electoral-audit", create_if_missing=True)
 
 # ── Container paths ────────────────────────────────────────────────────────────
 # These are the paths inside the running Modal container.
-_ADAPTER_PATH = "/adapters/mistral-r16-v3"
+_ADAPTER_PATH = "/adapters/mistral-r16-grounded-v2"  # grounded-v2 (was mistral-r16-v3)
 _AUDIT_DB_PATH = "/audit/audit.duckdb"
 
 

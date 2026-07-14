@@ -40,8 +40,8 @@ echo "Starting QLoRA fine-tuning — $(date)"
 
 python3 -m electoral.llm.trainer \
     --config configs/base.json \
-    --train-data data/finetune/train.jsonl \
-    --eval-data  data/finetune/eval.jsonl \
+    --train-data data/finetune/train_grounded_v2.jsonl \
+    --eval-data  data/finetune/eval_grounded_v2.jsonl \
     --output-dir "$SCRATCH_ADAPTER" \
     --lora-rank 16 \
     --epochs 3

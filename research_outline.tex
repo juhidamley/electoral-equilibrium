@@ -1,0 +1,440 @@
+% =====================================================================
+% research_outline.tex — Electoral Equilibrium
+% Section-by-section outline / partial draft of the research paper.
+% Scaffolding: writable content is drafted; gaps are marked \todo{}.
+% Compile: pdflatex research_outline.tex   (self-contained; no external .bib)
+% =====================================================================
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+% Self-contained \todo macro so the file compiles without todonotes installed.
+\newcommand{\todo}[1]{{\color{red}\textbf{[TODO:} #1\textbf{]}}}
+\newcommand{\stub}[1]{{\color{RoyalBlue}\emph{#1}}}
+
+\title{Electoral Equilibrium: Estimating Optimal Voter-Coalition
+Rebalancing under Political Shocks\\[4pt]
+\large\textcolor{red}{[Working title --- outline / draft scaffold]}}
+\author{Juhi Damley,
+Claremont McKenna College; supervised by Prof.~Gaston Espinosa}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\stub{Skeleton --- fill after final runs.}
+We present a three-stage framework that estimates how a party's voter coalition
+must rebalance after a hypothetical political shock. A fine-tuned language model
+maps free-text shock descriptions to per-bloc loyalty shifts; a quasi-convex
+optimizer recovers the coalition weights that maximize win probability; and a
+compositional Monte Carlo returns a calibrated confidence interval. Our central
+methodological contribution is a \emph{neutrality validation} protocol that
+separates structural (baseline) partisan bias from model-driven bias.
+\todo{state headline numbers once final: structural asymmetry reduction
+$\sim$98\%, residual base-model lean $+0.028$, final MAE.}
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}
+% Writable from DECISIONS.md / DOMAIN.md / devlogs.
+\textbf{Problem.} Political shocks (scandals, endorsements, economic news,
+institutional events) re-sort the electorate: demographic blocs shift their
+support unevenly, so a campaign's \emph{optimal} coalition emphasis changes
+after a shock. We formalize this as recovering post-shock coalition weights that
+keep a party's effective loyalty above an electoral-college--adjusted win
+threshold.
+
+\textbf{Data-scarcity gap.} There are only $\sim$20 U.S.\ presidential cycles
+(1948--2024), so the shock $\rightarrow$ response mapping cannot be learned by
+brute-force supervised regression on historical elections alone. We bridge this
+with (i) survey-derived demographic panels, (ii) social-media supervision, and
+(iii) synthetic shock--response data, and we push all small-sample uncertainty
+into an explicit covariance term rather than hiding it.
+
+\textbf{Research question.} \emph{Given a hypothetical shock, what is the optimal
+race-bloc coalition weighting, and with what probability does the resulting
+coalition win --- and is that estimate partisan-neutral?}
+
+\textbf{Contributions.}
+\begin{itemize}
+  \item A constrained-decoding LLM stage that emits ordinal per-bloc loyalty
+        shifts over 15 demographic blocs (5 race, 7 religion, 3 gender).
+  \item A disciplined quasi-convex (DQCP) max-$P(\text{win})$ optimizer with
+        demographic-plausibility bounds, plus a Logistic-Normal ILR Monte Carlo
+        for calibrated win-probability confidence intervals.
+  \item A neutrality-validation protocol (zero-shock null test + matched-pair
+        symmetry test) that isolates and removes a structural baseline bias and
+        attributes the residual lean to base-model priors.
+\end{itemize}
+
+% =====================================================================
+\section{Related Work}
+\stub{STUB --- literature not present in the repository.}
+\todo{source: literature review not in repo. Cover: (a) demographic/coalition
+electoral modeling; (b) compositional data analysis (Aitchison) and portfolio
+optimization analogies; (c) LLMs as annotators / political bias in LLMs;
+(d) quasi-convex programming. Named anchors already in the repo: Diamond \&
+Boyd 2019 (DQCP); Robinson 1950 (ecological fallacy); Ledoit--Wolf (shrinkage);
+Aitchison (ILR / compositional data).}
+
+% =====================================================================
+\section{Data}
+% Writable from Data Sources / Ingest / Synthetic sections.
+\subsection{Survey sources and panel construction}
+The pipeline uses \textbf{two distinct demographic inputs}, which must not be
+conflated:
+\begin{itemize}
+  \item \textbf{Per-bloc loyalty $\mu$ --- a multi-source survey merge.}
+        Within-bloc Democratic vote shares are estimated by merging several
+        independent surveys: the National Election Pool (NEP) exit polls, the ANES
+        Cumulative Data File (1948--2024), the General Social Survey (GSS), and the
+        Cooperative Election Study (CES, 2006--2024). Each survey is first
+        aggregated to a bloc-level share \emph{using its own sampling weights}
+        (with Kish effective-$N$ standard errors), and the sources are then
+        reconciled per cycle$\times$bloc cell by \textbf{inverse--standard-error
+        weighting} (\texttt{resolve\_conflicts}: the more precise survey counts
+        more). The Democracy Fund VOTER Study Group panel and Pew NPORS are wired
+        into the loader but \emph{deferred} (wave-column parsing / party-proxy
+        only), so they do not yet enter the merge.
+  \item \textbf{Electorate composition $w^0$ --- NEP exit-poll shares.} The
+        baseline \emph{size} of each race bloc, used to form the baseline coalition
+        weights $w^0$ and the demographic-plausibility bounds in Stage~5, comes
+        from \textbf{NEP exit-poll electorate shares} (White $0.63$, Latino
+        $0.15$, African American $0.12$, Asian $0.05$, other $0.05$), \emph{not}
+        from the survey merge. Loyalty $\mu$ answers ``how Democratic is each
+        bloc''; $w^0$ answers ``how large is each bloc'' --- two separate
+        quantities.
+\end{itemize}
+The panel is stored as three parallel, non-nested strata (race / religion /
+gender), each marginalizing to $\sim$100\% of the electorate.
+\todo{source: confirm final panel row counts. Kernel run reported 305 rows
+$\rightarrow$ 220 after resolving 85 (cycle,bloc) conflicts; 14/15 blocs
+covered.}
+
+\subsection{Imputation and data-quality rules}
+\begin{itemize}
+  \item \textbf{1992 Perot three-party correction:} raw two-party shares are
+        corrected using \emph{bloc-specific} 1992 exit-poll Perot support
+        (White 21\%, African American 7\%, Latino 14\%), not a flat national
+        adjustment.
+  \item \textbf{ANES 2020 weights:} ANES is one of several merged loyalty sources;
+        its 2020 sampling-weight column is entirely null, so that cycle falls back
+        to equal-weighting, inflating some estimates (e.g.\ White Dem share
+        $\sim$3.6\,pp above NEP). It is down-weighted / excluded from the affected
+        race and gender merges --- a real data-quality limitation, not silently
+        corrected.
+  % CONFLICT: earlier decisions treated some pre-1990 imputed cells (e.g.
+  % other_race 1948 carry-forward from 1952) as usable; the 2026-06-29
+  % covariance window later EXCLUDED them. Used newer (exclusion). See sec:cov.
+  \item \textbf{Thin-bloc imputation, later superseded:} early panel work
+        carried forward sparse pre-1990 cells (e.g.\ \texttt{other\_race}
+        1948--1956 carry-forward; an empty 1968 ANES \texttt{asian} cell). These
+        are \emph{excluded} by the current 1990+ covariance window
+        (Sec.~\ref{sec:cov}); do not present the earlier carry-forward as
+        current.
+\end{itemize}
+
+\subsection{Social-media supervision}
+Social posts provide RoBERTa sentiment-elasticity signal, tiered by how
+demographics are inferred, with strict rules on what may enter the covariance
+$\Sigma_\Delta$:
+\begin{itemize}
+  \item \texttt{user\_bio} (Tier 1; Bluesky, X/Apify): SetFit bio classifier;
+        included in both the mean $\mu$ \emph{and} $\Sigma_\Delta$.
+  \item \texttt{subreddit\_proxy} / \texttt{platform\_proxy} (Reddit;
+        TruthSocial, TikTok, 3DLNews): group/platform-level proxies; included in
+        $\mu$ only, \textbf{excluded from} $\Sigma_\Delta$ (ecological-fallacy
+        guard).
+  \item \texttt{language\_prior} (fallback): \textbf{excluded from both} $\mu$
+        and $\Sigma_\Delta$ (held-out only); mixing it would bifurcate the
+        mean/covariance data sources and violate optimizer assumptions.
+\end{itemize}
+\textbf{Sample-bias caveats.} Social platforms over-represent the
+politically engaged and skew by platform (TruthSocial conservative; TikTok
+young/diverse); surveys under-represent low-response strata. These are carried
+as limitations, not silently corrected.
+
+\subsection{Synthetic shock--response data}
+% Corpus counts VERIFIED via: wc -l data/finetune/*.jsonl
+% = 1,228 synthetic.jsonl (merged corpus) / 982 train.jsonl / 246 eval.jsonl.
+% Supersedes the pre-rebalance Mistral-v2 figures (557 / 446 / 111).
+Synthetic training records are generated by \textbf{DeepSeek} and reviewed by
+\textbf{Gemini} (dual-model to reduce single-model idiosyncrasy), over a
+balanced-seed taxonomy spanning event domain, ideological valence, electoral
+effect (the label target), and party perspective. An earlier, label-skewed
+version (Mistral v2 era) was \textbf{rebalanced} (to a $-0.0007$ label
+asymmetry) and the adapter retrained. The current merged corpus is
+\textbf{1{,}228} records (\texttt{data/finetune/synthetic.jsonl}), split
+\textbf{982} train / \textbf{246} eval (\texttt{data/finetune/train.jsonl},
+\texttt{eval.jsonl}).
+\todo{source: fill DeepSeek/Gemini model versions and the number of
+human-reviewed / directionally-validated examples (docs/decisions.md:240
+placeholder).}
+\todo{source: MMD acceptance threshold not yet populated (configs/mmd\_config.json).}
+
+% =====================================================================
+\section{Methodology}
+\subsection{Overview}
+Seven-stage pipeline: (1) voter panel $\rightarrow$ (2) baseline portfolio
+$\rightarrow$ (3a--d) sentiment / finetune / market $\rightarrow$ (4) LLM shock
+response $\rightarrow$ (5) DQCP optimization $\rightarrow$ (6) Monte Carlo.
+Deterministic under a single global seed (42).
+
+\subsection{Stage 4 --- fine-tuned shock model}
+Base model \texttt{mistralai/Mistral-7B-v0.3}, QLoRA rank $r{=}16$,
+$\alpha{=}32$, dropout $0.05$, target modules
+\{\texttt{q\_proj},\texttt{k\_proj},\texttt{v\_proj},\texttt{o\_proj}\},
+4-bit NF4, lr $2\times10^{-4}$, 3 epochs, batch 4. The \textbf{primary} output is
+JSON over 15 blocs, each assigned one of \textbf{9 ordinal delta bins}
+(\texttt{strong\_neg} $\dots$ \texttt{strong\_pos}) tiling the clipped range
+$[-0.15,+0.15]$. A scalar
+\texttt{delta\_eff} is a \emph{secondary, derived} summary --- the
+$\lambda$-weighted blend of the per-bloc deltas --- not an independent
+prediction. \textbf{Constrained decoding} via \texttt{outlines} (Pydantic
+FSM) guarantees schema-valid tokens; greedy+regex is the fallback.
+
+\subsection{Stage 5 --- DQCP max-$P(\text{win})$ optimizer}
+Decision variables are the 5 race-bloc weights $w$ (simplex). Objective:
+\[
+\max_{w}\ \Phi\!\left(\frac{\mu_{\text{eff}}(w)-V_{eq}}
+{\lambda_1\sqrt{w^{\top}\Sigma_\Delta w}}\right),
+\qquad
+\mu_{\text{eff}}(w)=\lambda_1\!\sum_i w_i\tilde\mu_i^{\text{race}}
++\lambda_2\!\sum_R v_R\tilde\mu_R^{\text{rel}}
++\lambda_3\!\sum_G g_G\tilde\mu_G^{\text{gen}} .
+\]
+$\Phi$ is the standard normal CDF (monotone), so this is a Sharpe-ratio form.
+\textbf{Quasiconvexity:} numerator affine, denominator convex-positive
+$\Rightarrow$ ratio quasi-convex (Diamond \& Boyd 2019); solved as an SOCP via
+Charnes--Cooper (CLARABEL). \textbf{Bounds:} each bloc constrained to
+$[0.5\,w^0_i,\,1.5\,w^0_i]$ around its baseline NEP share (demographic
+plausibility). \textbf{Win condition:} $\mu_{\text{eff}}(w)\ge V_{eq}$.
+% NOTE: religion/gender stratum loyalties are fixed; equal-weight placeholder
+% was replaced by real electorate marginals in Week 8 (see sec:rootcause).
+\todo{source: include the formal quasiconvexity proof as an appendix
+(paper deliverable per DECISIONS.md).}
+
+\subsection{Layer weights and win threshold}
+Layer weights $\lambda_{1,2,3}$: additive prior $(0.5,0.3,0.2)$; IPF-raked
+posterior $(0.114,0.224,0.662)$ --- the paper compares additive vs raked. Win
+threshold $V_{eq}$: EC-adjusted logistic regression gives $0.5066$ (Dem) /
+$0.4934$ (Rep), with sensitivity bounds $[0.501,0.515]$ (Dem) and
+$[0.485,0.499]$ (Rep).
+% FIX 4: the two bound pairs are NOT in conflict --- 0.501/0.515 are the Democrat
+% low/high and 0.485/0.499 the Republican low/high (configs/party_config.json).
+% FIX 3: both raked lambda (raking.py: all cycles with full stratum coverage) and
+% V_eq (party_config.json _methodology: fit on 20 cycles 1948-2024) use the FULL
+% panel, verified against raking.py:199 and configs/party_config.json.
+Both the raked $\lambda$ and $V_{eq}$ are calibrated on the \textbf{full
+1948--2024 panel (20 cycles)} --- deliberately a wider window than the
+covariance $\Sigma_\Delta$, which restricts to 1990+ (Sec.~\ref{sec:cov}): the
+layer weights and win threshold want maximal historical leverage, whereas
+$\Sigma_\Delta$ excludes pre-1990 cycles to avoid thin-bloc sampling artifacts.
+\todo{source: report the $V_{eq}$ logistic-regression coefficients / CI
+(\texttt{derive\_ec\_veq} in electoral/models/ml\_baseline.py; 20-cycle fit,
+$C{=}10^4$).}
+
+\subsection{Stage 6 --- Logistic-Normal ILR Monte Carlo}
+Not Dirichlet (forbids the positive off-diagonal covariance of wave elections)
+and not the delta method. Steps: (1) ILR forward $z^{*}=V^{\top}\log w^{*}$ with
+Helmert contrast $V$; (2) propagate $\Sigma_{\text{ILR}}=J\Sigma_\Delta J^{\top}$,
+$J=V^{\top}\mathrm{diag}(1/w^{*})$; (3) draw $y^{(n)}\sim\mathcal N(z^{*},
+\Sigma_{\text{ILR}})$, $N{=}10{,}000$; (4) back-transform
+$w^{(n)}=\mathrm{softmax}(Vy^{(n)})$; (5) win fraction and 5th/95th-percentile
+CI. PSD repair floors eigenvalues at $10^{-6}$.
+
+\subsection{Covariance $\Sigma_\Delta$}\label{sec:cov}
+Race-only $5\times5$, estimated by \textbf{Ledoit--Wolf shrinkage}.
+% CONFLICT: 20-cycle 1948-2024 (docs/decisions.md:119-145; week2 devlogs) vs
+% 9-cycle 1992-2024, 8 first-differences (DECISIONS.md:1337, 2026-06-29).
+% Used newer (9-cycle 1992+).
+Estimated over \textbf{9 cycles (1992--2024, 8 first-differences)}, restricted
+from the full 1948--2024 panel: pre-1990 cycles are excluded because thin blocs
+(\texttt{asian}, \texttt{latino}, \texttt{other\_race}) had sparse/imputed
+sampling that inflated their variance $>2\times$ (e.g.\ \texttt{asian}
+$0.27\!\rightarrow\!0.12$). Shrinkage mitigates but does not eliminate the
+small-sample limitation for the thin blocs.
+\todo{source: report the Ledoit--Wolf shrinkage coefficient $\rho$ as a
+transparency metric.}
+
+\subsection{Second base model (controlled comparison)}
+A parallel path fine-tunes \texttt{google/gemma-2-9b} on the identical corpus and
+QLoRA config (bf16 + eager attention for Gemma~2 soft-capping), to test whether
+the residual lean (Sec.~\ref{sec:neutrality}) is base-model-specific.
+\todo{source: Gemma~2 run not yet completed --- no results.}
+
+% =====================================================================
+\section{Neutrality Validation}\label{sec:neutrality}
+% Strongest section --- writable from Week 8 devlog + DECISIONS.md (2026-06-29).
+\subsection{Zero-shock null test}
+Feeding all-zero deltas through the full equilibrium + simulation for both
+parties isolates \emph{structural} baseline bias (independent of any LLM output).
+The pre-fix null was strongly asymmetric:
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Party & $\mu_{\text{eff}}$ & margin & win prob. \\
+\midrule
+Democrat   & 0.5575 & $+0.0509$ & 1.00 \\
+Republican & 0.5000 & $+0.0066$ & 0.26 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Root cause and fix}\label{sec:rootcause}
+The bias was \emph{not} in the ML model but in an \textbf{equal-within-stratum
+weighting placeholder} that over-weighted small, strongly-Democratic religion/
+gender blocs (\texttt{jewish},\texttt{muslim},\texttt{other\_gender}) by
+$7$--$33\times$. Replacing it with real electorate marginals moved the Democratic
+religion mean $0.543\!\rightarrow\!0.499$ and gender mean
+$0.567\!\rightarrow\!0.505$, cutting structural asymmetry
+$+0.052\!\rightarrow\!+0.001$ (\textbf{$\sim$98.2\% reduction}). The small
+residual slightly favors Republicans --- the intended EC-adjusted-target effect.
+
+\subsection{Residual win-probability asymmetry}
+A residual win-probability asymmetry is \emph{retained by design} as a
+coalition-\emph{concentration} property (the optimizer concentrates emphasis
+differently per party), not a structural mean bias.
+\todo{source: state the exact retained win-prob asymmetry value + framing.}
+
+\subsection{Matched-pair symmetry test and elimination}
+Matched party-flipped shock pairs reveal a residual behavioral lean of
+\textbf{$+0.028$} (Democrat-favoring). Traced by elimination:
+(i) baseline aggregation --- eliminated (Sec.~\ref{sec:rootcause});
+(ii) covariance artifacts --- eliminated (Monte Carlo now consumes the real
+$\Sigma_\Delta$);
+(iii) synthetic-corpus label imbalance --- rebalanced to $-0.0007$ and the
+adapter retrained, yet the lean \textbf{persisted at $+0.028$}.
+\textbf{Conclusion:} the residual localizes to the base model's pretrained
+political priors, which survive light LoRA fine-tuning, concentrating in
+valence-interpretation events. Disclosed as a limitation, not tuned away.
+\todo{source: full matched-pair table (per-pair asymmetries) from
+scripts/validate\_symmetry.py final run.}
+
+% =====================================================================
+\section{Results}
+\stub{STUB --- table skeletons; numbers pending final runs.}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Metric & Value \\
+\midrule
+Fine-tune held-out MAE (delta units) & 0.0362 \emph{(Mistral v2, pre-rebalance,
+111-example eval)} \todo{re-run MAE on the current v3 model against the
+246-example eval set}\\
+% NOTE: 0.0362 is the OLD Mistral-v2 figure on its 111-example v2 eval set; NOT
+% the current v3 model's MAE. Current split is 982 train / 246 eval (Sec 3.4).
+% FIX 4: the old v2 eval-size discrepancy (111 per DECISIONS.md:218/week6 devlog
+% vs 110 in baseline_comparison.md) is moot --- both are superseded by 246.
+Worst-bloc MAE (\texttt{other\_gender}) & 0.0488 \todo{confirm}\\
+Structural asymmetry (pre $\rightarrow$ post fix) & $+0.052 \rightarrow +0.001$\\
+Residual base-model lean & $+0.028$\\
+Base-model comparison (Mistral vs Gemma~2) & \todo{Gemma run pending}\\
+Win-prob CI coverage / calibration & \todo{source: calibration run}\\
+Symmetry: mean magnitude ratio / asymmetry & \todo{source: validate\_symmetry.py}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\todo{source: worked end-to-end example (one shock $\rightarrow$ deltas $\rightarrow$
+optimal weights $\rightarrow$ win-prob CI) as the results centerpiece.}
+\todo{source: latency numbers if reporting system performance (benchmark notes:
+mean $\sim$11.82\,s/inference).}
+
+% =====================================================================
+\section{Limitations}
+\begin{itemize}
+  \item \textbf{Additive independence / ecological fallacy} (Robinson 1950): the
+        three strata are combined additively with no cross-tabulation; $\mu$ and
+        $V_{eq}$ coincide only under this approximation.
+  \item \textbf{Model-internal win threshold:} $V_{eq}$ is an EC-adjusted
+        effective-loyalty threshold, not a literal popular-vote count.
+  \item \textbf{Residual base-model lean ($+0.028$):} survives corpus rebalancing;
+        disclosed rather than tuned away.
+  \item \textbf{Synthetic-label provenance:} labels are LLM-generated
+        (DeepSeek+Gemini); external-API use is a documented deviation from the
+        reproducibility rule for this stage.
+  \item \textbf{Race-only rebalancing:} only 5 race blocs are optimized; religion/
+        gender are fixed weights, and the Monte Carlo treats them as neutral
+        ($\mu{=}0.50$), understating uncertainty.
+  \item \textbf{Small-sample covariance:} 8 first-differences even after
+        shrinkage; thin blocs remain data-limited.
+\end{itemize}
+
+% =====================================================================
+\section{Future Work}
+\begin{itemize}
+  \item IPF raking marginals to replace fixed religion/gender weights in the
+        live path.
+  \item Heavier fine-tuning (higher rank, more epochs, larger/curated corpus) to
+        test whether the base-model lean can be reduced without over-fitting.
+  \item Completing the Gemma~2 9B controlled comparison.
+  \item Covariance sensitivity analysis (window, shrinkage target, estimator).
+  \item Post-hoc calibration against prediction markets (benchmarks only).
+\end{itemize}
+
+% =====================================================================
+\section{References}
+\stub{STUB --- bibliography.} \todo{source: build .bib. Anchors named in repo:}
+\begin{itemize}
+  \item Diamond \& Boyd (2019), \emph{Disciplined Quasi-Convex Programming},
+        arXiv:1905.00562. \todo{verify cite}
+  \item Robinson (1950), ecological fallacy. \todo{full cite}
+  \item Ledoit \& Wolf, covariance shrinkage. \todo{year/venue}
+  \item Aitchison, ILR / compositional data analysis. \todo{full cite}
+  \item Kuriwaki (2025), Cumulative CES Common Content, doi:10.7910/DVN/II2DB6.
+  \item Foster \& Rathlin (2022), MeToo sentiment dataset, DOI 10.5683/SP3/1YWCW1.
+  \item \todo{ANES, CES, GSS, NPORS, NEP, VOTER Panel dataset citations.}
+\end{itemize}
+
+% =====================================================================
+% =====================================================================
+% OUTSTANDING TODOS (every \todo{} and every % CONFLICT flagged above)
+% ---------------------------------------------------------------------
+% TODOS:
+%  - Title/author block: author + affiliation.
+%  - Abstract: final headline numbers (structural reduction ~98%, lean +0.028, MAE).
+%  - Sec 2 Related Work: entire section (literature not in repo).
+%  - Sec 3.1: confirm final panel row counts (305 -> 220; 14/15 blocs).
+%  - Sec 3.4: [RESOLVED] corpus size VERIFIED = 1,228 (data/finetune/synthetic.jsonl),
+%             split 982 train / 246 eval (train.jsonl / eval.jsonl). Still TODO:
+%             DeepSeek/Gemini model versions; # human-reviewed examples.
+%  - Sec 3.4: MMD acceptance threshold not populated (configs/mmd_config.json).
+%  - Sec 5.3: formal quasiconvexity proof (appendix).
+%  - Sec 5.4: [RESOLVED] V_eq bounds are per-party, NOT conflicting: Dem
+%             [0.501,0.515], Rep [0.485,0.499] (configs/party_config.json).
+%             Still TODO: report V_eq logistic-regression coefficients / CI.
+%  - Sec 5.6: Ledoit-Wolf shrinkage coefficient rho.
+%  - Sec 5.7: Gemma 2 9B comparison run (not completed).
+%  - Sec 6.3: exact retained win-prob asymmetry value + framing.
+%  - Sec 6.4: full matched-pair symmetry table (validate_symmetry.py).
+%  - Sec 7 Results: final MAE; worst-bloc MAE; Gemma comparison; win-prob
+%             calibration; symmetry mag-ratio/asymmetry; worked example; latency.
+%  - Sec 10 References: build .bib; verify all cites; add dataset citations.
+%
+% CONFLICTS (older vs newer; newer used):
+%  - Synthetic corpus size: [RESOLVED] old 557/446/111 (Mistral v2) -> current
+%    1,228 (synthetic.jsonl) split 982 train / 246 eval, VERIFIED from
+%    data/finetune/*.jsonl. Old figures dropped from body prose.
+%  - Eval set size 111 vs 110 (v2): [MOOT] both superseded by current 246 eval.
+%  - Delta-bin range: [FIXED] outline said midpoints -0.12..+0.12 as if the range;
+%    canonical bins TILE [-0.15,+0.15] (electoral/core/types.py:161), midpoints
+%    run -0.12..+0.12 (BIN_MIDPOINTS). Both now stated.
+%  - MAE 0.0362: [FIXED] flagged as pre-rebalance v2 (NOT current v3); re-run TODO.
+%  - V_eq bounds: [RESOLVED] not a conflict; per-party (Dem vs Rep) values.
+%  - Cycle windows: [CLARIFIED] raked lambda + V_eq use full 20 cycles (1948-2024),
+%    verified raking.py:199 + party_config.json; covariance uses 1990+ (9-cycle,
+%    DECISIONS.md:1337). Distinct windows by design, now noted in Sec 5.4/5.6.
+%  - Thin-bloc imputation: pre-1990 carry-forward cells (e.g. other_race
+%    1948-1956; 1968 asian) once usable, later EXCLUDED by 1990+ window.
+%  - Layer weights: additive prior (0.5,0.3,0.2) vs raked (0.114,0.224,0.662).
+%    NOT a true conflict (prior vs IPF posterior); both reported.
+% =====================================================================
+
+\end{document}
