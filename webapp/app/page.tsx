@@ -177,7 +177,6 @@ export default function HomePage() {
   const [simulation, setSimulation] = useState<SimulationData | null>(null);              // ← "simulation"
   const [empiricalSupport, setEmpiricalSupport] = useState<EmpiricalSupport | null>(null); // ← "empirical_support"
   const [refinement, setRefinement] = useState<Refinement | null>(null);                  // ← "refinement"
-  const [refineEnabled, setRefineEnabled] = useState<boolean>(false);  // opt-in: refine aligned events
   const [copied, setCopied] = useState(false);  // transient "Copied!" feedback on the share button
 
   // Holds the active SSE connection so we can close a stale one before starting a
@@ -279,7 +278,7 @@ export default function HomePage() {
         setLoading(false);
         esRef.current = null;
       },
-    }, refineEnabled);
+    }, false);  // refinement toggle removed — sentiment injection is server-side (always on for covered events)
     esRef.current = es;
   };
 
@@ -335,24 +334,6 @@ export default function HomePage() {
               loading={loading}
               onSubmit={handleSubmit}
             />
-
-            {/* Opt-in: refine with real archived reactions (aligned events only). */}
-            <label className="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-              <input
-                type="checkbox"
-                checked={refineEnabled}
-                onChange={(e) => setRefineEnabled(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Refine with real reactions
-                <span className="block text-[11px] text-gray-400">
-                  For events with real archive coverage in the sentiment-aligned regime,
-                  also show a soft, sentiment-injected refined prediction (not a retrained
-                  driver). Divergent/uncovered events stay base-only.
-                </span>
-              </span>
-            </label>
 
             <HowItWorks />
 
