@@ -25,9 +25,18 @@ DESIGN (all seed 42, deterministic):
      have >=1 positive label bloc. Their real NEGATIVE sentiment is injected while the
      POSITIVE synthetic label is kept → the model sees "negative sentiment + positive
      delta" and learns polarity != partisan effect. These are GUARANTEED injected.
-  4. HELD-OUT real shocks are never injection sources (fair testing). If BLM/Kavanaugh
-     are used as divergent TRAINING sources, other divergent shocks (MeToo, Chauvin)
-     are held out instead.
+  4. HELD-OUT real shocks are never injection sources (fair testing). Source of truth
+     is now configs/held_out_shocks.json via electoral.data.held_out (Phase 1, Step
+     1.6) -- NOT a hardcoded set in this file. Historically (pre-Step-1.6) this file
+     used a local HELD_OUT_SOURCES constant that deliberately let BLM/Kavanaugh remain
+     eligible as divergent TRAINING sources, holding out MeToo/Chauvin in their place
+     instead. Step 1.6's freeze formally overrides that trade-off: blm_george_floyd_2020
+     and kavanaugh_2018 are now canonically held out (they anchor the expert-elicitation
+     validation set), which means DIVERGENT_SOURCES below has only one remaining
+     eligible entry (ruth_bader_ginsburg_2020) going forward -- fewer divergent
+     counterexamples available for future corpus builds, a real cost, accepted
+     deliberately in exchange for the elicitation protocol's validity. See
+     scripts/check_held_out_leakage.py for what already leaked under the old regime.
 
 Outputs (no retrain):
   data/finetune/synthetic_grounded_v2.jsonl   (full corpus + _grounding_v2 provenance)
@@ -50,6 +59,7 @@ from electoral.core.types import (
     CANONICAL_RACES,
     CANONICAL_RELIGIONS,
 )
+from electoral.data.held_out import assert_not_held_out, held_out_shock_ids
 
 _ALL_BLOCS = [*CANONICAL_RACES, *CANONICAL_RELIGIONS, *CANONICAL_GENDERS]
 _POS_BINS = {"slight_pos", "mild_pos", "mod_pos", "strong_pos"}
@@ -61,15 +71,9 @@ NEG_THRESHOLD = -0.05     # a bloc's injected sentiment is "negative" below this
 EVAL_FRACTION = 0.20
 
 # ── Held-out real shocks: NEVER an injection source (fair testing) ────────────────
-# BLM + Kavanaugh are wanted as divergent TRAINING sources, so per the task the
-# other divergent shocks (MeToo, Chauvin) are held out in their place.
-HELD_OUT_SOURCES = {
-    "dobbs_2022",
-    "afghanistan_withdrawal_2021",
-    "affirmative_action_scotus_2023",
-    "metoo_2017",
-    "chauvin_conviction_2021",
-}
+# Source of truth: configs/held_out_shocks.json (Phase 1, Step 1.6), NOT a local
+# constant -- see the module docstring §4 for why this changed and what it costs.
+HELD_OUT_SOURCES = held_out_shock_ids()
 
 # ── Designated divergent counterexample sources (negative sentiment, mobilizing) ──
 DIVERGENT_SOURCES = {
@@ -229,6 +233,12 @@ def build(synthetic_path: Path, aggregates_path: Path, out_dir: Path,
     for rec in records:
         a = assign_family(rec, real_social)
         if a:
+            # Defense in depth: assign_family() already filters HELD_OUT_SOURCES out
+            # of `eligible`, but a held-out shock ending up here would mean a real
+            # shock's sentiment is about to be injected into a training record --
+            # exactly what Step 1.6 exists to stop. Fail loudly, don't trust the
+            # filter silently; see electoral/data/held_out.py.
+            assert_not_held_out(a[1], context="build_grounded_v2.py assign_family() source selection")
             mapped.append((rec, a[0], a[1]))
     mapped_ids = {id(r) for r, _, _ in mapped}
 

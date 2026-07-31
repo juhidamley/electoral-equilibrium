@@ -1,0 +1,301 @@
+{
+  "_meta": {
+    "frozen_date": "2026-07-31",
+    "principle": "APPEND-ONLY IN SPIRIT: shocks may be ADDED to `held_out_shocks` in a future edit, but an id already present here must NEVER be removed. Removing an id would retroactively invalidate every prior validation result computed against it (any reported accuracy/direction/calibration number implicitly assumed that shock was never trained on) -- there is no way to un-leak a shock after the fact, only to stop protecting it going forward, which defeats the point.",
+    "scope": [
+      "No shock in `held_out_shocks` may appear as training data in any corpus (data/finetune/*.jsonl or any successor format), for any model, present or future.",
+      "No shock in `held_out_shocks` may be used to DERIVE a label (delta_bins/delta_eff/sentiment aggregate) that is then attached to a *different* (synthetic or real) training record -- this covers the thematic-grounding/sentiment-injection pathway in scripts/build_grounded_v2.py, not just direct use.",
+      "No shock in `held_out_shocks` may be used for hyperparameter tuning, model selection, or early-stopping decisions -- picking a checkpoint because it scores well on a held-out shock is the same violation as training on it directly.",
+      "This applies RETROACTIVELY: any existing artifact that already violates this (see the results of scripts/check_held_out_leakage.py logged in data/leakage_reports/) is a known, disclosed defect to be corrected in future corpus builds, not grandfathered in as acceptable.",
+      "This applies to every model version, past and future -- a shock is not held out 'for now,' it is held out permanently once listed here."
+    ],
+    "enforcement": [
+      "electoral/data/held_out.py -- is_held_out()/assert_not_held_out()/assert_none_held_out(), the single source of truth read by all pipeline code",
+      "scripts/check_held_out_leakage.py -- standalone corpus scanner, direct AND indirect (thematic-grounding) leakage"
+    ],
+    "total_configured_shocks": 56,
+    "n_held_out": 20,
+    "n_trainable": 36,
+    "selection_rationale_summary": "12 shocks are the docs/elicitation/ instrument's committed validation targets (must be held out or that ~6-week protocol is worthless). 4 more (afghanistan_withdrawal_2021, affirmative_action_scotus_2023, metoo_2017, chauvin_conviction_2021) were already being informally excluded via a hardcoded HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- retained here to make that pre-existing, undocumented commitment canonical and enforced rather than silently walked back (see the leakage-check results: this walk-back had already partially happened once, between grounding-script v1 and v2). 4 more were added deliberately for ground-truth-layer and category coverage: trump_covid_diagnosis_2020 and election_2020 are the project's only Tier A (highest-fidelity, tightest-window) panel shocks worth dedicating to validation; trump_election_upset_2016 and election_2020 add exit-poll cross-cycle coverage; paris_climate_withdrawal_2017 fills the only major category (Environmental) otherwise absent from the set.",
+    "known_category_concentration": "Electoral/Voting Rights accounts for 5 of 20 (dobbs_2022, jan_6_insurrection_2021, affirmative_action_scotus_2023, trump_election_upset_2016, election_2020) -- proportionate to how common that category is across all 56 configured shocks, not a design flaw, but noted for transparency rather than presented as a perfectly even split.",
+    "leakage_check_last_run": "2026-07-31",
+    "leakage_check_report": "data/leakage_reports/2026-07-31.json",
+    "leakage_check_summary": "11 of 20 held-out shocks were found ALREADY LEAKED into existing corpora as of the freeze date (8 records direct, 609 records indirect via sentiment injection) -- see scripts/check_held_out_leakage.py and each affected shock's `leak_status` field below. NOT fixed as part of this freeze; disclosed as a known defect to correct in a future corpus rebuild. train.jsonl and eval.jsonl (the corpus actually used for the current production models, not the *_grounded_v2 variant) are CLEAN -- zero leaks found."
+  },
+  "held_out_shocks": [
+    {
+      "id": "sept_11_2001",
+      "category": "Security",
+      "ground_truth_coverage": "none",
+      "elicitation": true,
+      "rationale": "Predates every survey ground-truth layer (CES starts 2006, VOTER panel starts 2011) -- elicitation is the only validation this shock can ever get. Included in the 12-shock elicitation instrument as the rally-effect baseline.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "hurricane_katrina_2005",
+      "category": "Domestic Policy",
+      "ground_truth_coverage": "none",
+      "elicitation": true,
+      "rationale": "Predates every survey ground-truth layer. Elicitation-only validation; the domestic (non-foreign-policy) incumbent-blame baseline with a racial-equity dimension in the elicitation set.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "ayatollah_assassination",
+      "category": "Geopolitical (constructed hypothetical)",
+      "ground_truth_coverage": "none",
+      "elicitation": true,
+      "rationale": "A constructed pilot scenario with no historical precedent -- no survey layer can ever cover it, and it cannot be 'looked up' by a model either, making it a clean reasoning-only test. Held out to keep the elicitation instrument's one novel-scenario item meaningful.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "financial_crisis_2008",
+      "category": "Economic",
+      "ground_truth_coverage": "ces",
+      "elicitation": true,
+      "rationale": "Straightforward incumbent-blame economic shock; CES year-pair (2007->2008) consistency check available. Elicitation set's economic-domain anchor.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "bin_laden_killing_2011",
+      "category": "Geopolitical",
+      "ground_truth_coverage": "ces",
+      "elicitation": true,
+      "rationale": "Straightforward credit-to-incumbent shock, opposite valence from financial_crisis_2008. CES consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "russia_ukraine_invasion_2022",
+      "category": "Geopolitical",
+      "ground_truth_coverage": "ces",
+      "elicitation": true,
+      "rationale": "The elicitation set's deliberate null/low-partisan-signal test case -- both parties broadly supported the same response, so this tests whether a model over-predicts partisan effects where none should exist. Held out so that test stays meaningful.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "indirect (sentiment injection)",
+        "files": [
+          "data/finetune/eval_grounded_v2.jsonl",
+          "data/finetune/synthetic_grounded.jsonl",
+          "data/finetune/synthetic_grounded_v2.jsonl",
+          "data/finetune/train_grounded_v2.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "charlottesville_2017",
+      "category": "Moral/Scandal",
+      "ground_truth_coverage": "panel_tier_C_unusable",
+      "elicitation": true,
+      "rationale": "Panel data exists but its bracket window is too crowded (5 co-occurring shocks) for any statistical attribution -- elicitation is the ONLY usable validation this shock has at all. Highest-priority hold-out in the set for that reason alone.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct + indirect (sentiment injection)",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl",
+          "data/finetune/synthetic_grounded.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "kavanaugh_2018",
+      "category": "Moral/Scandal",
+      "ground_truth_coverage": "panel_tier_B",
+      "elicitation": true,
+      "rationale": "Double-mobilization case (plausibly energized both pro-confirmation and #MeToo-aligned blocs). Panel Tier B consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "indirect (sentiment injection)",
+        "files": [
+          "data/finetune/eval_grounded_v2.jsonl",
+          "data/finetune/synthetic_grounded_v2.jsonl",
+          "data/finetune/train_grounded_v2.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "family_separation_2018",
+      "category": "Immigration",
+      "ground_truth_coverage": "panel_tier_B",
+      "elicitation": true,
+      "rationale": "High-salience, emotionally direct shock; tests whether bloc-level predictions track general-polling disapproval or diverge from it. Panel Tier B consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "blm_george_floyd_2020",
+      "category": "Criminal Justice",
+      "ground_truth_coverage": "panel_tier_B",
+      "elicitation": true,
+      "rationale": "Double-mobilization case, different domain from kavanaugh_2018 (policing rather than judicial confirmation). Panel Tier B consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "indirect (sentiment injection)",
+        "files": [
+          "data/finetune/eval_grounded_v2.jsonl",
+          "data/finetune/synthetic_grounded_v2.jsonl",
+          "data/finetune/train_grounded_v2.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "dobbs_2022",
+      "category": "Electoral/Voting Rights",
+      "ground_truth_coverage": "ces",
+      "elicitation": true,
+      "rationale": "The paradigmatic mobilizing-backlash case: a conservative-aligned legal outcome plausibly energizing the opposing coalition more than its own. Already excluded via the pre-existing (undocumented) HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- now made canonical.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "jan_6_insurrection_2021",
+      "category": "Electoral/Voting Rights",
+      "ground_truth_coverage": "ces",
+      "elicitation": true,
+      "rationale": "Sharply divergent contemporaneous partisan interpretation of the same event. CES consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "afghanistan_withdrawal_2021",
+      "category": "Geopolitical",
+      "ground_truth_coverage": "ces",
+      "elicitation": false,
+      "rationale": "Already excluded via the pre-existing (undocumented) HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- retained here to make that prior commitment canonical and enforced rather than allow it to lapse the way blm_george_floyd_2020's and kavanaugh_2018's earlier (v1-script) exclusions did.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "affirmative_action_scotus_2023",
+      "category": "Electoral/Voting Rights",
+      "ground_truth_coverage": "ces",
+      "elicitation": false,
+      "rationale": "Already excluded via the pre-existing (undocumented) HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- retained here to make that prior commitment canonical and enforced.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "metoo_2017",
+      "category": "Moral/Scandal",
+      "ground_truth_coverage": "panel_tier_C_unusable",
+      "elicitation": false,
+      "rationale": "Already excluded via the pre-existing (undocumented) HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- retained here to make that prior commitment canonical and enforced. Also a panel Tier C (statistically unusable) shock in its own right.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "chauvin_conviction_2021",
+      "category": "Criminal Justice",
+      "ground_truth_coverage": "ces",
+      "elicitation": false,
+      "rationale": "Already excluded via the pre-existing (undocumented) HELD_OUT_SOURCES constant in scripts/build_grounded_v2.py -- retained here to make that prior commitment canonical and enforced.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "trump_covid_diagnosis_2020",
+      "category": "Health/Pandemic",
+      "ground_truth_coverage": "panel_tier_A",
+      "elicitation": false,
+      "rationale": "One of only two Tier A (highest-fidelity, 46-day-window) panel shocks in the entire ground-truth set -- deliberately dedicated to validation rather than training. Also the only Health/Pandemic-category shock in this held-out set, filling a category gap the elicitation-12 didn't cover. Shares its panel bracket window with election_2020 and ruth_bader_ginsburg_2020 (see data/ground_truth/panel_deltas_summary.md); ruth_bader_ginsburg_2020 was deliberately left trainable to avoid over-holding-out from one narrow shared window.",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    },
+    {
+      "id": "paris_climate_withdrawal_2017",
+      "category": "Environmental",
+      "ground_truth_coverage": "panel_tier_B",
+      "elicitation": false,
+      "rationale": "Fills the Environmental category, otherwise entirely absent from this held-out set. Panel Tier B consistency check available.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct + indirect (sentiment injection)",
+        "files": [
+          "data/finetune/eval_grounded_v2.jsonl",
+          "data/finetune/grounded_aligned.jsonl",
+          "data/finetune/synthetic_grounded.jsonl",
+          "data/finetune/synthetic_grounded_v2.jsonl",
+          "data/finetune/train_grounded_v2.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "trump_election_upset_2016",
+      "category": "Electoral/Voting Rights",
+      "ground_truth_coverage": "ces,exit_poll",
+      "elicitation": false,
+      "rationale": "Adds exit-poll cross-cycle coverage (the 2004->2016 comparison) to the held-out set, which otherwise skews toward panel/CES. One of the most consequential single election shocks in the taxonomy; a genuine 'surprise' mobilizing-dynamics test case.",
+      "leak_status": {
+        "confirmed_leaked": true,
+        "mechanism": "direct",
+        "files": [
+          "data/finetune/grounded_aligned.jsonl"
+        ]
+      }
+    },
+    {
+      "id": "election_2020",
+      "category": "Electoral/Voting Rights",
+      "ground_truth_coverage": "panel_tier_A,exit_poll",
+      "elicitation": false,
+      "rationale": "The single richest ground-truth shock in the whole project -- Tier A panel data AND its own exit-poll cycle delta (2016->2020) in one shock, enabling a genuine cross-layer agreement check restricted to properly held-out data (data/ground_truth/ground_truth_layers.md already found panel and exit-poll disagree in sign for 5/6 blocs on this exact comparison -- validating against BOTH, honestly, requires this shock never be trained on).",
+      "leak_status": {
+        "confirmed_leaked": false,
+        "mechanism": null,
+        "files": []
+      }
+    }
+  ]
+}

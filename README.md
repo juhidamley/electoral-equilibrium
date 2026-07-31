@@ -130,6 +130,21 @@ Zero-weight blocs are reported as `infeasible_bloc`, never floored.
 
 ---
 
+## Results
+
+Calibration uses iterative proportional fitting (IPF) over roughly 20 U.S. presidential cycles (1948–2024). IPF converged in 2 iterations to raked stratum weights of **race 0.114, religion 0.224, gender 0.662** — recovering the well-documented growth of the gender gap from first principles. This is a model-calibration result reflecting cross-cycle *temporal variance*, not a claim that gender matters more than race at the individual level (African American party loyalty, for instance, has been a stable 87–92% since 1964; a stable signal contributes little to a least-squares fit regardless of magnitude). See `FINDINGS.md` for the full set of empirical results.
+
+<!-- TODO(juhi): add held-out backtest / win-probability calibration metrics once the paper baseline run completes. -->
+
+## Limitations
+
+- **Data scarcity** is the central constraint: only ~20 modern presidential elections exist, so the architecture is built to work around ~20 data points rather than learn freely from history.
+- **Ecological fallacy:** λ weights are aggregate-level regression coefficients, not individual-level causal effects.
+- **Additive independence:** strata are combined additively, so intersectional interactions (e.g. Latino Evangelical women) are not modeled; MRP is the theoretically correct alternative but needs joint cross-tab data unavailable in this timeline.
+- **Not a forecast:** the system estimates equilibria under stated assumptions. It is a research tool, not a prediction of real election outcomes.
+
+---
+
 ## Setup
 
 ### Requirements
@@ -143,7 +158,7 @@ Zero-weight blocs are reported as `infeasible_bloc`, never floored.
 ### Install
 
 ```bash
-git clone https://github.com/jdamley28/electoral-equilibrium
+git clone https://github.com/juhidamley/electoral-equilibrium
 cd electoral-equilibrium
 uv sync                    # installs all Python deps from pyproject.toml
 cd webapp && npm install   # installs Next.js deps
@@ -258,7 +273,7 @@ This section documents how to reproduce the paper-baseline artifacts frozen at `
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/jdamley28/electoral-equilibrium
+git clone https://github.com/juhidamley/electoral-equilibrium
 cd electoral-equilibrium
 git checkout feature/week5-llm-finetune   # branch the paper baseline was tagged from
 

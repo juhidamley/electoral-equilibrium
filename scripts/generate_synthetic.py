@@ -90,9 +90,31 @@ BIN_MIDPOINTS = {
 
 
 def _load_real_shocks() -> list[dict]:
+    """All configured real shocks, MINUS anything frozen in
+    configs/held_out_shocks.json (Phase 1, Step 1.6). This list feeds both
+    _build_prompt() (embedded verbatim into the Gemini prompt as style
+    reference) and _real_delta_matrix() (the MMD/PCA/PCD reference
+    distribution) -- a held-out shock has no business influencing either,
+    even though neither directly copies a real shock's label onto a
+    synthetic record. Filtered here once so every downstream consumer is
+    automatically protected.
+    """
+    from electoral.data.held_out import assert_none_held_out, held_out_shock_ids
+
     if not _SHOCKS_PATH.exists():
         raise FileNotFoundError(f"shocks.json not found: {_SHOCKS_PATH}")
-    return json.loads(_SHOCKS_PATH.read_text(encoding="utf-8"))
+    all_shocks = json.loads(_SHOCKS_PATH.read_text(encoding="utf-8"))
+    held = held_out_shock_ids()
+    n_excluded = sum(1 for s in all_shocks if s.get("id") in held)
+    if n_excluded:
+        logger.info(
+            "Excluding %d held-out shock(s) from the real-shock reference set "
+            "(configs/held_out_shocks.json) before building any Gemini prompt or "
+            "diagnostic reference distribution.", n_excluded,
+        )
+    filtered = [s for s in all_shocks if s.get("id") not in held]
+    assert_none_held_out((s["id"] for s in filtered), context="generate_synthetic.py _load_real_shocks() output")
+    return filtered
 
 
 def _load_panel_csv() -> str:

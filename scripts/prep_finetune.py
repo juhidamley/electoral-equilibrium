@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from electoral.core.rng import derive_seed, make_rng
+from electoral.data.held_out import assert_none_held_out
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -85,6 +86,25 @@ def main(argv: list[str] | None = None) -> int:
     if not all_records:
         print(f"ERROR: no records found in {data_dir}", file=sys.stderr)
         return 1
+
+    # Step 1.6: fail loudly if any input record's shock_id -- or a
+    # grounding-injection source_shock, direct or indirect -- is a held-out
+    # shock, rather than silently baking it into train.jsonl/eval.jsonl.
+    # new_events.jsonl in particular could plausibly carry a hand-authored
+    # REAL shock_id (unlike synthetic.jsonl's slugs), which is exactly the
+    # direct-leak shape found in data/finetune/grounded_aligned.jsonl by
+    # scripts/check_held_out_leakage.py.
+    shock_refs: list[str] = []
+    for rec in all_records:
+        if isinstance(rec.get("shock_id"), str):
+            shock_refs.append(rec["shock_id"])
+        g = rec.get("_grounding") or {}
+        if isinstance(g.get("grounded_from"), str):
+            shock_refs.append(g["grounded_from"])
+        g2 = rec.get("_grounding_v2") or {}
+        if isinstance(g2.get("source_shock"), str):
+            shock_refs.append(g2["source_shock"])
+    assert_none_held_out(shock_refs, context="prep_finetune.py train/eval split input (synthetic.jsonl + new_events.jsonl)")
 
     train, eval_ = stratified_split(all_records, args.eval_fraction, args.seed)
 
