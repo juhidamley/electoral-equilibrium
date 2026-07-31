@@ -64,6 +64,11 @@ _DEFAULT_FINETUNE_DIR = _REPO_ROOT / "data" / "finetune"
 
 _ALL_BLOCS: list[str] = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
 
+# NOT rescaled by Step 2.1 (see DECISIONS.md). Local duplicate of
+# electoral.core.types.BIN_MIDPOINTS, deliberately left at the OLD ±0.12
+# scale: assemble_finetune_dataset() below builds data/finetune/*.jsonl,
+# and the existing corpus is at the old scale until a separate later
+# regeneration step. Update together with that step, not before it.
 BIN_MIDPOINTS: dict[str, float] = {
     "strong_neg": -0.120,
     "mod_neg": -0.070,

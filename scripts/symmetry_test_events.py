@@ -48,8 +48,10 @@ OUT_PATH = Path("data/validation/event_symmetry.json")
 ALL_BLOCS: list[str] = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
 
 # ── Interpretation thresholds (tunable) ───────────────────────────────────────
-SYMMETRIC_THRESH = 0.01   # |aggregate asymmetry| below this → symmetric
-MILD_THRESH = 0.03        # between SYMMETRIC and this → mild lean; above → notable lean
+# Rescaled Step 2.1: both were defined against the old ±0.15/±0.12 BIN_MIDPOINTS
+# range; x0.25 keeps them the same fraction of the new ±0.03 range.
+SYMMETRIC_THRESH = 0.0025  # |aggregate asymmetry| below this → symmetric
+MILD_THRESH = 0.0075       # between SYMMETRIC and this → mild lean; above → notable lean
 MAG_PARITY_MIN = 0.5      # weaker framing must be ≥ this fraction of the stronger one
 SIGN_EPS = 1e-9           # deadzone for calling a mean's direction
 

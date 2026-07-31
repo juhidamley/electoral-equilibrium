@@ -132,7 +132,11 @@ class MagnitudeScore:
     Real panel-measured deltas run roughly 0.0002-0.03 in magnitude
     (data/ground_truth/panel_deltas_summary.md); a model still calibrated to
     the old theoretical +-0.15 DELTA_BINS range would show a calibration_ratio
-    on the order of 5-10x here. `median_cellwise_ratio` is a robustness
+    on the order of 5-10x here. As of Step 2.1 (DECISIONS.md), the decode
+    table itself is rescaled to +-0.03 -- a model/corpus still trained against
+    the OLD scale (i.e. before the corpus regeneration step) would still show
+    this same overstatement until that regeneration lands.
+    `median_cellwise_ratio` is a robustness
     companion that excludes near-zero-measured cells (division blowup guard),
     not a replacement for the aggregate ratio.
     """

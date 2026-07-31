@@ -1,5 +1,5 @@
 {
-  "note": "Per-bin empirical sigma_b for Logistic-Normal Monte Carlo. Populated by scripts/generate_synthetic.py after historical delta analysis. Conservative prior sigma = bin_width/2 used for bins with < 5 historical examples.",
+  "note": "Per-bin empirical sigma_b for Logistic-Normal Monte Carlo. Populated by scripts/generate_synthetic.py after historical delta analysis. Conservative prior sigma = bin_width/2 used for bins with < 5 historical examples. Not yet populated (all null below) and not currently read by any code. Step 2.1 rescaled electoral.core.types.BIN_MIDPOINTS/DELTA_BINS to +-0.03 (was +-0.15/0.12) -- when this file is eventually populated, 'bin_width' must be read off the NEW bin edges, not the old ones.",
 
   "bins": {
     "strong_neg": {"sigma": null, "n_examples": 0},

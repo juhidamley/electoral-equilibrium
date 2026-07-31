@@ -80,7 +80,8 @@ SYMMETRY_PERSPECTIVE = "democrat"
 SYMMETRY_MATCH_PARTY_TO_FRAME = False
 
 # Tiny floor so a bloc that lands exactly on "neutral" (delta 0.0) does not
-# blow up ratios. Smaller than the smallest nonzero |midpoint| (0.012).
+# blow up ratios. Smaller than the smallest nonzero |midpoint| (0.003,
+# rescaled Step 2.1; was 0.012) — 1e-9 itself needs no change.
 EPS = 1e-9
 
 # ─────────────────────────────────────────────────────────────────────────────

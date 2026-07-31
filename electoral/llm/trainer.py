@@ -739,8 +739,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     mae = state.get("eval_mae")
-    if mae is not None and mae > 0.04:
-        log.warning("Held-out MAE %.4f > 0.04 — consider submitting rank-32 job", mae)
+    # Threshold rescaled Step 2.1: 0.04 -> 0.01 (x0.25, matching BIN_MIDPOINTS).
+    if mae is not None and mae > 0.01:
+        log.warning("Held-out MAE %.4f > 0.01 — consider submitting rank-32 job", mae)
         return 2
 
     return 0

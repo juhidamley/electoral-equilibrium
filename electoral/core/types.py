@@ -158,33 +158,40 @@ Party: TypeAlias = Literal["democrat", "republican"]
 # Each label corresponds to a numeric *range*; downstream code turns the chosen
 # label back into a single number using the range's midpoint (see BIN_MIDPOINTS
 # and bin_to_delta below). The ranges are contiguous and non-overlapping, so the
-# 9 bins tile the interval [-0.15, +0.15] with no gaps.
+# 9 bins tile the interval [-0.0375, +0.0375] with no gaps.
 #
 # Standardized on "slight" (not "weak") — see DECISIONS.md §4.
+#
+# RESCALED Step 2.1 (see DECISIONS.md "Step 2.1 — rescale delta-bin midpoints
+# to measured reality"): the original [-0.15, +0.15] range was an ungrounded
+# design assumption. Panel ground truth (data/ground_truth/panel_deltas.json)
+# measured real per-bloc shifts up to 0.0286; every value below is the old
+# value x0.25 (0.03 / 0.12, i.e. the old max midpoint mapped onto the new
+# ±0.03 ceiling, anchored on the largest per-bloc shift ever measured).
 
 DELTA_BINS: Final[tuple[str, ...]] = (
-    "strong_neg",  # numeric range [-0.15, -0.09)
-    "mod_neg",  # [-0.09, -0.05)
-    "mild_neg",  # [-0.05, -0.02)
-    "slight_neg",  # [-0.02, -0.005)
-    "neutral",  # [-0.005, +0.005]
-    "slight_pos",  # (+0.005, +0.02]
-    "mild_pos",  # (+0.02, +0.05]
-    "mod_pos",  # (+0.05, +0.09]
-    "strong_pos",  # (+0.09, +0.15]
+    "strong_neg",  # numeric range [-0.0375, -0.0225)
+    "mod_neg",  # [-0.0225, -0.0125)
+    "mild_neg",  # [-0.0125, -0.005)
+    "slight_neg",  # [-0.005, -0.00125)
+    "neutral",  # [-0.00125, +0.00125]
+    "slight_pos",  # (+0.00125, +0.005]
+    "mild_pos",  # (+0.005, +0.0125]
+    "mod_pos",  # (+0.0125, +0.0225]
+    "strong_pos",  # (+0.0225, +0.0375]
 )
 
-# Midpoints used by bin_to_delta()
+# Midpoints used by bin_to_delta(). Rescaled Step 2.1 -- old value x0.25.
 BIN_MIDPOINTS: Final[dict[str, float]] = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
+    "strong_neg": -0.0300,
+    "mod_neg": -0.0175,
+    "mild_neg": -0.00875,
+    "slight_neg": -0.00300,
     "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
+    "slight_pos": +0.00300,
+    "mild_pos": +0.00875,
+    "mod_pos": +0.0175,
+    "strong_pos": +0.0300,
 }
 
 # Layer weight keys (must sum to 1.0). These name the three λ values that blend
@@ -219,7 +226,7 @@ def bin_to_delta(token: str) -> float:
         token: One of the 9 strings in DELTA_BINS.
 
     Returns:
-        The midpoint vote-share delta for that bin (a float in [-0.12, +0.12]).
+        The midpoint vote-share delta for that bin (a float in [-0.03, +0.03]).
 
     Raises:
         ValueError: if `token` is not a recognized bin — fail loudly rather than

@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 _DEFAULT_ADAPTER = "models/mistral-r16"
 _DEFAULT_BASE_MODEL = "mistralai/Mistral-7B-v0.3"
 _N_BOOTSTRAP = 100
-_NOISE_STD = 0.01
+_NOISE_STD = 0.0025  # rescaled Step 2.1: was 0.01 (x0.25, matching BIN_MIDPOINTS)
 
 # Minimum election cycle included when estimating Σ_Δ from the historical panel.
 # WHY 1990: pre-1990 cycles have sparse/imputed cells for the data-thin race blocs

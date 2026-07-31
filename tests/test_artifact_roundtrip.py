@@ -548,7 +548,9 @@ class TestShockResponseData:
         assert_roundtrip(
             self._make(
                 deltas_race={
-                    "african_american": -0.012,
+                    # Values match electoral.core.types.BIN_MIDPOINTS (rescaled
+                    # Step 2.1) for the paired bin label below.
+                    "african_american": -0.00300,
                     "latino": 0.0,
                     "asian": 0.0,
                     "white": 0.0,
@@ -561,11 +563,11 @@ class TestShockResponseData:
                     "white": "neutral",
                     "other_race": "neutral",
                 },
-                deltas_religion={r: 0.035 if r == "evangelical" else 0.0 for r in RELIGION_IDS},
+                deltas_religion={r: 0.00875 if r == "evangelical" else 0.0 for r in RELIGION_IDS},
                 delta_bins_religion={
                     r: "mild_pos" if r == "evangelical" else "neutral" for r in RELIGION_IDS
                 },
-                deltas_gender={g: -0.070 if g == "women" else 0.0 for g in GENDER_IDS},
+                deltas_gender={g: -0.0175 if g == "women" else 0.0 for g in GENDER_IDS},
                 delta_bins_gender={g: "mod_neg" if g == "women" else "neutral" for g in GENDER_IDS},
             )
         )
@@ -576,8 +578,8 @@ class TestShockResponseData:
 
     def test_delta_out_of_range_raises(self):
         bad = {r: 0.0 for r in RACE_IDS}
-        bad["white"] = -0.50  # outside [-0.15, 0.15]
-        with pytest.raises(ValueError, match=r"\[-0.15"):
+        bad["white"] = -0.50  # outside [-0.0375, 0.0375] (rescaled Step 2.1)
+        with pytest.raises(ValueError, match=r"\[-0.0375"):
             self._make(deltas_race=bad).validate()
 
     def test_delta_non_finite_raises(self):

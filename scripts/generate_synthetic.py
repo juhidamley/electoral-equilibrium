@@ -73,6 +73,16 @@ DELTA_BINS = [
     "mod_pos",
     "strong_pos",
 ]
+# NOT rescaled by Step 2.1 (see DECISIONS.md). This is a local duplicate of
+# electoral.core.types.BIN_MIDPOINTS, deliberately left at the OLD ±0.12
+# scale: this script feeds the synthetic training corpus, which is being
+# regenerated at the new ±0.03 scale in a separate later step. Rescaling this
+# copy now, before that regeneration, would make freshly-generated synthetic
+# records scale-inconsistent with everything already in data/finetune/.
+# Update this dict together with that regeneration, not before it — ideally
+# by importing BIN_MIDPOINTS from electoral.core.types instead of
+# maintaining a second hardcoded copy, which is how this drift risk exists
+# in the first place (see also electoral/nlp/elasticity.py's own copy).
 BIN_MIDPOINTS = {
     "strong_neg": -0.120,
     "mod_neg": -0.070,

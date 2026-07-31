@@ -318,9 +318,11 @@ def check_end_to_end(sd: np.ndarray | None) -> None:
             torch.manual_seed(SEED)
             bins = predict_delta_bins(text, party, model, tokenizer,
                                       use_constrained=True, seed=SEED)
-            d_race = {b: max(-0.15, min(0.15, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_RACES}
-            d_rel = {b: max(-0.15, min(0.15, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_RELIGIONS}
-            d_gen = {b: max(-0.15, min(0.15, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_GENDERS}
+            # Clip bound rescaled Step 2.1: 0.15 -> 0.0375 (x0.25, matching
+            # electoral.core.types.BIN_MIDPOINTS).
+            d_race = {b: max(-0.0375, min(0.0375, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_RACES}
+            d_rel = {b: max(-0.0375, min(0.0375, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_RELIGIONS}
+            d_gen = {b: max(-0.0375, min(0.0375, BIN_MIDPOINTS[bins[b]])) for b in CANONICAL_GENDERS}
 
             nom = _NOMINAL_MU_RACE[party]
             delta_eff = (

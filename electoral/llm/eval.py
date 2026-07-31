@@ -23,9 +23,9 @@ from electoral.core.types import BIN_MIDPOINTS, DELTA_BINS
 def _sign(token: str) -> int:
     """Map a bin token to -1, 0, or +1."""
     v = BIN_MIDPOINTS[token]
-    if v > 0.005:
+    if v > 0.00125:
         return 1
-    if v < -0.005:
+    if v < -0.00125:
         return -1
     return 0
 
@@ -57,7 +57,8 @@ def direction_accuracy(
 ) -> float:
     """Fraction of blocs where predicted direction matches true direction.
 
-    Direction is mapped to {-1, 0, +1} using DELTA_BINS boundary at ±0.005.
+    Direction is mapped to {-1, 0, +1} using the neutral-bin boundary at
+    ±0.00125 (rescaled Step 2.1; the old boundary was ±0.005).
     Neutral-neutral, positive-positive, and negative-negative are all counted correct.
     """
     blocs = sorted(set(pred_bins) & set(true_bins))

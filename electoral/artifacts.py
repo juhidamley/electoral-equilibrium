@@ -630,10 +630,10 @@ class ShockResponseData:
                     raise ValueError(
                         f"ShockResponseData.{field_name}[{bloc_id!r}] = {v} must be finite"
                     )
-                if not (-0.15 <= v <= 0.15):
+                if not (-0.0375 <= v <= 0.0375):
                     raise ValueError(
                         f"ShockResponseData.{field_name}[{bloc_id!r}] = {v} "
-                        f"is outside [-0.15, 0.15]"
+                        f"is outside [-0.0375, 0.0375]"
                     )
         if not math.isfinite(self.delta_eff):
             raise ValueError(f"ShockResponseData.delta_eff = {self.delta_eff} must be finite")

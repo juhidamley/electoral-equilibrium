@@ -44,26 +44,26 @@ def test_mae_neutral_vs_neutral_is_zero():
 
 
 def test_mae_mod_pos_vs_mod_neg():
-    # mod_pos midpoint = +0.070, mod_neg midpoint = -0.070 → error = 0.140
+    # Rescaled Step 2.1: mod_pos midpoint = +0.0175, mod_neg midpoint = -0.0175 → error = 0.035
     pred = {"african_american": "mod_pos"}
     true = {"african_american": "mod_neg"}
-    assert mae_in_delta_units(pred, true) == pytest.approx(0.140, abs=1e-9)
+    assert mae_in_delta_units(pred, true) == pytest.approx(0.035, abs=1e-9)
 
 
 def test_mae_slight_pos_vs_neutral():
-    # slight_pos midpoint = +0.012, neutral midpoint = 0.000 → error = 0.012
+    # Rescaled Step 2.1: slight_pos midpoint = +0.003, neutral midpoint = 0.000 → error = 0.003
     pred = {"african_american": "slight_pos"}
     true = {"african_american": "neutral"}
-    assert mae_in_delta_units(pred, true) == pytest.approx(0.012, abs=1e-9)
+    assert mae_in_delta_units(pred, true) == pytest.approx(0.003, abs=1e-9)
 
 
 def test_mae_averages_over_blocs():
-    # bloc a: mod_pos (0.070) vs mod_neg (−0.070) → 0.140
+    # bloc a: mod_pos (0.0175) vs mod_neg (−0.0175) → 0.035
     # bloc b: neutral (0.000) vs neutral (0.000) → 0.000
-    # mean = 0.070
+    # mean = 0.0175
     pred = {"a": "mod_pos", "b": "neutral"}
     true = {"a": "mod_neg", "b": "neutral"}
-    assert mae_in_delta_units(pred, true) == pytest.approx(0.070, abs=1e-9)
+    assert mae_in_delta_units(pred, true) == pytest.approx(0.0175, abs=1e-9)
 
 
 def test_mae_uses_only_common_keys():
@@ -187,7 +187,7 @@ def test_per_stratum_mae_race_nonzero_others_zero():
         religions=list(CANONICAL_RELIGIONS),
         genders=list(CANONICAL_GENDERS),
     )
-    assert result["race"] == pytest.approx(0.070, abs=1e-9)
+    assert result["race"] == pytest.approx(0.0175, abs=1e-9)
     assert result["religion"] == pytest.approx(0.0)
     assert result["gender"] == pytest.approx(0.0)
 
@@ -213,19 +213,19 @@ def test_compute_eval_report_single_example():
     pred = {"african_american": "mod_pos"}
     true = {"african_american": "mod_neg"}
     report = compute_eval_report([(pred, true)])
-    assert report["mae"] == pytest.approx(0.140, abs=1e-9)
+    assert report["mae"] == pytest.approx(0.035, abs=1e-9)
     assert report["direction_accuracy"] == pytest.approx(0.0)
     assert report["n_examples"] == 1
 
 
 def test_compute_eval_report_averages_mae():
-    # Example 1: mod_pos vs mod_neg → MAE = 0.140
+    # Example 1: mod_pos vs mod_neg → MAE = 0.035
     # Example 2: neutral vs neutral → MAE = 0.000
-    # Mean MAE = 0.070
+    # Mean MAE = 0.0175
     ex1 = ({"a": "mod_pos"}, {"a": "mod_neg"})
     ex2 = ({"a": "neutral"}, {"a": "neutral"})
     report = compute_eval_report([ex1, ex2])
-    assert report["mae"] == pytest.approx(0.070, abs=1e-9)
+    assert report["mae"] == pytest.approx(0.0175, abs=1e-9)
     assert report["n_examples"] == 2
 
 

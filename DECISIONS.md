@@ -1598,3 +1598,126 @@ the lean magnitude, its localization to valence events, and the elimination trai
   more of the pretrained priors;
 - base-model selection (evaluate less politically-leaning base checkpoints);
 - a disclosed, documented output-side calibration applied symmetrically and reported as such.
+
+## Phase 2, Step 2.1 — 2026-07-31 — Rescale delta-bin midpoints to measured reality
+
+### The problem
+
+`electoral/core/types.py`'s `DELTA_BINS`/`BIN_MIDPOINTS` — the 9-token decode table the
+LLM's constrained-decoding output is converted through into a numeric vote-share delta —
+was defined at design time to tile `[-0.15, +0.15]`, with midpoints up to ±0.120. This range
+was never measured against anything; it was a plausible-sounding guess made before any
+ground-truth extraction existed.
+
+Panel ground truth (`data/ground_truth/panel_deltas.json`, built in Step 1.1) now gives real
+per-bloc, single-shock vote-share shifts: **median 0.0029, mean 0.0046, p90 0.0112, max
+0.0286**. The old ±0.12 decode ceiling overstates the true maximum ever observed by roughly
+**4.2x**. `electoral/metrics/ground_truth_accuracy.py`'s `calibration_ratio` diagnostic
+(built in the ground-truth-accuracy step) was written anticipating exactly this: a model
+still calibrated to the old range would show `calibration_ratio` on the order of 5-10x
+against real panel deltas.
+
+### DECISION: rescale the decode table, don't add a calibration layer
+
+Rescale `BIN_MIDPOINTS`/`DELTA_BINS` in place (old value x0.25 throughout) rather than leave
+the old range in place and bolt on a post-hoc output-side calibration multiplier.
+
+**Why rescale, not calibrate:** a calibration layer treats a wrong decode table as a fixed
+fact of the model and papers over it downstream, at every call site that touches a delta —
+the optimizer, Monte Carlo, the eval harness, the API. That's more places to keep in sync,
+not fewer, and it leaves the model's own internal number wrong even as its external report
+gets corrected. Rescaling the table makes the model's stated bin values internally consistent
+with what the bins are supposed to mean, is a single source-of-truth change, and is a
+cleaner story in the paper than "the model was wrong, so we applied a fudge factor after the
+fact."
+
+### DECISION: ±0.03, anchored on the observed maximum, not a percentile
+
+The new ceiling is **±0.03**, anchored on **0.0286 (the largest single-shock, per-bloc shift
+ever measured in the panel)**, not on p90 (0.0112) or any other percentile. A percentile
+anchor would mean the decode table cannot represent the largest shocks actually observed in
+the ground truth — exactly the kind of shock (charlottesville_2017, dobbs_2022,
+jan_6_insurrection_2021) this project cares most about getting right. Anchoring on the
+observed max keeps the full measured range representable while still correcting the
+~4x overstatement.
+
+Old value x0.25 = new value throughout (0.12 x 0.25 = 0.03 exactly), preserving relative
+bin spacing unchanged. See the located-definitions list and old/new midpoint table delivered
+alongside this note for every changed constant.
+
+### What was changed vs. deliberately left alone
+
+**Changed** (decode path + everything that is a direct function of the decode table's
+geometry, none of which requires retraining or corpus regeneration):
+- `electoral/core/types.py` — `BIN_MIDPOINTS`, `DELTA_BINS` edge comments, `bin_to_delta()`
+  docstring — the canonical source of truth.
+- `electoral/llm/inference.py` — the post-intensity clip, `±0.15` -> `±0.0375`. This clip is
+  a real operative ceiling in production, not vestigial: `intensity` is user-controllable via
+  the live API in `[0.1, 3.0]` (`shock_endpoint.py`), so values above the bin range's natural
+  ±0.12 ceiling genuinely occur and get clipped. `±0.0375` was chosen (not `±0.03`) because
+  0.15 was exactly the strong_pos/strong_neg bin's outer edge, not its 0.12 midpoint — 0.0375
+  preserves that same edge/midpoint relationship at the new scale, so `intensity`'s headroom
+  above a bin's own midpoint before clipping engages is unchanged.
+- `electoral/artifacts.py` — `ShockResponseData` validation range, same `±0.0375` reasoning.
+- `scripts/verify_pipeline.py` — the smoke-test clip, same value.
+- `electoral/llm/eval.py` — `_sign()`'s neutral-boundary, `±0.005` -> `±0.00125`. This one
+  was a genuine bug risk left unrescaled: the smallest nonzero new midpoint (slight_pos,
+  0.003) is *below* the old 0.005 threshold, so leaving it unrescaled would have silently
+  misclassified every slight_pos/slight_neg prediction as neutral in `direction_accuracy`.
+- `electoral/llm/trainer.py` — the eval-MAE retrain-recommendation gate, `0.04` -> `0.01`.
+- `scripts/symmetry_test_events.py` — `SYMMETRIC_THRESH`/`MILD_THRESH`, `0.01`/`0.03` ->
+  `0.0025`/`0.0075`.
+- `electoral/kernels/shock.py` — `_NOISE_STD` (diagnostic-only `bootstrap_cov`, not in the
+  production chain), `0.01` -> `0.0025`.
+
+**Deliberately NOT changed, and flagged in place with a comment explaining why:**
+- `scripts/generate_synthetic.py` and `electoral/nlp/elasticity.py` each carry their own
+  hardcoded copy of `BIN_MIDPOINTS` (duplication that predates this step) used to build the
+  synthetic/fine-tuning corpus. **The synthetic corpus in `data/finetune/*.jsonl` was
+  generated against the OLD ±0.15/0.12 scale and is not being touched by this step.**
+  Rescaling these two copies now, before the corpus itself is regenerated, would make any
+  newly-generated record scale-inconsistent with every existing record — seeds, labels, and
+  the decode table would no longer agree. These two copies must be updated in lockstep with
+  the corpus regeneration step, not before it, and ideally by refactoring both to import
+  `BIN_MIDPOINTS` from `electoral.core.types` instead of hardcoding a second copy, which is
+  how this duplication (and this exact rescale-ordering hazard) exists in the first place.
+- `configs/bin_uncertainty.json` — currently unpopulated (every `sigma` is `null`) and not
+  read by any code path yet. Flagged in place: once populated, its stated
+  `bin_width/2` prior formula must read off the NEW bin edges.
+
+### The covariance finding — Σ_Δ was already in real units, and was NOT rescaled
+
+Checked, not assumed, per the brief. `electoral/kernels/shock.py::build_sigma_delta_from_panel`
+— the production Σ_Δ estimator — pivots `panel_race.parquet`'s `vote_share` column directly,
+takes first-differences across election cycles in that column's own natural units, and
+applies Ledoit-Wolf shrinkage. **It has no dependency on `BIN_MIDPOINTS`/`DELTA_BINS`
+anywhere in its call chain.** Its diagonal fallback (`σ=0.02`, used only when
+`panel_race.parquet` is missing or has <3 usable cycles) and `montecarlo.py`'s
+`run_ilr_montecarlo(sigma_default=0.02)` fallback (used only when no `cov_delta` is supplied
+at all) are both already expressed in real vote-share units — 0.02 sits between the panel's
+own measured p90 (0.0112) and max (0.0286), i.e. these fallbacks were already
+correctly calibrated to reality, coincidentally, all along. **Neither fallback was touched.**
+
+This confirms the asymmetry the brief anticipated: the delta-bin *decode table* was the one
+piece of the pipeline inconsistent with measured reality; the *covariance* was not. Before
+this step, the optimizer's Sharpe-ratio objective was combining a numerator
+(`mu_eff_tilde(w) - V_eq`, driven by `delta_eff` from the old ±0.12-scale decode table) with
+a denominator (`sqrt(lambda_1^2 wᵀΣ_Δw)`, from a Σ_Δ whose per-bloc std the
+`COVARIANCE_MIN_CYCLE` comment in `shock.py` reports as ~0.07-0.12 in real cross-cycle
+vote-share units) that were, by coincidence of magnitude, roughly comparable in scale.
+**After this rescale, `delta_eff` tops out at ±0.03 while Σ_Δ's std remains ~0.07-0.12** —
+the numerator is now consistently smaller than the denominator by roughly 2-4x wherever it
+previously wasn't. This is very likely the CORRECT relationship (a single shock's effect on
+loyalty should plausibly be smaller than the unconditional cycle-to-cycle variance the panel
+exhibits for other reasons), but it is flagged here as a downstream, ambiguous consequence
+worth watching in the optimizer/Monte Carlo output once this change is exercised end-to-end —
+not assumed to be benign.
+
+### Not done in this step (explicitly out of scope)
+
+No retraining. No corpus regeneration. The model's learned bin *assignments* (which bin a
+given shock/bloc pair maps to) are unaffected — this step only changes what number each bin
+means, a decode-table change, not a learned-behavior change. The synthetic corpus must be
+regenerated at the new scale in a later step so that seeds, labels, and the decode table all
+agree; until then, `scripts/generate_synthetic.py` and `electoral/nlp/elasticity.py`
+continue to emit old-scale numeric values by design (see above).
