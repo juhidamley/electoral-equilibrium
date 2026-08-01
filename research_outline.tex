@@ -16,8 +16,8 @@
 \newcommand{\todo}[1]{{\color{red}\textbf{[TODO:} #1\textbf{]}}}
 \newcommand{\stub}[1]{{\color{RoyalBlue}\emph{#1}}}
 
-\title{Electoral Equilibrium: Estimating Optimal Voter-Coalition
-Rebalancing under Political Shocks\\[4pt]
+\title{Electoral Equilibrium: Equilibrium Voter Coalitions and
+Shock-Conditional Win Probability\\[4pt]
 \large\textcolor{red}{[Working title --- outline / draft scaffold]}}
 \author{Juhi Damley,
 Claremont McKenna College; supervised by Prof.~Gaston Espinosa}
@@ -28,15 +28,25 @@ Claremont McKenna College; supervised by Prof.~Gaston Espinosa}
 
 \begin{abstract}
 \stub{Skeleton --- fill after final runs.}
-We present a three-stage framework that estimates how a party's voter coalition
-must rebalance after a hypothetical political shock. A fine-tuned language model
-maps free-text shock descriptions to per-bloc loyalty shifts; a quasi-convex
-optimizer recovers the coalition weights that maximize win probability; and a
-compositional Monte Carlo returns a calibrated confidence interval. Our central
-methodological contribution is a \emph{neutrality validation} protocol that
-separates structural (baseline) partisan bias from model-driven bias.
+We present a three-stage framework that estimates a party's stable
+\emph{equilibrium} voter coalition --- the race-bloc weighting that maximizes
+win probability given baseline bloc loyalties --- and measures how a
+hypothetical political shock shifts that coalition's effective loyalty and win
+probability. A fine-tuned language model maps free-text shock descriptions to
+per-bloc loyalty shifts; a quasi-convex optimizer recovers the equilibrium
+coalition weights, computed once per party rather than once per shock; and a
+compositional Monte Carlo returns a calibrated win-probability confidence
+interval. Two methodological contributions anchor the paper: a \emph{neutrality
+validation} protocol that separates structural (baseline) partisan bias from
+model-driven bias, and an empirical \emph{coalition-stability} finding
+(Sec.~\ref{sec:stability}) that, under demographically plausible coalition
+bounds, the equilibrium coalition is invariant to single-shock effects ---
+weights first move at a delta magnitude ($\sim$0.0633) that exceeds the model's
+hard clip ceiling (0.0375) and so is unreachable at any legal shock intensity.
 \todo{state headline numbers once final: structural asymmetry reduction
-$\sim$98\%, residual base-model lean $+0.028$, final MAE.}
+$\sim$98\%, residual base-model lean $+0.028$, final MAE, magnitude-calibration
+ratio (post-rescale $\sim$0.86$\times$; Sec.~\ref{sec:validation}),
+direction-validation status (expert elicitation designed but not yet run).}
 \end{abstract}
 
 % =====================================================================
@@ -44,10 +54,14 @@ $\sim$98\%, residual base-model lean $+0.028$, final MAE.}
 % Writable from DECISIONS.md / DOMAIN.md / devlogs.
 \textbf{Problem.} Political shocks (scandals, endorsements, economic news,
 institutional events) re-sort the electorate: demographic blocs shift their
-support unevenly, so a campaign's \emph{optimal} coalition emphasis changes
-after a shock. We formalize this as recovering post-shock coalition weights that
-keep a party's effective loyalty above an electoral-college--adjusted win
-threshold.
+support unevenly. We formalize a party's most defensible strategic coalition as
+an \emph{equilibrium}: the race-bloc weighting that maximizes win probability
+given baseline bloc loyalties, subject to demographically plausible bounds,
+computed once per party rather than once per shock. We then ask how a shock's
+predicted per-bloc loyalty shifts move that fixed equilibrium coalition's
+effective loyalty relative to an electoral-college--adjusted win threshold ---
+not whether the coalition weighting itself should change in response, which it
+empirically does not (Sec.~\ref{sec:stability}).
 
 \textbf{Data-scarcity gap.} There are only $\sim$20 U.S.\ presidential cycles
 (1948--2024), so the shock $\rightarrow$ response mapping cannot be learned by
@@ -60,17 +74,65 @@ into an explicit covariance term rather than hiding it.
 race-bloc coalition weighting, and with what probability does the resulting
 coalition win --- and is that estimate partisan-neutral?}
 
-\textbf{Contributions.}
-\begin{itemize}
-  \item A constrained-decoding LLM stage that emits ordinal per-bloc loyalty
-        shifts over 15 demographic blocs (5 race, 7 religion, 3 gender).
-  \item A disciplined quasi-convex (DQCP) max-$P(\text{win})$ optimizer with
-        demographic-plausibility bounds, plus a Logistic-Normal ILR Monte Carlo
-        for calibrated win-probability confidence intervals.
-  \item A neutrality-validation protocol (zero-shock null test + matched-pair
-        symmetry test) that isolates and removes a structural baseline bias and
-        attributes the residual lean to base-model priors.
-\end{itemize}
+\textbf{Contributions.} In the order the paper substantiates them:
+\begin{enumerate}
+  \item \textbf{Magnitude miscalibration, found and corrected.} The model's
+        predicted delta magnitudes were overstated $\sim$4$\times$ (mean
+        cellwise $|$predicted/measured$|$ ratio 3.44) against real
+        panel-measured within-person shifts; the decode table was rescaled to
+        $\pm0.03$, anchored on the largest single-shock per-bloc shift ever
+        measured in the panel (0.0286), reducing the ratio to 0.86
+        (Sec.~\ref{sec:validation}).
+  \item \textbf{Panels measure scale but not per-bloc direction.} The VOTER
+        panel is the only true within-person ground-truth layer, yet only
+        19/270 (shock, bloc) cells pass the direction-trustworthiness filter
+        --- 3 independent temporal windows, 53\% concentrated in two blocs ---
+        a statistical-power failure, not a window-quality one
+        (Sec.~\ref{sec:validation}).
+  \item \textbf{Miscalibration masquerading as sensitivity.} The pre-rescale
+        overstatement pushed the optimizer and Monte Carlo past bounds they
+        were never designed to operate near, producing apparent large
+        shock-driven win-probability movement that was most likely a
+        calibration artifact rather than genuine shock sensitivity ---
+        corrected once the decode table was rescaled (Sec.~\ref{sec:validation}).
+  \item \textbf{Coalition stability, stated as a finding.} Under
+        demographically plausible coalition bounds ($0.5$--$1.5\times$ each
+        bloc's population share), the equilibrium coalition is invariant to
+        single-shock effects (Sec.~\ref{sec:stability}).
+  \item \textbf{The instability threshold exceeds the effect size.}
+        Coalition weights first move at a delta magnitude of $\sim$0.0633,
+        while the model's hard clip ceiling is 0.0375 --- the margin by which
+        no legally-scaled shock can ever destabilize the equilibrium
+        coalition is itself a measured quantity, not an assumption
+        (Sec.~\ref{sec:stability}).
+  \item \textbf{Nothing is solely attributable.} No ground-truth layer ---
+        panel, CES, or exit poll --- has a single shock marked
+        \texttt{solely\_attributable}: survey layers measure windows spanning
+        multiple co-occurring events, while the model predicts one event at a
+        time, a structural unit mismatch between validation data and
+        prediction target (Sec.~\ref{sec:validation}).
+  \item \textbf{Social media's structural blind spots, disclosed rather than
+        smoothed over.} A tiered inclusion discipline (bio-inferred posts feed
+        mean \emph{and} covariance; group/platform proxies feed mean only;
+        language-fallback posts are held out entirely) is paired with an
+        explicit accounting of platform- and engagement-driven sample bias.
+  \item \textbf{The system: a constrained-decoding LLM, a disciplined
+        quasi-convex (DQCP) max-$P(\text{win})$ optimizer with
+        demographic-plausibility bounds, and a Logistic-Normal ILR Monte
+        Carlo} for calibrated win-probability confidence intervals ---
+        a hybrid of language-model shock interpretation and portfolio-theory
+        coalition optimization.
+  \item \textbf{A neutrality-validation protocol} (zero-shock null test +
+        matched-pair symmetry test) that isolates and removes a structural
+        baseline bias and attributes the residual lean to base-model priors
+        (Sec.~\ref{sec:neutrality}).
+  \item \textbf{The SRP's negative results, reported rather than
+        suppressed.} An ungrounded design assumption (the delta-bin range),
+        a mischaracterized system property (shock-responsive coalition
+        weights), and a validation gap (direction, pending elicitation) were
+        each found, measured, and corrected or disclosed in turn --- reported
+        here as findings in their own right, not edited out of the record.
+\end{enumerate}
 
 % =====================================================================
 \section{Related Work}
@@ -185,14 +247,23 @@ $\rightarrow$ (3a--d) sentiment / finetune / market $\rightarrow$ (4) LLM shock
 response $\rightarrow$ (5) DQCP optimization $\rightarrow$ (6) Monte Carlo.
 Deterministic under a single global seed (42).
 
-\subsection{Stage 4 --- fine-tuned shock model}
+\subsection{Stage 4 --- fine-tuned shock model}\label{sec:stage4}
 Base model \texttt{mistralai/Mistral-7B-v0.3}, QLoRA rank $r{=}16$,
 $\alpha{=}32$, dropout $0.05$, target modules
 \{\texttt{q\_proj},\texttt{k\_proj},\texttt{v\_proj},\texttt{o\_proj}\},
 4-bit NF4, lr $2\times10^{-4}$, 3 epochs, batch 4. The \textbf{primary} output is
 JSON over 15 blocs, each assigned one of \textbf{9 ordinal delta bins}
 (\texttt{strong\_neg} $\dots$ \texttt{strong\_pos}) tiling the clipped range
-$[-0.15,+0.15]$. A scalar
+$[-0.0375,+0.0375]$ (midpoints run $\pm0.03$ at the extremes).
+% CONFLICT: the decode table originally tiled [-0.15,+0.15] (midpoints
+% +-0.12) -- an ungrounded design assumption fixed before any ground-truth
+% extraction existed. Rescaled (Step 2.1, DECISIONS.md) to +-0.03, anchored
+% on the largest single-shock per-bloc delta ever measured in the VOTER
+% panel (0.0286); the +-0.0375 clip preserves the same ratio between the
+% clip and the bin ceiling as the old range did. See Sec.~\ref{sec:validation}
+% for the calibration-ratio validation (3.44x -> 0.86x). Used newer
+% (rescaled) throughout this paper.
+A scalar
 \texttt{delta\_eff} is a \emph{secondary, derived} summary --- the
 $\lambda$-weighted blend of the per-bloc deltas --- not an independent
 prediction. \textbf{Constrained decoding} via \texttt{outlines} (Pydantic
@@ -214,6 +285,11 @@ $\Rightarrow$ ratio quasi-convex (Diamond \& Boyd 2019); solved as an SOCP via
 Charnes--Cooper (CLARABEL). \textbf{Bounds:} each bloc constrained to
 $[0.5\,w^0_i,\,1.5\,w^0_i]$ around its baseline NEP share (demographic
 plausibility). \textbf{Win condition:} $\mu_{\text{eff}}(w)\ge V_{eq}$.
+Because the gap between blocs' baseline loyalties dominates any shock-scale
+perturbation to $\mu_{\text{eff}}$, $w^{*}$ is empirically stable across
+shocks within these bounds (Sec.~\ref{sec:stability}): the optimizer is run
+once per party, and the shock is evaluated against that fixed $w^{*}$, not
+the other way around.
 % NOTE: religion/gender stratum loyalties are fixed; equal-weight placeholder
 % was replaced by real electorate marginals in Week 8 (see sec:rootcause).
 \todo{source: include the formal quasiconvexity proof as an appendix
@@ -298,8 +374,16 @@ residual slightly favors Republicans --- the intended EC-adjusted-target effect.
 
 \subsection{Residual win-probability asymmetry}
 A residual win-probability asymmetry is \emph{retained by design} as a
-coalition-\emph{concentration} property (the optimizer concentrates emphasis
-differently per party), not a structural mean bias.
+coalition-\emph{concentration} property: the two parties' baseline bloc
+loyalties are ordered differently (e.g.\ \texttt{white} is the
+highest-loyalty bloc under Republican framing and the lowest under
+Democratic framing), so the equilibrium coalition's demographic-plausibility
+bounds bind on different blocs per party, not a structural mean bias. This
+is a \emph{cross-party} property of the equilibrium coalition, distinct from
+--- and not in tension with --- the \emph{cross-shock} stability finding of
+Sec.~\ref{sec:stability}: the equilibrium coalition differs by which party
+is being modeled, but does not move in response to any single shock once a
+party is fixed.
 \todo{source: state the exact retained win-prob asymmetry value + framing.}
 
 \subsection{Matched-pair symmetry test and elimination}
@@ -317,27 +401,298 @@ valence-interpretation events. Disclosed as a limitation, not tuned away.
 scripts/validate\_symmetry.py final run.}
 
 % =====================================================================
+\section{Coalition Stability}\label{sec:stability}
+% Canonical framing lifted from docs/design/optimizer_framing.md (Step 3.1,
+% Option C decision) -- see DECISIONS.md "Step 3.1" for the full record.
+The optimizer computes an \emph{equilibrium coalition}: the race-bloc
+weighting $w^{*}$ that maximizes a party's win probability given that
+party's baseline bloc loyalties and $\Sigma_\Delta$, subject to the
+demographic-plausibility bounds of Sec.~\ref{sec:cov}. This is computed
+\textbf{once per party, not once per shock} --- it is a property of the
+party's standing coalition, not of any single hypothetical event. A shock is
+not asked to move $w^{*}$; it is evaluated \emph{against} the fixed
+equilibrium coalition, through $\mu_{\text{eff}}$ (which moves linearly with
+the shock) and win probability (which moves nonlinearly, and only when the
+baseline margin over $V_{eq}$ is tight enough for the effect to be visible
+against Monte Carlo noise).
+
+\textbf{Finding, stated positively:} under demographically plausible
+coalition constraints, the optimal coalition is stable against single-shock
+effects. This is a substantive result about electoral coalitions, not a
+limitation to disclose apologetically --- a campaign's demographically
+bounded, risk-adjusted strategic emphasis does not rationally re-litigate
+itself after every single news event. A shock-responsive optimizer would
+have been the less defensible and less interesting result here.
+
+\textbf{Empirical basis.} Bisection directly on the optimizer's solve found
+that coalition weights first move at a delta magnitude of
+\textbf{$\sim$0.0633}, while the hard clip ceiling on any shock's per-bloc
+delta is \textbf{0.0375} --- a full \textbf{1.7$\times$ below} the movement
+threshold, unreachable at any legal shock intensity. This was confirmed
+three independent ways, none of which moved the equilibrium weights:
+\begin{enumerate}
+  \item \textbf{Adversarial synthetic construction} --- every race bloc
+        pinned to its most extreme decode bin simultaneously, with intensity
+        multipliers swept up to $10\times$ (far past the API's legal
+        maximum of $3\times$).
+  \item \textbf{Real model inference at the API's maximum legal intensity}
+        ($3\times$) on real shocks, real party framing.
+  \item \textbf{Both party framings} --- Democrat and Republican baselines
+        land at different corners of the demographic-plausibility bound
+        (consistent with each party's different bloc-loyalty ordering, see
+        Sec.~\ref{sec:neutrality}), but within either framing no tested
+        shock moved weights off that party's own corner.
+\end{enumerate}
+Meanwhile $\mu_{\text{eff}}$ and win probability \emph{do} respond: under a
+tighter-margin baseline (Republican framing), mean win-probability movement
+across tested shocks was $0.0503$, with real (non-degenerate)
+confidence-interval widths of roughly $0.012$--$0.015$ --- not a saturated
+point estimate. The shock-conditional signal is real; it lives downstream of
+the coalition weights, not in them.
+
+\textbf{The threshold, made interpretable.} Stated as a bare number, 0.0633
+invites the question ``large compared to what?'' Compared to what shocks
+actually do: it is \textbf{$\sim$22$\times$} the panel's median measured
+single-shock, single-bloc effect ($0.00287$, $n{=}234$ non-suppressed cells),
+\textbf{$\sim$14$\times$} the mean ($0.00461$), \textbf{$\sim$5.6$\times$}
+the 90th percentile ($0.01123$), and \textbf{$\sim$2.2$\times$} the single
+largest per-bloc shock effect ever measured in the panel across every shock
+in the ground truth ($0.02865$). Even the model's own maximum possible
+output --- the hard clip ceiling, $0.0375$, reachable only at the API's
+highest legal intensity --- is itself just $1.3\times$ the largest historical
+shock, and still $1.7\times$ below the movement threshold. This converts
+``the weights never move'' from an assertion into a falsifiable comparison:
+moving the equilibrium coalition would require a single-shock, single-bloc
+effect more than double the largest one this project's own ground truth has
+ever recorded.
+
+\textbf{The substantive claim.} Read as a claim about American electoral
+coalitions, not about this model's arithmetic: \emph{coalition strategy is
+set by the structural, slow-moving gap between how loyal different
+demographic blocs already are to a party, not by the fast-moving news cycle
+of individual shocks.} The quantity that would have to change for a party's
+optimal strategic emphasis to shift is not ``did something happen this
+week'' but ``has the underlying loyalty gap between, say, the highest- and
+lowest-loyalty race blocs (currently $\sim$0.94 vs.\ $\sim$0.45, a
+$0.49$-point gap under Democratic framing) itself narrowed or widened'' ---
+and that is a claim about years-to-decades-scale partisan change, not about
+any single event. This is a claim someone could disagree with: it implies
+that no single scandal, endorsement, or crisis --- however large its
+immediate loyalty effect --- is by itself enough to make it strategically
+rational for a party to reallocate emphasis away from its most loyal blocs
+and toward its least loyal ones. Disagreeing with it would require showing
+either that real shocks can produce loyalty effects far larger than anything
+in this project's ground truth, or that the demographic-plausibility bounds
+constraining the model are themselves wrong.
+
+\textbf{What is substantive versus what is artifactual.} This claim
+decomposes into two parts with different epistemic status, and the paper is
+explicit about which is which rather than letting the stronger one borrow
+credibility from the weaker one. The \emph{substantive} part --- that the
+baseline loyalty spread between blocs dwarfs any single-shock effect --- is
+a property of the measured world, independent of the $0.5$--$1.5\times$
+bounds: the $0.49$-point loyalty gap and the panel-measured shock effects
+are separately-estimated empirical quantities, and their ratio is large by
+any reasonable standard ($\sim$171$\times$ the median shock effect,
+$\sim$17$\times$ even the single largest shock ever measured). No plausible
+choice of demographic-plausibility bound changes the fact that a shock is
+two orders of magnitude smaller than the loyalty gap it would need to
+overcome. The \emph{artifactual} part is the specific $0.0633$ threshold
+value and its exact $1.7\times$ margin over the $0.0375$ clip ceiling: both
+are a direct function of the $0.5\times/1.5\times$ bounds in
+\texttt{cvx.py}, documented in-source as ``PROVISIONAL $\dots$ pending
+advisor review, not empirically calibrated.'' Widening those bounds would
+mechanically lower the movement threshold --- a looser bound gives the
+optimizer more room to reallocate before hitting a corner. The
+\emph{direction} of the finding (a large stability margin) would very
+likely survive any bound choice that remains demographically plausible in
+any ordinary sense, precisely because the underlying loyalty-gap-to-shock
+ratio is so large; but the \emph{exact} threshold, and any claim of the form
+``weights are invariant, full stop,'' is contingent on this specific,
+unreviewed parameter and should not be stated as parameter-free.
+
+\textbf{Alternative considered and rejected.} Widening the
+demographic-plausibility bounds until weights move was rejected for the same
+reason: this would mean choosing a bound because it makes the output move,
+not because it reflects a defensible constraint --- the identical reasoning
+that produced the original ungrounded $\pm0.15$ delta-bin range
+(Sec.~\ref{sec:validation}). These bounds remain marked provisional pending
+advisor review; this finding does not resolve that review, it declines to
+change the bounds as a side effect of a framing correction.
+
+\textbf{Situating the claim in the literature.} This finding aligns most
+directly with the social-identity account of partisanship (Green, Palmquist
+\& Schickler 2002), which holds that partisan identities are formed early
+in adulthood and change, like religious identities, only slowly rather than
+with each news cycle, and with the original Michigan-school claim that party
+identification is a stable predisposition through which voters filter
+short-term political information (Campbell, Converse, Miller \& Stokes
+1960). It also echoes V.O.\ Key's account of coalition change as
+concentrated in rare ``critical'' realigning elections rather than
+distributed continuously across ordinary events (Key 1955) --- though
+Mayhew's later critique (2002) disputes that clean, periodized realignments
+are empirically real at all, so this paper leans only on Key's descriptive
+claim (coalitions are usually stable, occasionally not) without endorsing
+the stronger realignment-cycle theory built on top of it.
+
+Two bodies of work complicate this picture and are reported rather than
+omitted. First, MacKuen, Erikson \& Stimson's ``Macropartisanship'' (1989)
+found that \emph{aggregate} party identification, measured quarterly rather
+than biennially, shows substantial and systematic short-term movement
+tracking presidential approval and the economy --- a real finding of
+short-term responsiveness in a quantity this paper otherwise treats as
+slow-moving. Second, Achen \& Bartels' ``blind retrospection'' findings
+(2016, Ch.~5) are a direct counter-example at the level of individual
+events: Wilson lost up to ten points of support in coastal New Jersey
+counties after a spate of shark attacks in 1916, and droughts have been
+found to cost incumbents $0.7$--$1.5$ percentage points --- the shark-attack
+figure alone exceeds even the single largest effect in this paper's own
+ground truth ($0.029$). A third, smaller example --- Healy, Malhotra \&
+Mo's (2010) finding that a college-football win shifts incumbent vote share
+by roughly $1.6$ percentage points, close to this paper's own 90th
+percentile ($0.011$) --- was later reassessed by Fowler \& Montagnes (2015),
+who found the effect does not replicate and is likely a false positive.
+
+These findings do not straightforwardly overturn the claim here, for two
+reasons, stated rather than assumed. First, most are about aggregate vote
+share or election-day behavior, not the within-person, single-shock
+bloc-loyalty quantity this paper's ground truth measures --- Achen and
+Bartels' droughts finding ($0.7$--$1.5$pp) is, in fact, the same order of
+magnitude as this paper's own 90th percentile ($1.1$pp), not orders of
+magnitude larger; only the single shark-attack anecdote is a genuine
+outlier at this project's scale. Second, this paper's claim is about
+whether a shock changes which coalition \emph{strategy} is optimal, not
+about whether a shock moves vote share at all --- MacKuen et al.'s quarterly
+movement in macropartisanship, real as it is, has not been shown to be
+large enough at the per-bloc level to overturn which blocs a party should
+most heavily emphasize. The honest summary: this paper's finding is
+consistent with the bulk of the partisan-stability literature and with the
+typical magnitude of the retrospective-voting literature, but the
+shark-attack result specifically shows that ``no single event moves a
+coalition this much'' is an empirical regularity in this project's data and
+time period, not a law of politics --- a sufficiently unusual, geographically
+concentrated event could in principle exceed it.
+
+\textbf{Connection to the magnitude finding.} The coalition-stability
+finding and the magnitude-calibration finding (Sec.~\ref{sec:validation})
+are two views of one underlying fact, not two separate results. The
+magnitude finding says single-shock effects on bloc loyalty are small in
+absolute terms --- a median of $0.003$, a 90th percentile of $0.011$, a
+maximum ever measured of $0.029$ --- once the model's overstated
+$3.44\times$-inflated predictions are corrected to match panel-measured
+reality. The stability finding says the optimal coalition only responds to
+bloc-loyalty effects an order of magnitude larger than that: $0.0633$,
+roughly $22\times$ the median and $2.2\times$ the largest real effect on
+record. Together they describe a single phenomenon from two angles: single
+political events move electoral coalitions by a small, now-correctly-measured
+amount, and that amount is consistently, measurably too small to change
+which strategic coalition is optimal. The pre-rescale model got both halves
+of this story wrong in the same direction --- it overstated shock effects
+roughly $4\times$, which pushed the optimizer close enough to its
+bound-driven movement threshold to produce what looked like genuine
+coalition responsiveness. Correcting the scale did not just fix a
+calibration number; it resolved an apparent behavior (a shock-responsive
+optimizer) that the corrected numbers show was never really there.
+
+% =====================================================================
+\section{Ground-Truth Validation: Two Problems}\label{sec:validation}
+Ground-truth validation against three survey layers (VOTER panel, CES,
+exit polls; ranked by fidelity, never pooled) separates into two problems
+with very different status.
+
+\subsection{Magnitude/calibration --- solved, panel-anchored}
+The pre-rescale decode table ($\pm0.15$, Sec.~\ref{sec:stage4})
+was an ungrounded design assumption, fixed before any ground-truth
+extraction existed. Scored against the VOTER panel's magnitude-usable cells,
+the mean cellwise $|$predicted/measured$|$ ratio was \textbf{3.44$\times$}
+--- the model's predicted magnitudes were, on average, more than three times
+larger than what the panel actually measured. The decode table was rescaled
+to $\pm0.03$ (clip $\pm0.0375$), anchored on the largest single-shock
+per-bloc delta ever measured in the panel (\textbf{0.0286}), not on a
+percentile --- a percentile anchor would have made the largest real shocks
+in the ground truth unrepresentable. Re-scored, the ratio falls to
+\textbf{0.86$\times$}, close to unbiased.
+
+$\Sigma_\Delta$ (Sec.~\ref{sec:cov}) was \emph{already} estimated directly
+from real historical vote-share first-differences, in real vote-share units
+--- it has no dependency on the decode table at all. The rescale therefore
+did not introduce a new mismatch between the prediction scale and the
+uncertainty model; it resolved a \emph{pre-existing} one, in which an
+overstated prediction scale and an already-correctly-scaled uncertainty
+model were combined without either being checked against the other.
+\todo{source: full magnitude-calibration table (per-stratum MAE, ratio
+distribution min/p25/median/p75/max) once scored against real (not
+self-test) model predictions --- see
+electoral/metrics/ground\_truth\_accuracy.py.}
+
+\subsection{Direction --- not solved; depends on expert elicitation}
+Per-bloc \emph{direction} validation is a substantially harder problem.
+Only \textbf{19 of 270} (shock, bloc) panel cells pass the
+direction-trustworthiness filter (sign-stable, statistically significant,
+not suppressed, single-shock attributable), spanning just \textbf{3}
+independent temporal windows and \textbf{53\%} concentrated in two blocs
+(\texttt{white}, \texttt{catholic}). This is a \textbf{statistical-power
+failure, not a window-quality failure}: even the tightest, cleanest
+bracket only clears the direction bar for one bloc. CES and exit-poll
+layers are magnitude-only by construction and never direction-eligible.
+\textbf{No ground-truth layer has any shock marked
+\texttt{solely\_attributable}}: survey layers measure windows spanning
+multiple co-occurring events, while the model predicts one event at a
+time --- a structural unit mismatch between the validation data and the
+prediction target, not an artifact of any one extraction choice.
+
+Because the panel cannot support per-bloc direction validation at scale, a
+blinded expert-elicitation protocol was designed as the primary
+direction-validation route: 12 shocks (drawn from the held-out set),
+independently-written neutral descriptions, magnitude buckets anchored to
+the rescaled $\pm0.03$ range, pre-registered agreement thresholds (Fleiss'
+$\kappa\ge0.40$ gates the analysis before any model comparison is
+computed). \textbf{The protocol is designed and its scoring code
+self-tested; it has not yet been run.}
+\todo{source: expert elicitation results (direction accuracy on the
+elicitation set, inter-rater $\kappa$) once the protocol is executed ---
+see docs/elicitation/protocol.md.}
+
+% =====================================================================
 \section{Results}
 \stub{STUB --- table skeletons; numbers pending final runs.}
+Ground-truth validation results (magnitude calibration, direction status) are
+reported in Sec.~\ref{sec:validation} and summarized here alongside the other
+headline numbers; the coalition-stability empirical basis is in
+Sec.~\ref{sec:stability}.
 
 \begin{center}
 \begin{tabular}{lc}
 \toprule
 Metric & Value \\
 \midrule
-Fine-tune held-out MAE (delta units) & 0.0362 \emph{(Mistral v2, pre-rebalance,
-111-example eval)} \todo{re-run MAE on the current v3 model against the
-246-example eval set}\\
-% NOTE: 0.0362 is the OLD Mistral-v2 figure on its 111-example v2 eval set; NOT
-% the current v3 model's MAE. Current split is 982 train / 246 eval (Sec 3.4).
+Fine-tune held-out MAE (delta units) & 0.0362 \emph{(Mistral v2, pre-corpus-rebalance,
+111-example eval, OLD $\pm0.15$ decode scale)} \todo{re-run MAE on the current
+v3 model against the 246-example eval set AND the rescaled $\pm0.03$ decode
+table (Sec.~\ref{sec:stage4}) --- 0.0362 is stale on both the model version
+and the scale}\\
+% NOTE: 0.0362 is the OLD Mistral-v2 figure on its 111-example v2 eval set,
+% under the OLD +-0.15 decode scale; NOT the current v3 model's MAE and NOT
+% comparable to a rescaled-scale MAE. Current split is 982 train / 246 eval
+% (Sec 3.4). "pre-rebalance" here is the CORPUS label-rebalance sense (Sec
+% 3.4), a different, unrelated meaning from the Step 2.1 delta-SCALE rescale
+% -- do not conflate the two "rebalance" senses in this row.
 % FIX 4: the old v2 eval-size discrepancy (111 per DECISIONS.md:218/week6 devlog
 % vs 110 in baseline_comparison.md) is moot --- both are superseded by 246.
 Worst-bloc MAE (\texttt{other\_gender}) & 0.0488 \todo{confirm}\\
+Magnitude calibration ratio, panel-anchored (Sec.~\ref{sec:validation}) &
+$3.44\times \rightarrow 0.86\times$ (pre- $\rightarrow$ post-rescale)\\
+Direction-trustworthy panel cells (Sec.~\ref{sec:validation}) & 19/270
+(3 windows, 53\% in 2 blocs)\\
+Coalition-weight movement threshold vs.\ clip ceiling (Sec.~\ref{sec:stability})
+& $0.0633$ vs.\ $0.0375$\\
 Structural asymmetry (pre $\rightarrow$ post fix) & $+0.052 \rightarrow +0.001$\\
 Residual base-model lean & $+0.028$\\
 Base-model comparison (Mistral vs Gemma~2) & \todo{Gemma run pending}\\
 Win-prob CI coverage / calibration & \todo{source: calibration run}\\
 Symmetry: mean magnitude ratio / asymmetry & \todo{source: validate\_symmetry.py}\\
+Expert-elicitation direction accuracy (Sec.~\ref{sec:validation}) &
+\todo{protocol designed, not yet run}\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -393,13 +748,46 @@ mean $\sim$11.82\,s/inference).}
   \item \todo{ANES, CES, GSS, NPORS, NEP, VOTER Panel dataset citations.}
 \end{itemize}
 
+\textbf{Coalition-stability literature} (Sec.~\ref{sec:stability}; verified via
+search, not from memory --- full bibliographic details below, formatting for
+\texttt{.bib} still \todo{}):
+\begin{itemize}
+  \item Campbell, A., Converse, P.\ E., Miller, W.\ E., \& Stokes, D.\ E.
+        (1960), \emph{The American Voter}. New York: Wiley.
+  \item Green, D., Palmquist, B., \& Schickler, E. (2002), \emph{Partisan
+        Hearts and Minds: Political Parties and the Social Identities of
+        Voters}. New Haven: Yale University Press.
+  \item Key, V.\ O., Jr. (1955), ``A Theory of Critical Elections,''
+        \emph{The Journal of Politics} 17(1): 3--18.
+  \item Mayhew, D.\ R. (2002), \emph{Electoral Realignments: A Critique of
+        an American Genre}. New Haven: Yale University Press.
+  \item MacKuen, M.\ B., Erikson, R.\ S., \& Stimson, J.\ A. (1989),
+        ``Macropartisanship,'' \emph{American Political Science Review}
+        83(4): 1125--1142.
+  \item Achen, C.\ H., \& Bartels, L.\ M. (2016), \emph{Democracy for
+        Realists: Why Elections Do Not Produce Responsive Government}.
+        Princeton: Princeton University Press. (Ch.~5, ``Blind
+        Retrospection: Electoral Responses to Droughts, Floods, and Shark
+        Attacks.'')
+  \item Healy, A.\ J., Malhotra, N., \& Mo, C.\ H. (2010), ``Irrelevant
+        Events Affect Voters' Evaluations of Government Performance,''
+        \emph{Proceedings of the National Academy of Sciences} 107(29):
+        12804--12809.
+  \item Fowler, A., \& Montagnes, B.\ P. (2015), ``College Football,
+        Elections, and False-Positive Results in Observational Research,''
+        \emph{Proceedings of the National Academy of Sciences} 112(45):
+        13800--13804. (Reassesses Healy, Malhotra \& Mo 2010; finds the
+        effect does not replicate.)
+\end{itemize}
+
 % =====================================================================
 % =====================================================================
 % OUTSTANDING TODOS (every \todo{} and every % CONFLICT flagged above)
 % ---------------------------------------------------------------------
 % TODOS:
 %  - Title/author block: author + affiliation.
-%  - Abstract: final headline numbers (structural reduction ~98%, lean +0.028, MAE).
+%  - Abstract: final headline numbers (structural reduction ~98%, lean +0.028, MAE,
+%             calibration ratio ~0.86x, direction-validation status).
 %  - Sec 2 Related Work: entire section (literature not in repo).
 %  - Sec 3.1: confirm final panel row counts (305 -> 220; 14/15 blocs).
 %  - Sec 3.4: [RESOLVED] corpus size VERIFIED = 1,228 (data/finetune/synthetic.jsonl),
@@ -414,19 +802,39 @@ mean $\sim$11.82\,s/inference).}
 %  - Sec 5.7: Gemma 2 9B comparison run (not completed).
 %  - Sec 6.3: exact retained win-prob asymmetry value + framing.
 %  - Sec 6.4: full matched-pair symmetry table (validate_symmetry.py).
-%  - Sec 7 Results: final MAE; worst-bloc MAE; Gemma comparison; win-prob
-%             calibration; symmetry mag-ratio/asymmetry; worked example; latency.
-%  - Sec 10 References: build .bib; verify all cites; add dataset citations.
+%  - Sec 8 (Coalition Stability): [ADDED Step 3.3] no outstanding TODO --
+%             the empirical basis (0.0633 vs 0.0375, three confirmations) is
+%             fully reported; this section needs no re-run to stay current.
+%  - Sec 9 (Ground-Truth Validation): [ADDED Step 3.3] magnitude side is
+%             reported (3.44x -> 0.86x); still TODO: full per-stratum
+%             magnitude-calibration table once scored against real (not
+%             self-test) predictions; expert-elicitation direction results
+%             once the protocol (designed, not run) is executed.
+%  - Sec 10 Results: final MAE (re-run against BOTH v3 model AND rescaled
+%             +-0.03 decode table -- 0.0362 is stale on both axes); worst-bloc
+%             MAE; Gemma comparison; win-prob calibration; symmetry
+%             mag-ratio/asymmetry; worked example; latency; expert-elicitation
+%             direction accuracy.
+%  - Sec 13 References: build .bib; verify all cites; add dataset citations.
 %
 % CONFLICTS (older vs newer; newer used):
 %  - Synthetic corpus size: [RESOLVED] old 557/446/111 (Mistral v2) -> current
 %    1,228 (synthetic.jsonl) split 982 train / 246 eval, VERIFIED from
 %    data/finetune/*.jsonl. Old figures dropped from body prose.
 %  - Eval set size 111 vs 110 (v2): [MOOT] both superseded by current 246 eval.
-%  - Delta-bin range: [FIXED] outline said midpoints -0.12..+0.12 as if the range;
-%    canonical bins TILE [-0.15,+0.15] (electoral/core/types.py:161), midpoints
-%    run -0.12..+0.12 (BIN_MIDPOINTS). Both now stated.
-%  - MAE 0.0362: [FIXED] flagged as pre-rebalance v2 (NOT current v3); re-run TODO.
+%  - Delta-bin range: [RE-FIXED, Step 3.3] a prior pass (Step ~2.0) stated the
+%    range as canonical bins tiling [-0.15,+0.15] with midpoints -0.12..+0.12;
+%    that range was ITSELF an ungrounded design assumption (electoral/core/
+%    types.py, pre-Step-2.1). Step 2.1 (DECISIONS.md) rescaled the decode
+%    table to +-0.03 (clip +-0.0375), anchored on the largest single-shock
+%    per-bloc delta measured in the VOTER panel (0.0286), NOT a percentile.
+%    Sec 5.1/Sec 9 now state the CURRENT (rescaled) range; the old range is
+%    documented as historical context, not current fact, per Sec 5.1's
+%    inline %CONFLICT comment. Used newer (rescaled) throughout.
+%  - MAE 0.0362: [PARTIALLY FIXED, Step 3.3] flagged as pre-rebalance v2 AND
+%    now additionally flagged as pre-RESCALE (old +-0.15 decode scale) --
+%    two independent reasons this number is stale, not one. Re-run TODO
+%    still open (needs the current v3 model AND the rescaled decode table).
 %  - V_eq bounds: [RESOLVED] not a conflict; per-party (Dem vs Rep) values.
 %  - Cycle windows: [CLARIFIED] raked lambda + V_eq use full 20 cycles (1948-2024),
 %    verified raking.py:199 + party_config.json; covariance uses 1990+ (9-cycle,
@@ -435,6 +843,18 @@ mean $\sim$11.82\,s/inference).}
 %    1948-1956; 1968 asian) once usable, later EXCLUDED by 1990+ window.
 %  - Layer weights: additive prior (0.5,0.3,0.2) vs raked (0.114,0.224,0.662).
 %    NOT a true conflict (prior vs IPF posterior); both reported.
+%  - Optimizer framing: [FIXED, Step 3.3, Option C] prior drafts described the
+%    optimizer as recovering PER-SHOCK coalition weights that change "after a
+%    shock" (Introduction Problem para, old Contributions list, Sec 8.3). This
+%    was measured false for the weights specifically (Step 2.2/2.3): weights
+%    are invariant to shocks by design (Sec 8). mu_eff and win probability DO
+%    respond and are now the quantities described as shock-conditional. No
+%    claim of a specific large shock-driven WIN-PROBABILITY swing was found
+%    anywhere in this draft to retract (checked: abstract, intro, Sec 8.3,
+%    Results) -- only the general per-shock-weight framing needed correction,
+%    now folded into Contributions item 3 ("miscalibration masquerading as
+%    sensitivity") as the mechanism-level explanation for why such swings, had
+%    they been claimed, would have been suspect.
 % =====================================================================
 
 \end{document}

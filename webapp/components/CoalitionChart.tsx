@@ -4,12 +4,16 @@
 // CoalitionChart — three strata: Race / Religion / Gender
 // ============================================================================
 // STRUCTURE:
-//   All three strata show Δ loyalty (change) on a symmetric [−0.15, 0.15] axis
-//   with green/red bars and a zero reference line.
+//   All three strata show Δ loyalty (change) on a symmetric axis (see
+//   lib/deltaScale.ts for the domain — matches the backend's decode-table
+//   clip ceiling) with green/red bars and a zero reference line.
 //
 //   Race    — two side-by-side panels:
 //               LEFT:  Δ loyalty per race bloc (DeltaPanel) — from "deltas" event
-//               RIGHT: coalition emphasis (w̃, [0,1]) — from "equilibrium" event
+//               RIGHT: equilibrium coalition weighting (w̃, [0,1]) — fixed given
+//                      baseline loyalties; the "equilibrium" event re-sends it
+//                      per shock but the value never changes (see
+//                      docs/design/optimizer_framing.md)
 //   Religion + Gender — Δ loyalty panel only; fixed strata (no optimizer weight).
 //             Values come from the "deltas" SSE event.
 //
@@ -38,6 +42,7 @@ import {
   RELIGION_BLOCS,
   GENDER_BLOCS,
 } from "@/lib/blocs";
+import { DELTA_AXIS_DOMAIN, DELTA_AXIS_MAX, DELTA_AXIS_TICKS, formatDeltaPP } from "@/lib/deltaScale";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -110,14 +115,16 @@ const LoyaltyTooltip = ({ active, payload, label }: {
           Loyalty after shock: <strong>{Math.round(e.shifted * 100)}%</strong>
           {e.baseline != null && e.delta != null && (
             <span className={e.delta >= 0 ? " text-green-600" : " text-red-600"}>
-              {" "}(was {Math.round(e.baseline * 100)}%,{" "}
-              {e.delta >= 0 ? "+" : ""}{Math.round(e.delta * 100)}pp)
+              {" "}(was {Math.round(e.baseline * 100)}%, {formatDeltaPP(e.delta)})
             </span>
           )}
         </p>
       )}
       {e.weight != null && (
-        <p>Coalition emphasis: <strong>{Math.round(e.weight * 100)}%</strong></p>
+        <p>
+          Equilibrium weighting: <strong>{Math.round(e.weight * 100)}%</strong>{" "}
+          <span className="text-gray-400">(fixed, not shock-specific)</span>
+        </p>
       )}
     </div>
   );
@@ -131,13 +138,13 @@ const DeltaTooltip = ({ active, payload, label }: {
   label?: string;
 }) => {
   if (!active || !payload?.length) return null;
-  const pp = Math.round(payload[0].payload.value * 100);
+  const value = payload[0].payload.value;
   return (
     <div className="rounded-md border border-gray-200 bg-white p-3 text-xs shadow-lg space-y-1">
       <p className="font-semibold">{label}</p>
       <p>Loyalty shift:{" "}
-        <strong className={pp >= 0 ? "text-green-700" : "text-red-700"}>
-          {pp >= 0 ? "+" : ""}{pp}pp
+        <strong className={value >= 0 ? "text-green-700" : "text-red-700"}>
+          {formatDeltaPP(value)}
         </strong>
       </p>
     </div>
@@ -194,9 +201,18 @@ function makeLoyaltyShape(opts: {
 }
 
 // ── Delta bar shape (religion/gender symmetric axis) ─────────────────────────
-// recharts positions x at the left edge of the [0,0.15] half-domain (after
-// domain transform). We override placement by deriving the zero-pixel from
-// background.x + background.width/2 (the axis is symmetric [-0.15, 0.15]).
+// recharts positions x at the left edge of the [0, DELTA_AXIS_MAX] half-domain
+// (after domain transform). We override placement by deriving the zero-pixel
+// from background.x + background.width/2 (the axis is symmetric
+// [-DELTA_AXIS_MAX, DELTA_AXIS_MAX] — see lib/deltaScale.ts).
+//
+// DELTA_AXIS_MAX (not a locally-hardcoded half-domain) is used here
+// deliberately: this shape's pixel math and DeltaPanel's <XAxis domain> below
+// must always agree on the same half-domain, or bars render at the wrong
+// width relative to the visible axis/ticks. Importing one shared constant
+// instead of two independent copies is exactly how that drifted out of sync
+// the first time (see DECISIONS.md "Step 2.1" for the same lesson on the
+// Python side).
 
 function DeltaShape(props: Record<string, unknown>) {
   const y = (props.y as number) ?? 0;
@@ -208,13 +224,12 @@ function DeltaShape(props: Record<string, unknown>) {
 
   const plotW = bg.width;
   const bgX = (bg.x as number) ?? 0;
-  const DOMAIN_HALF = 0.15;
   // zero is at the midpoint of the background rect
   const zeroX = bgX + plotW / 2;
-  const barPx = Math.abs(payload.value) / DOMAIN_HALF * (plotW / 2);
+  const barPx = Math.abs(payload.value) / DELTA_AXIS_MAX * (plotW / 2);
   const barX = payload.positive ? zeroX : zeroX - barPx;
   const fill = payload.positive ? "#16a34a" : "#dc2626";
-  const labelPp = `${payload.positive ? "+" : ""}${Math.round(payload.value * 100)}pp`;
+  const labelPp = formatDeltaPP(payload.value);
   const labelInside = barPx > 30;
 
   return (
@@ -285,9 +300,9 @@ function DeltaPanel({ title, subtitle, data }: {
       <ResponsiveContainer width="100%" height={height}>
         <BarChart layout="vertical" data={data}
           margin={{ top: 2, right: 48, bottom: 2, left: 8 }} barSize={18}>
-          <XAxis type="number" domain={[-0.15, 0.15]}
-            tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}pp`}
-            ticks={[-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15]}
+          <XAxis type="number" domain={DELTA_AXIS_DOMAIN}
+            tickFormatter={formatDeltaPP}
+            ticks={DELTA_AXIS_TICKS}
             tick={{ fontSize: 10 }} />
           <YAxis type="category" dataKey="label" width={118} tick={{ fontSize: 10 }} />
           <Tooltip content={<DeltaTooltip />} />
@@ -420,8 +435,8 @@ export default function CoalitionChart({
           <SkeletonRows n={5} />
         )}
         <LoyaltyPanel
-          title="Optimizer-recommended emphasis"
-          subtitle="Strategic weighting (w̃) — not population share"
+          title="Equilibrium coalition (baseline)"
+          subtitle="Strategic weighting (w̃), fixed by baseline loyalties — not population share"
           data={raceData}
           dataKey="weight"
           shape={WeightShape}

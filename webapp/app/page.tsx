@@ -59,9 +59,11 @@ function HowItWorks() {
             shifts (9-bin ordinal) after the hypothetical event.
           </li>
           <li>
-            <span className="font-medium text-gray-800">2. Optimizer.</span>{" "}
-            A CVXPY DQCP solver maximises the probability-of-winning Sharpe ratio by
-            reweighting coalition blocs under demographic constraints.
+            <span className="font-medium text-gray-800">2. Equilibrium coalition.</span>{" "}
+            A CVXPY DQCP solver finds the party&apos;s stable strategic coalition weighting
+            — given baseline bloc loyalties and demographic constraints — that the shock is
+            then evaluated against. This weighting is the same regardless of the shock; step
+            3 measures how the shock plays out against it.
           </li>
           <li>
             <span className="font-medium text-gray-800">3. Simulation.</span>{" "}
@@ -104,12 +106,13 @@ function WhatDoTheseMean() {
             </dd>
           </div>
           <div>
-            <dt className="inline font-medium text-gray-800">Coalition emphasis (w̃).</dt>{" "}
+            <dt className="inline font-medium text-gray-800">Equilibrium coalition weighting (w̃).</dt>{" "}
             <dd className="inline">
-              The optimizer&apos;s recommendation for how heavily the campaign
-              should lean on each bloc to stay above the win threshold — this is a
-              strategic weighting, NOT each bloc&apos;s share of the population or
-              electorate.
+              How heavily the party&apos;s most defensible strategy leans on each bloc,
+              given baseline loyalties. This does not change with the shock — the
+              shock&apos;s effect shows up in the loyalty shifts and win probability
+              instead. Strategic weighting, NOT each bloc&apos;s share of the population
+              or electorate.
             </dd>
           </div>
           <div>
@@ -129,9 +132,10 @@ function WhatDoTheseMean() {
           </div>
         </dl>
         <p className="px-4 pb-4 pt-1 text-xs leading-snug text-gray-400">
-          Coalition emphasis reflects the optimizer&apos;s math and is not
-          currently constrained to realistic demographic shares; treat it as
-          relative strategic weighting, not a literal coalition composition.
+          Coalition emphasis reflects the optimizer&apos;s math, bounded to a
+          demographically plausible range (0.5×–1.5× each bloc&apos;s actual
+          electorate share). It is the same for every shock — see
+          &quot;Equilibrium coalition weighting&quot; above.
         </p>
       </Collapsible.Content>
     </Collapsible.Root>

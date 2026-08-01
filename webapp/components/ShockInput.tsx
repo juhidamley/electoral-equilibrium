@@ -72,7 +72,7 @@ export default function ShockInput({
           Modeling party
         </p>
         <p className="mb-2 text-xs text-gray-400">
-          Whose coalition the optimizer rebalances.
+          Which party&apos;s equilibrium coalition and win threshold to evaluate this shock against.
         </p>
         <div className="inline-flex rounded-lg border border-gray-200 p-1 shadow-sm">
           <button

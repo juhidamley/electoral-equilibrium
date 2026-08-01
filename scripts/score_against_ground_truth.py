@@ -91,53 +91,73 @@ def build_self_test_predictions() -> dict[str, dict]:
     }
 
 
-def print_report(name: str, report) -> None:
-    print(f"\n{'=' * 70}\n{name.upper()}  (fidelity_rank={report.fidelity_rank})\n{'=' * 70}")
-    print(f"  ground-truth cells:  {report.n_ground_truth_cells}")
-    print(f"  scored (any dimension): {report.n_scored_total}")
-    print(f"  REFUSED: {report.n_refused_total}  "
+def print_report(name: str, report, indent: str = "") -> None:
+    print(f"\n{indent}{'=' * 70}\n{indent}{name.upper()}  (fidelity_rank={report.fidelity_rank})\n{indent}{'=' * 70}")
+    print(f"{indent}  ground-truth cells:  {report.n_ground_truth_cells}")
+    print(f"{indent}  scored (any dimension): {report.n_scored_total}")
+    print(f"{indent}  REFUSED: {report.n_refused_total}  "
           f"(no_prediction={report.n_refused_no_prediction}, ineligible={report.n_refused_ineligible})")
+    print(f"{indent}  per-dimension scored/refused (HARD REQ #5): "
+          f"direction={report.n_direction_scored}/{report.n_direction_eligible} eligible "
+          f"({report.n_direction_refused} refused)  |  "
+          f"magnitude={report.n_magnitude_scored}/{report.n_magnitude_eligible} eligible "
+          f"({report.n_magnitude_refused} refused)")
 
-    print("\n  --- DIRECTION SCORE ---")
+    print(f"\n{indent}  --- DIRECTION SCORE ---")
     d = report.direction
     if d is None:
-        print("  n/a -- no cells eligible for direction scoring in this source "
+        print(f"{indent}  n/a -- no cells eligible for direction scoring in this source "
               "(expected for CES/exit_poll, which are never direction-eligible)")
     else:
-        print(f"  accuracy: {d.accuracy:.3f}  ({d.n_correct}/{d.n_scored} correct)")
-        print(f"  n_shocks represented: {d.n_shocks}   n_independent_windows: {d.n_windows}")
-        print(f"  bloc distribution: {d.bloc_distribution}")
-        print(f"  *** {d.caveat}")
+        print(f"{indent}  accuracy: {d.accuracy:.3f}  ({d.n_correct}/{d.n_scored} correct)")
+        print(f"{indent}  n_shocks represented: {d.n_shocks}   n_independent_windows: {d.n_windows}")
+        print(f"{indent}  bloc distribution: {d.bloc_distribution}")
+        print(f"{indent}  *** {d.caveat}")
 
-    print("\n  --- MAGNITUDE / CALIBRATION SCORE ---")
+    print(f"\n{indent}  --- MAGNITUDE / CALIBRATION SCORE ---")
     m = report.magnitude
     if m is None:
-        print("  n/a -- no cells eligible for magnitude scoring")
+        print(f"{indent}  n/a -- no cells eligible for magnitude scoring")
     else:
-        print(f"  n_scored: {m.n_scored}")
-        print(f"  mean_abs_error: {m.mean_abs_error:.5f}")
-        if m.calibration_ratio is not None:
-            print(f"  calibration_ratio (mean|pred|/mean|true|): {m.calibration_ratio:.2f}x")
+        print(f"{indent}  n_scored: {m.n_scored}")
+        print(f"{indent}  mean_abs_error: {m.mean_abs_error:.5f}")
+        if m.mean_cellwise_ratio is not None:
+            print(f"{indent}  mean cell-wise ratio (|pred|/|true|, THE calibration number): {m.mean_cellwise_ratio:.2f}x")
         else:
-            print("  calibration_ratio: n/a (mean measured magnitude is 0)")
-        if m.median_cellwise_ratio is not None:
-            print(f"  median cell-wise ratio: {m.median_cellwise_ratio:.2f}x "
+            print(f"{indent}  mean cell-wise ratio: n/a (all cells excluded as near-zero measured)")
+        if m.calibration_ratio is not None:
+            print(f"{indent}  calibration_ratio (mean|pred|/mean|true|, companion stat): {m.calibration_ratio:.2f}x")
+        if m.ratio_distribution is not None:
+            rd = m.ratio_distribution
+            print(f"{indent}  ratio distribution: min={rd['min']:.2f}x p25={rd['p25']:.2f}x "
+                  f"median={rd['median']:.2f}x p75={rd['p75']:.2f}x max={rd['max']:.2f}x "
                   f"({m.n_cellwise_ratio_excluded_near_zero} cell(s) excluded as near-zero measured)")
         if m.global_pearson_correlation is not None:
-            print(f"  global Pearson correlation (pred vs. measured): {m.global_pearson_correlation:.3f}")
+            print(f"{indent}  global Pearson correlation (pred vs. measured): {m.global_pearson_correlation:.3f}")
         if m.per_stratum_mae:
             for k, v in m.per_stratum_mae.items():
-                print(f"    {k} MAE: {v:.5f}")
+                print(f"{indent}    {k} MAE: {v:.5f}")
 
-    print("\n  --- RANK CORRELATION (per shock, >=5 magnitude-usable blocs) ---")
+    print(f"\n{indent}  --- RANK CORRELATION (per shock, >=5 magnitude-usable blocs) ---")
     rc = report.rank_correlation
-    print(f"  shocks with any magnitude cells: {rc.n_shocks_total_with_any_magnitude_cells}  "
+    print(f"{indent}  shocks with any magnitude cells: {rc.n_shocks_total_with_any_magnitude_cells}  "
           f"| eligible (>=5 blocs): {rc.n_shocks_eligible}")
     if rc.mean_spearman_rho is not None:
-        print(f"  mean Spearman rho across eligible shocks: {rc.mean_spearman_rho:.3f}")
+        print(f"{indent}  mean Spearman rho across eligible shocks: {rc.mean_spearman_rho:.3f}")
     for s in rc.per_shock:
         rho_str = f"{s.spearman_rho:.3f}" if s.spearman_rho is not None else "n/a"
-        print(f"    {s.shock_id:38s} n_blocs={s.n_blocs:2d}  rho={rho_str}")
+        print(f"{indent}    {s.shock_id:38s} n_blocs={s.n_blocs:2d}  rho={rho_str}")
+
+    if report.held_out_subset is not None or report.trainable_subset is not None:
+        print(f"\n{indent}  --- HELD-OUT vs TRAINABLE (HARD REQ #8 -- never blend these) ---")
+        if report.held_out_subset is not None:
+            print(f"{indent}  >> HELD-OUT shocks subset (must NOT be used to claim training-set-style accuracy):")
+            print_report(f"{name} / held-out", report.held_out_subset, indent=indent + "    ")
+        else:
+            print(f"{indent}  >> HELD-OUT shocks subset: no held-out shocks have ground-truth cells in this source")
+        if report.trainable_subset is not None:
+            print(f"{indent}  >> TRAINABLE (non-held-out) shocks subset:")
+            print_report(f"{name} / trainable", report.trainable_subset, indent=indent + "    ")
 
 
 def main() -> None:

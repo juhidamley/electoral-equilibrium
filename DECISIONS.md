@@ -1721,3 +1721,87 @@ means, a decode-table change, not a learned-behavior change. The synthetic corpu
 regenerated at the new scale in a later step so that seeds, labels, and the decode table all
 agree; until then, `scripts/generate_synthetic.py` and `electoral/nlp/elasticity.py`
 continue to emit old-scale numeric values by design (see above).
+
+## Phase 3, Step 3.1 — 2026-07-31 — Optimizer framing (Option C): equilibrium-finder, not shock-responder
+
+### The problem
+
+Steps 2.2-2.3 measured, rather than assumed, that after the Step 2.1 delta rescale the
+optimizer's coalition weights (`electoral/optimization/cvx.py::solve_rebalanced`) are
+invariant to shocks: identical output to 5 decimal places across every tested event, both
+party framings, and every legal intensity. This contradicted the project's own framing
+throughout the README, website, and paper drafts, all of which describe the optimizer as
+recovering a per-shock "coalition emphasis" or "recommendation" — i.e. as a shock-response
+stage. A decision was needed on whether that invariance is a bug to fix or a mischaracterized
+finding to document correctly.
+
+### DECISION: Option C — the optimizer is an equilibrium-finder, not a shock-response stage
+
+The optimizer computes the party's stable strategic coalition weighting given baseline bloc
+loyalties, once per party, not once per shock. Shocks are evaluated AGAINST that fixed
+equilibrium coalition via `mu_eff_shifted` and win probability — both of which were
+independently confirmed to respond to shocks. Coalition-weight invariance is correct by
+design, not a defect. Full canonical description: `docs/design/optimizer_framing.md` — that
+document is written to be lifted directly into the paper/UI/README and should be treated as
+the source of truth for this framing going forward, not re-derived independently in each
+surface.
+
+### The empirical basis
+
+Bisection directly on `solve_rebalanced` found coalition weights first move at a delta
+magnitude of **~0.0633**, while the hard clip ceiling on any shock's per-bloc delta is
+**0.0375** — 1.7x below the movement threshold, structurally unreachable regardless of shock
+content or intensity. Confirmed three independent ways, none of which moved the weights:
+
+1. **Adversarial synthetic construction** — every race bloc pinned to its most extreme decode
+   bin simultaneously, intensity multipliers swept up to 10x (far past the API's legal max).
+2. **Real model inference at the API's maximum legal intensity** (3.0) on real shocks, real
+   democrat framing.
+3. **Both party framings** — democrat and republican baselines land at different corners of
+   the demographic-plausibility bound (consistent with each party's different bloc-loyalty
+   ordering), but within either framing, no tested shock moved weights off that party's own
+   corner.
+
+Meanwhile `mu_eff_shifted` and win probability DO respond: under republican framing (whose
+baseline sits close enough to V_eq for the effect to be visible against Monte Carlo noise,
+unlike the current democrat baseline's large margin), mean win-probability movement across
+tested shocks was 0.0503, with real (non-degenerate) confidence-interval widths of roughly
+0.012-0.015 -- not a saturated point estimate. The shock-conditional signal is real; it lives
+downstream of the coalition weights, not in them.
+
+### Alternatives considered and rejected
+
+**Widen `WEIGHT_LOWER_MULT`/`WEIGHT_UPPER_MULT` (currently 0.5x/1.5x of each bloc's NEP
+population share) until weights move.** Rejected. This would mean choosing a bound because it
+makes the output move, not because it reflects a defensible demographic-plausibility
+constraint — the identical reasoning that produced the original ungrounded ±0.15 delta-bin
+scale (Step 2.1). Loosening a parameter until a stage becomes responsive, without an
+independent justification for the new parameter value, just relocates the same mistake to a
+different constant. The bounds in `cvx.py` are still marked **"PROVISIONAL... pending advisor
+review, not empirically calibrated"** in that file's own comment; Option C means they stay
+exactly as-is pending that review -- this decision does not resolve or preempt it, it just
+declines to change the bounds as a side effect of a framing problem. Prof. Espinosa is to be
+informed of this decision and its empirical basis (the 0.0633 vs. 0.0375 measurement) on
+return, specifically because it bears on that still-open provisional-bounds review.
+
+**Retrain or otherwise make the LLM's deltas larger again.** Not considered seriously --
+directly reopens the Step 2.1 rescale, which corrected a real ~4x measured overstatement
+against panel ground truth. Reintroducing that overstatement to make a downstream stage look
+more responsive would be optimizing the wrong thing.
+
+### The finding, stated positively
+
+**Under demographically plausible coalition constraints, the optimal coalition is stable
+against single-shock effects.** This is reported as a substantive result about electoral
+coalitions -- a campaign's demographically-bounded, risk-adjusted strategic emphasis does not
+rationally re-litigate itself after every single news event -- not as a limitation to
+apologize for. A shock-responsive optimizer would in fact have been the less defensible and
+less interesting result here.
+
+### What's NOT done in this step
+
+No code behavior changes. `docs/design/optimizer_framing.md` includes a full audit (file and
+line) of every place in the README, website, and paper drafts that still describes the
+optimizer with per-shock-responsive language ("optimizer-recommended emphasis," "the
+coalition must rebalance after a shock," etc.) -- that list is a worklist for Steps 3.2/3.3,
+not yet actioned.

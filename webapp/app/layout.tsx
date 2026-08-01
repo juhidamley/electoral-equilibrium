@@ -8,17 +8,17 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const DESCRIPTION =
-  "Electoral Equilibrium is a stochastic-optimization research pipeline (fine-tuned Mistral 7B, CVXPY optimization, Monte Carlo simulation) that models how a party's winning voter coalition must rebalance after a hypothetical political shock. A Claremont McKenna SRP 2026 project by Juhi Damley, advised by Prof. Gaston Espinosa. Research tool, not a forecast.";
+  "Electoral Equilibrium is a stochastic-optimization research pipeline (fine-tuned Mistral 7B, CVXPY optimization, Monte Carlo simulation) that finds a party's stable equilibrium voter coalition and measures how a hypothetical political shock shifts its win probability. A Claremont McKenna SRP 2026 project by Juhi Damley, advised by Prof. Gaston Espinosa. Research tool, not a forecast.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://electoral.juhi.studio"),
-  title: "Electoral Equilibrium — modeling voter-coalition shifts after political shocks",
+  title: "Electoral Equilibrium — equilibrium voter coalitions and shock-conditional win probability",
   description: DESCRIPTION,
   authors: [{ name: "Juhi Damley", url: "https://juhi.studio" }],
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    title: "Electoral Equilibrium — modeling voter-coalition shifts after political shocks",
+    title: "Electoral Equilibrium — equilibrium voter coalitions and shock-conditional win probability",
     description: DESCRIPTION,
     url: "https://electoral.juhi.studio",
     siteName: "Electoral Equilibrium",

@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.data.held_out import held_out_shock_ids
 
 BLOC_TO_STRATUM: dict[str, str] = (
     {b: "race" for b in CANONICAL_RACES}
@@ -65,6 +66,12 @@ class GroundTruthCell:
     # tell "N cells" apart from "N independent temporal windows"; several
     # shocks can and do share one window (see docs/ground_truth_layers.md),
     # so cell count alone overstates independence.
+    held_out: bool = False  # HARD REQUIREMENT #8: from configs/held_out_shocks.json
+    # (electoral.data.held_out). A model trained on this shock cannot be
+    # honestly validated on it -- held-out and trainable cells are always
+    # reported as separate SourceReport subsets (see score_source), never
+    # blended into one score, same "cross-check don't merge" principle as
+    # HARD REQUIREMENT #6's cross-source rule.
 
 
 @dataclass
@@ -85,6 +92,7 @@ class CellScore:
             "sign_match": self.sign_match,
             "eligible_for_direction": self.cell.eligible_for_direction,
             "eligible_for_magnitude": self.cell.eligible_for_magnitude,
+            "held_out": self.cell.held_out,
         }
 
 
@@ -93,9 +101,10 @@ class RefusedCell:
     shock_id: str
     bloc: str
     reason: str
+    held_out: bool = False
 
-    def to_dict(self) -> dict[str, str]:
-        return {"shock_id": self.shock_id, "bloc": self.bloc, "reason": self.reason}
+    def to_dict(self) -> dict[str, Any]:
+        return {"shock_id": self.shock_id, "bloc": self.bloc, "reason": self.reason, "held_out": self.held_out}
 
 
 @dataclass
@@ -126,25 +135,37 @@ class DirectionScore:
 @dataclass
 class MagnitudeScore:
     """Scored on cells with eligible_for_magnitude=True. HARD REQUIREMENT #2:
-    `calibration_ratio` = mean(|predicted|) / mean(|measured|) is the primary
-    number for "is the model overstating magnitude" -- >1 means the model's
-    predicted deltas are, on average, larger than what's actually measured.
+
+    `mean_cellwise_ratio` = mean over cells of (|predicted| / |measured|) is
+    THE primary "is the model overstating magnitude" number -- >1 means the
+    model's predicted deltas are, on average, larger than what's actually
+    measured. This is the statistic behind the project's own headline
+    calibration numbers (pre-rescale 3.44x, post-rescale 0.86x, Step 2.2).
     Real panel-measured deltas run roughly 0.0002-0.03 in magnitude
     (data/ground_truth/panel_deltas_summary.md); a model still calibrated to
-    the old theoretical +-0.15 DELTA_BINS range would show a calibration_ratio
-    on the order of 5-10x here. As of Step 2.1 (DECISIONS.md), the decode
-    table itself is rescaled to +-0.03 -- a model/corpus still trained against
-    the OLD scale (i.e. before the corpus regeneration step) would still show
+    the old theoretical +-0.15 DELTA_BINS range would show a ratio on the
+    order of 5-10x here. As of Step 2.1 (DECISIONS.md), the decode table
+    itself is rescaled to +-0.03 -- a model/corpus still trained against the
+    OLD scale (i.e. before the corpus regeneration step) would still show
     this same overstatement until that regeneration lands.
-    `median_cellwise_ratio` is a robustness
-    companion that excludes near-zero-measured cells (division blowup guard),
-    not a replacement for the aggregate ratio.
+
+    `calibration_ratio` = mean(|predicted|) / mean(|measured|) (ratio of
+    aggregates, NOT mean of per-cell ratios) is reported alongside as a
+    companion less sensitive to any single outlier cell dominating the mean
+    -- the two can and do differ; neither one alone is "the" number.
+
+    `ratio_distribution` gives the actual spread of per-cell ratios (min,
+    p25, median, p75, max) -- HARD REQUIREMENT #2 explicitly asks for the
+    distribution, not just a single mean, since a mean/median pair can still
+    hide a bimodal or heavy-tailed spread.
     """
 
     n_scored: int
     mean_abs_error: float | None
+    mean_cellwise_ratio: float | None
     calibration_ratio: float | None
     median_cellwise_ratio: float | None
+    ratio_distribution: dict[str, float] | None  # {min, p25, median, p75, max}
     n_cellwise_ratio_excluded_near_zero: int
     per_stratum_mae: dict[str, float]
     global_pearson_correlation: float | None
@@ -152,8 +173,10 @@ class MagnitudeScore:
     def to_dict(self) -> dict[str, Any]:
         return {
             "n_scored": self.n_scored, "mean_abs_error": self.mean_abs_error,
+            "mean_cellwise_ratio": self.mean_cellwise_ratio,
             "calibration_ratio": self.calibration_ratio,
             "median_cellwise_ratio": self.median_cellwise_ratio,
+            "ratio_distribution": self.ratio_distribution,
             "n_cellwise_ratio_excluded_near_zero": self.n_cellwise_ratio_excluded_near_zero,
             "per_stratum_mae": self.per_stratum_mae,
             "global_pearson_correlation": self.global_pearson_correlation,
@@ -200,6 +223,20 @@ class SourceReport:
     #6: never construct a report that mixes cells from more than one source
     -- see score_all_sources(), which always calls score_source() once per
     source and never merges the inputs.
+
+    HARD REQUIREMENT #5 (scored-vs-refused PER DIMENSION, not just per
+    source): n_direction_eligible/scored/refused and
+    n_magnitude_eligible/scored/refused each account for every ground-truth
+    cell independently for that one dimension -- a cell can be magnitude-
+    scored and simultaneously direction-refused (the common case: most
+    magnitude-usable cells are not trustworthy_for_direction), and both of
+    those facts are visible here rather than collapsed into one "refused"
+    number.
+
+    HARD REQUIREMENT #8 (held-out set): held_out_subset/trainable_subset are
+    populated ONLY on the top-level report returned by score_source() (never
+    on the subset reports themselves, which would recurse infinitely) --
+    always read scores from these two subsets, never from a blend of both.
     """
 
     source: str
@@ -210,8 +247,16 @@ class SourceReport:
     direction: DirectionScore | None
     magnitude: MagnitudeScore | None
     rank_correlation: RankCorrelationScore
+    n_direction_eligible: int = 0
+    n_direction_scored: int = 0
+    n_direction_refused: int = 0
+    n_magnitude_eligible: int = 0
+    n_magnitude_scored: int = 0
+    n_magnitude_refused: int = 0
     refused_cells: list[RefusedCell] = field(default_factory=list)
     scored_cells: list[CellScore] = field(default_factory=list)
+    held_out_subset: "SourceReport | None" = None
+    trainable_subset: "SourceReport | None" = None
 
     @property
     def n_refused_total(self) -> int:
@@ -230,11 +275,17 @@ class SourceReport:
             "n_refused_total": self.n_refused_total,
             "n_refused_no_prediction": self.n_refused_no_prediction,
             "n_refused_ineligible": self.n_refused_ineligible,
+            "per_dimension": {
+                "direction": {"eligible": self.n_direction_eligible, "scored": self.n_direction_scored, "refused": self.n_direction_refused},
+                "magnitude": {"eligible": self.n_magnitude_eligible, "scored": self.n_magnitude_scored, "refused": self.n_magnitude_refused},
+            },
             "direction": self.direction.to_dict() if self.direction else None,
             "magnitude": self.magnitude.to_dict() if self.magnitude else None,
             "rank_correlation": self.rank_correlation.to_dict(),
             "refused_cells": [c.to_dict() for c in self.refused_cells],
             "scored_cells": [c.to_dict() for c in self.scored_cells],
+            "held_out_subset": self.held_out_subset.to_dict() if self.held_out_subset else None,
+            "trainable_subset": self.trainable_subset.to_dict() if self.trainable_subset else None,
         }
 
 
@@ -247,6 +298,7 @@ def normalize_panel(panel_json: dict[str, Any]) -> list[GroundTruthCell]:
     encodes sign-stability, statistical significance, suppression, and
     single-shock-attributability -- see data/ground_truth/trustworthy_subset.md.
     """
+    held = held_out_shock_ids()
     cells = []
     for shock_id, entry in panel_json.items():
         tier = entry.get("tier")
@@ -271,6 +323,7 @@ def normalize_panel(panel_json: dict[str, Any]) -> list[GroundTruthCell]:
                     if (trust.get("trustworthy_for_direction") or trust.get("magnitude_usable"))
                     else (b.get("suppression_reason") or "not sign-stable/significant -- see trust sub-object"),
                     window_id=window_id,
+                    held_out=shock_id in held,
                 )
             )
     return cells
@@ -285,6 +338,7 @@ def normalize_ces(ces_json: dict[str, Any]) -> list[GroundTruthCell]:
     NEVER eligible for direction scoring (single_shock_attributable is
     always false, by design -- see ground_truth_layers.md).
     """
+    held = held_out_shock_ids()
     cells = []
     for shock_id, entry in ces_json.items():
         tier = entry.get("fidelity_tier", "ces_annual_cross_section")
@@ -305,6 +359,7 @@ def normalize_ces(ces_json: dict[str, Any]) -> list[GroundTruthCell]:
                     eligible_for_direction=False,
                     eligible_for_magnitude=eligible_mag,
                     ineligibility_reason=None if eligible_mag else (b.get("suppression_reason") or "suppressed/low-confidence"),
+                    held_out=shock_id in held,
                 )
             )
     return cells
@@ -317,6 +372,7 @@ def normalize_exit_poll(exit_poll_json: dict[str, Any]) -> list[GroundTruthCell]
     direction scoring, same reasoning as CES: cross-cycle windows bundle an
     entire campaign's worth of events, never attributable to one shock.
     """
+    held = held_out_shock_ids()
     cells = []
     for _key, cd in exit_poll_json.get("cycle_deltas", {}).items():
         shock_id = cd.get("associated_shock_id")
@@ -342,6 +398,7 @@ def normalize_exit_poll(exit_poll_json: dict[str, Any]) -> list[GroundTruthCell]
                     eligible_for_direction=False,
                     eligible_for_magnitude=True,
                     ineligibility_reason=None if has_ci else "no CI computable (missing sub_pct in scraped table) -- magnitude usable, uncertainty unknown",
+                    held_out=shock_id in held,
                 )
             )
     return cells
@@ -481,11 +538,25 @@ def _compute_magnitude_score(mag_scores: list[CellScore]) -> MagnitudeScore | No
             n_excluded += 1
             continue
         cellwise_ratios.append(abs(s.predicted_delta) / abs(s.cell.measured_delta))
+    mean_cellwise_ratio = sum(cellwise_ratios) / len(cellwise_ratios) if cellwise_ratios else None
     median_ratio = None
+    ratio_distribution = None
     if cellwise_ratios:
         sr = sorted(cellwise_ratios)
-        mid = len(sr) // 2
-        median_ratio = sr[mid] if len(sr) % 2 else (sr[mid - 1] + sr[mid]) / 2
+        n = len(sr)
+        mid = n // 2
+        median_ratio = sr[mid] if n % 2 else (sr[mid - 1] + sr[mid]) / 2
+
+        def _pctl(p: float) -> float:
+            # nearest-rank percentile -- simple and dependency-free; fine at
+            # these sample sizes where we're reporting shape, not a precise stat.
+            idx = min(n - 1, max(0, round(p * (n - 1))))
+            return sr[idx]
+
+        ratio_distribution = {
+            "min": sr[0], "p25": _pctl(0.25), "median": median_ratio,
+            "p75": _pctl(0.75), "max": sr[-1],
+        }
 
     strata: dict[str, list[float]] = {}
     for s in mag_scores:
@@ -498,7 +569,9 @@ def _compute_magnitude_score(mag_scores: list[CellScore]) -> MagnitudeScore | No
 
     return MagnitudeScore(
         n_scored=len(mag_scores), mean_abs_error=mae,
+        mean_cellwise_ratio=mean_cellwise_ratio,
         calibration_ratio=calibration_ratio, median_cellwise_ratio=median_ratio,
+        ratio_distribution=ratio_distribution,
         n_cellwise_ratio_excluded_near_zero=n_excluded,
         per_stratum_mae=per_stratum_mae, global_pearson_correlation=correlation,
     )
@@ -527,11 +600,21 @@ def _compute_rank_correlation(mag_scores: list[CellScore]) -> RankCorrelationSco
     )
 
 
-def score_source(cells: list[GroundTruthCell], predictions: dict[str, Any]) -> SourceReport:
+def score_source(
+    cells: list[GroundTruthCell], predictions: dict[str, Any], *, _compute_subsets: bool = True
+) -> SourceReport:
     """Score exactly ONE source's ground-truth cells against `predictions`.
     HARD REQUIREMENT #5: every ground-truth cell is accounted for as either
     scored (direction and/or magnitude) or refused, with a stated reason --
-    nothing is silently dropped from the counts.
+    nothing is silently dropped from the counts, and each of direction and
+    magnitude gets its OWN eligible/scored/refused accounting (a cell can be
+    scored for one dimension and refused for the other simultaneously).
+
+    HARD REQUIREMENT #8: `_compute_subsets` (internal only -- real callers
+    never pass this) guards against infinite recursion when this function
+    calls itself once on the held-out cells and once on the trainable cells
+    to populate `held_out_subset`/`trainable_subset`; those two recursive
+    calls pass `_compute_subsets=False` so they don't recurse further.
     """
     if not cells:
         return SourceReport(
@@ -554,13 +637,14 @@ def score_source(cells: list[GroundTruthCell], predictions: dict[str, Any]) -> S
         if pred_delta is None:
             n_refused_no_prediction += 1
             reason = "no prediction for this shock_id" if pred_entry is None else "prediction present but missing this bloc, or unrecognized party"
-            refused_cells.append(RefusedCell(cell.shock_id, cell.bloc, reason))
+            refused_cells.append(RefusedCell(cell.shock_id, cell.bloc, reason, held_out=cell.held_out))
             continue
         if not (cell.eligible_for_direction or cell.eligible_for_magnitude):
             n_refused_ineligible += 1
             refused_cells.append(RefusedCell(
                 cell.shock_id, cell.bloc,
                 cell.ineligibility_reason or "ground-truth cell ineligible for both direction and magnitude scoring",
+                held_out=cell.held_out,
             ))
             continue
 
@@ -573,13 +657,38 @@ def score_source(cells: list[GroundTruthCell], predictions: dict[str, Any]) -> S
     dir_scores = [s for s in scored_cells if s.cell.eligible_for_direction]
     mag_scores = [s for s in scored_cells if s.cell.eligible_for_magnitude]
 
+    # Per-dimension accounting (HARD REQUIREMENT #5): "eligible" is a fact
+    # about the ground-truth cell alone; "scored" additionally requires a
+    # prediction; "refused" is eligible-but-unscored (no prediction) PLUS
+    # not-eligible-at-all, so eligible == scored + refused for each dimension
+    # and every one of n_ground_truth_cells is accounted for.
+    n_direction_eligible = sum(1 for c in cells if c.eligible_for_direction)
+    n_direction_scored = len(dir_scores)
+    n_magnitude_eligible = sum(1 for c in cells if c.eligible_for_magnitude)
+    n_magnitude_scored = len(mag_scores)
+
+    held_out_subset = None
+    trainable_subset = None
+    if _compute_subsets:
+        held_cells = [c for c in cells if c.held_out]
+        trainable_cells = [c for c in cells if not c.held_out]
+        if held_cells:
+            held_out_subset = score_source(held_cells, predictions, _compute_subsets=False)
+        if trainable_cells:
+            trainable_subset = score_source(trainable_cells, predictions, _compute_subsets=False)
+
     return SourceReport(
         source=source, fidelity_rank=fidelity_rank, n_ground_truth_cells=len(cells),
         n_refused_no_prediction=n_refused_no_prediction, n_refused_ineligible=n_refused_ineligible,
         direction=_compute_direction_score(dir_scores),
         magnitude=_compute_magnitude_score(mag_scores),
         rank_correlation=_compute_rank_correlation(mag_scores),
+        n_direction_eligible=n_direction_eligible, n_direction_scored=n_direction_scored,
+        n_direction_refused=len(cells) - n_direction_scored,
+        n_magnitude_eligible=n_magnitude_eligible, n_magnitude_scored=n_magnitude_scored,
+        n_magnitude_refused=len(cells) - n_magnitude_scored,
         refused_cells=refused_cells, scored_cells=scored_cells,
+        held_out_subset=held_out_subset, trainable_subset=trainable_subset,
     )
 
 
