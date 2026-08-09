@@ -90,6 +90,31 @@ PARTY PERSPECTIVE (whose ticket we model): {seed['party']}
 DOMAIN: {seed['domain']}
 IDEOLOGICAL VALENCE: {seed['valence']}
 EXPECTED NET EFFECT (a hint, reason independently per bloc): {seed['expected_effect']}
+MOBILIZATION DYNAMIC (stated, do not re-derive from how dramatic the event sounds): {seed['mobilization']}
+  - "mobilizing": the event's negative/polarizing nature drives INCREASED turnout/enthusiasm
+    for one side (a backlash-turnout dynamic) — expect some blocs to move MORE than a typical
+    event, though still small in absolute terms per the magnitude section below.
+  - "depressing": the event erodes confidence/enthusiasm for the affected party through
+    persuasion/demoralization, with no strong opposing-mobilization narrative — expect smaller,
+    more diffuse movement, not a sharp swing concentrated in a few blocs.
+  - "consolidating": a positive event reinforces existing support — expect modest positive
+    movement in already-aligned blocs, not a dramatic realignment.
+  - "neutral": genuinely bipartisan/low-salience action — expect most blocs at or near neutral.
+  This dimension is independent of EXPECTED NET EFFECT's direction; use it to calibrate HOW
+  CONCENTRATED vs. diffuse the per-bloc movement should be, not to override the direction hint.
+
+REAL-WORLD MAGNITUDE, measured from a decade of voter-panel data (n=234
+non-suppressed bloc/cycle cells) — calibrate your intuition to THESE numbers,
+not to how dramatic a news event feels:
+  - median per-bloc shift ever measured: 0.0029 (0.29 percentage points)
+  - mean:                                0.0046 (0.46 points)
+  - 90th percentile:                     0.0112 (1.12 points)
+  - largest single-bloc shift EVER measured, any event, any bloc: 0.0286 (2.9 points)
+A "strong" label means roughly a 3-point move — the top of the observed range,
+not a typical reaction. Most blocs, for most events, move well under half a
+point. Even a bloc that is genuinely, directly targeted by an event rarely
+clears "moderate" (±1.75 points); "strong" should be reserved for the rare
+event/bloc pair that plausibly rivals the largest shift ever recorded.
 
 Each record is a JSON object with EXACTLY these fields:
 - "shock_id": snake_case identifier derived from the event
@@ -102,7 +127,10 @@ Each record is a JSON object with EXACTLY these fields:
 - "delta_bins_race": object with keys {RACES}
 - "delta_bins_religion": object with keys {RELIGIONS}
 - "delta_bins_gender": object with keys {GENDERS}
-- "delta_eff": float between -0.15 and 0.15 (overall vote-share change for the modeled party)
+- "delta_eff": float between -0.0375 and 0.0375 (overall vote-share change for
+  the modeled party — this is a bloc-weighted AVERAGE, so it is typically
+  smaller in magnitude than any single directly-affected bloc's own delta, not
+  larger)
 
 Every bin value MUST be one of: strong_neg, mod_neg, mild_neg, slight_neg, neutral, slight_pos, mild_pos, mod_pos, strong_pos.
 
@@ -112,7 +140,16 @@ Reason about each bloc separately and realistically:
 - Latino voters: increasingly contested, not monolithic; econ and immigration sensitive
 - Evangelical voters: strongly Republican; react sharply to social/cultural shocks
 - Secular voters: lean Democratic; react opposite to evangelicals on culture
-- Across {n} records, vary delta_eff and the bin magnitudes so the set isn't identical.
+
+BIN-DISTRIBUTION TARGET across the 15 bloc-level bins in a SINGLE record
+(approximate, derived from the panel statistics above — most events move most
+blocs barely at all): roughly 30% neutral, 45% slight, 18% mild, 5% moderate,
+2% strong. A record where several blocs all land on "strong" is almost
+certainly wrong — real events that move many blocs strongly at once do not
+appear in the panel data. Vary which specific blocs get the (rare) larger
+moves across the {n} records — the ones plausibly most exposed to THIS
+specific event — rather than spreading magnitude evenly or repeating the same
+pattern record to record.
 
 Output ONLY the JSON array of {n} records."""
 
@@ -152,7 +189,9 @@ def _validate(rec: dict[str, Any]) -> tuple[bool, str]:
         de = float(rec["delta_eff"])
     except (TypeError, ValueError):
         return False, "delta_eff not numeric"
-    if not (-0.15 <= de <= 0.15):
+    # Rescaled Step 5.1 (see DECISIONS.md) to match electoral.core.types.DELTA_BINS'
+    # tiled range [-0.0375, +0.0375] -- was -0.15/+0.15, the pre-Step-2.1 scale.
+    if not (-0.0375 <= de <= 0.0375):
         return False, f"delta_eff {de} out of range"
     return True, ""
 
@@ -243,6 +282,7 @@ def generate(seeds_path: Path, n_per_seed: int, out_path: Path, max_retries: int
                     "domain": seed["domain"],
                     "valence": seed["valence"],
                     "expected_effect": seed["expected_effect"],
+                    "mobilization": seed["mobilization"],
                 }
                 fout.write(json.dumps(rec) + "\n")
                 kept += 1

@@ -67,6 +67,7 @@ from electoral.core.types import (
     CANONICAL_RACES,
     CANONICAL_RELIGIONS,
 )
+from electoral.data.excluded_sources import excluded_archive_ids
 
 log = logging.getLogger("aggregate_shock_sentiment")
 
@@ -118,6 +119,8 @@ def aggregate_one_shock(scored_path: Path) -> dict:
     }
     n_records = 0
     n_bad = 0
+    n_excluded = 0
+    excl_archive_ids = excluded_archive_ids()
 
     with scored_path.open() as fh:
         for line in fh:
@@ -129,6 +132,16 @@ def aggregate_one_shock(scored_path: Path) -> dict:
                 payload = rec["payload"]
             except (json.JSONDecodeError, KeyError, TypeError):
                 n_bad += 1
+                continue
+            # Step 4.1: records from configs/excluded_sources.json are
+            # ineligible for bloc-level training -- skip before they touch
+            # any per-bloc aggregate. Verified 0% usable bio_bloc for all
+            # currently-excluded sources, so this is expected to be a no-op
+            # on the per-bloc output; it is still enforced here (not just
+            # relied on upstream) so a future source added to the exclusion
+            # list is caught even if it DOES carry bio_bloc signal.
+            if payload.get("archive_id") in excl_archive_ids:
+                n_excluded += 1
                 continue
             n_records += 1
 
@@ -179,12 +192,20 @@ def aggregate_one_shock(scored_path: Path) -> dict:
             "by_bloc": {b: by_bloc[b] for b in CANONICAL_BLOCS if b in by_bloc},
         }
 
+    if n_excluded:
+        log.info(
+            "  %-32s dropped %d record(s) from excluded source(s) (configs/excluded_sources.json)",
+            scored_path.parent.name,
+            n_excluded,
+        )
+
     return {
         "news": summarize("news"),
         "social": summarize("social"),
         "counts": {
             "records": n_records,
             "malformed": n_bad,
+            "excluded_source": n_excluded,
             "news": counts("news"),
             "social": counts("social"),
         },

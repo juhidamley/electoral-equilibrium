@@ -12,7 +12,10 @@ Gemini checks four things:
   1. Direction sanity   — does each bloc move the politically expected way?
   2. Internal coherence  — do delta_eff and the per-bloc bins agree in sign?
   3. Cross-bloc logic    — are opposed blocs (evangelical vs secular) consistent?
-  4. Magnitude realism   — slight nudge vs realignment, matched to bin sizes?
+  4. Magnitude realism   — bin sizes checked against real panel numbers (Step
+                            5.1: median 0.0029 / mean 0.0046 / p90 0.0112 /
+                            max-ever 0.0286), not vibes; multiple blocs at
+                            strong/moderate in one record is a red flag.
 
 IMPORTANT (designed-in caveat): Gemini agreeing does not make a label TRUE —
 models share blind spots. So beyond Gemini's own flags, this script ALSO routes
@@ -92,6 +95,10 @@ def _review_prompt(rec: dict[str, Any]) -> str:
 EVENT: "{rec['description']}"
 PARTY MODELED: {rec['party']}
 TAXONOMY HINT (expected net effect): {meta.get('expected_effect','?')}
+MOBILIZATION DYNAMIC (stated by the seed, not inferred from tone): {meta.get('mobilization','?')}
+  "mobilizing" events warrant more-concentrated movement in the affected blocs than
+  "depressing"/"consolidating"/"neutral" ones — factor this into the magnitude check below,
+  but don't let it excuse several blocs landing on "strong" simultaneously (see check 4).
 
 PREDICTED LABELS:
 delta_bins_race: {json.dumps(rec['delta_bins_race'])}
@@ -101,11 +108,21 @@ delta_eff: {rec['delta_eff']}
 
 Valid bins (ordered): strong_neg, mod_neg, mild_neg, slight_neg, neutral, slight_pos, mild_pos, mod_pos, strong_pos.
 
+REAL-WORLD MAGNITUDE, measured from a decade of voter-panel data (n=234
+non-suppressed bloc/cycle cells): median per-bloc shift 0.0029, mean 0.0046,
+90th percentile 0.0112, largest single-bloc shift EVER measured 0.0286. A
+"strong" bin means roughly a 3-point move — the top of the observed range, not
+a typical reaction to a notable event. Judge magnitude against these numbers,
+not against how dramatic the event sounds.
+
 Check:
 1. Direction — does each bloc move the way real political behavior predicts?
 2. Coherence — does delta_eff agree in sign with the weighted bloc movement?
 3. Cross-bloc — are opposed blocs (e.g. evangelical vs secular) plausibly inverse?
-4. Magnitude — are bin sizes realistic (most shocks are slight/mild, not strong)?
+4. Magnitude — are bin sizes realistic against the panel numbers above? A
+   record with several blocs at "strong" or "moderate" simultaneously should
+   almost always be flagged REVISE or HUMAN_REVIEW — real events that move
+   many blocs strongly at once do not appear in the panel data.
 
 Respond with a JSON object:
 {{
@@ -146,7 +163,9 @@ def _apply_correction(rec: dict[str, Any], corrected: dict[str, Any]) -> dict[st
         de = float(corrected["delta_eff"])
     except (TypeError, ValueError, KeyError):
         return None
-    if not (-0.15 <= de <= 0.15):
+    # Rescaled Step 5.1 (see DECISIONS.md), matching generate_deepseek.py's
+    # _validate() and electoral.core.types.DELTA_BINS' tiled range.
+    if not (-0.0375 <= de <= 0.0375):
         return None
     out["delta_eff"] = de
     return out

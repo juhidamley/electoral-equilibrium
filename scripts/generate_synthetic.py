@@ -73,27 +73,15 @@ DELTA_BINS = [
     "mod_pos",
     "strong_pos",
 ]
-# NOT rescaled by Step 2.1 (see DECISIONS.md). This is a local duplicate of
-# electoral.core.types.BIN_MIDPOINTS, deliberately left at the OLD ±0.12
-# scale: this script feeds the synthetic training corpus, which is being
-# regenerated at the new ±0.03 scale in a separate later step. Rescaling this
-# copy now, before that regeneration, would make freshly-generated synthetic
-# records scale-inconsistent with everything already in data/finetune/.
-# Update this dict together with that regeneration, not before it — ideally
-# by importing BIN_MIDPOINTS from electoral.core.types instead of
-# maintaining a second hardcoded copy, which is how this drift risk exists
-# in the first place (see also electoral/nlp/elasticity.py's own copy).
-BIN_MIDPOINTS = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
-    "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
-}
+# Step 5.2: imported from the canonical source, no longer a local copy.
+# This module previously defined its own BIN_MIDPOINTS dict, which Step 2.1
+# deliberately left at the old ±0.12 scale and Step 5.1 hand-synced to ±0.03.
+# Hand-syncing is what let it drift in the first place, so the copy is gone --
+# there is now exactly one definition (electoral/core/types.py) and every
+# consumer imports it. Guarded by tests/test_bin_midpoints_sync.py.
+# Safe at module level: REPO_ROOT is on sys.path from the lines above, and
+# electoral.core.types imports nothing from scripts/.
+from electoral.core.types import BIN_MIDPOINTS  # noqa: E402
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -209,7 +197,15 @@ INSTRUCTIONS:
 2. For each shock, provide delta bin estimates for EVERY bloc in ALL THREE strata (race, religion, gender).
 3. Estimates must be demographically grounded — e.g., a pro-immigration shock would likely be mild_pos for latino, slight_neg for white evangelical. Be realistic and internally consistent.
 4. Avoid duplicating real shocks above. Create genuinely novel hypotheticals.
-5. Cover a range of magnitudes: most should be slight_neg/slight_pos/neutral; strong bins should be rare.
+5. MAGNITUDE, calibrated to a decade of real voter-panel data (n=234
+   non-suppressed bloc/cycle cells), not to how dramatic an event sounds:
+   median per-bloc shift ever measured 0.0029, mean 0.0046, 90th percentile
+   0.0112, largest single-bloc shift EVER measured (any event, any bloc)
+   0.0286. "strong" means roughly a 3-point move -- the top of the observed
+   range. Target distribution across the 15 bloc-level bins in a single
+   record: roughly 30% neutral, 45% slight, 18% mild, 5% moderate, 2% strong.
+   A record with several blocs at "strong" simultaneously is almost certainly
+   wrong -- that pattern does not appear in the panel data.
 
 OUTPUT FORMAT (strict JSON array, no markdown, no explanation):
 [

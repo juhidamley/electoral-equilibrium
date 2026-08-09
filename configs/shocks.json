@@ -329,16 +329,13 @@
     "category": "Domestic Policy",
     "description": "Supreme Court upholds Affordable Care Act in NFIB v. Sebelius, ruling individual mandate constitutional as a tax",
     "keywords": [
-      "ACA upheld",
-      "Obamacare SCOTUS",
-      "NFIB Sebelius",
+      "Obamacare",
+      "ACA",
       "individual mandate",
-      "healthcare constitutional",
-      "Supreme Court ACA",
-      "Roberts decision",
-      "Obamacare survive",
+      "Roberts",
       "healthcare ruling",
-      "#SCOTUS"
+      "Supreme Court",
+      "mandate upheld"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -358,23 +355,35 @@
       "start": "2012-06-25",
       "shock_date": "2012-06-28",
       "end": "2012-07-12"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "ACA upheld",
+      "Obamacare SCOTUS",
+      "NFIB Sebelius",
+      "individual mandate",
+      "healthcare constitutional",
+      "Supreme Court ACA",
+      "Roberts decision",
+      "Obamacare survive",
+      "healthcare ruling",
+      "#SCOTUS"
+    ]
   },
   {
     "id": "election_2012",
     "date": "2012-09-13",
     "category": "Electoral/Voting Rights",
-    "description": "Pre-election Twitter activity, September 2012 (jgoodman8 Kaggle dataset, Sept 13-14 2012, ~1M tweets). Not Election Day (Nov 6 2012) — archive covers the campaign period only. Baseline pre-Trump election for sentiment calibration.",
+    "description": "Pre-election Twitter activity, September 2012 (jgoodman8 Kaggle dataset, Sept 13-14 2012, ~1M tweets). Not Election Day (Nov 6 2012) \u2014 archive covers the campaign period only. Baseline pre-Trump election for sentiment calibration.",
     "keywords": [
-      "Obama wins",
-      "Obama re-elected",
-      "Romney concedes",
-      "election night 2012",
-      "Obama 2012",
-      "presidential election 2012",
-      "#Election2012",
-      "electoral college 2012",
-      "swing states 2012"
+      "Obama",
+      "Romney",
+      "election",
+      "electoral college",
+      "landslide",
+      "concede",
+      "reelected",
+      "popular vote",
+      "swing state"
     ],
     "archive_ids": [
       "election_2012",
@@ -384,7 +393,7 @@
     ],
     "archive_schema_notes": {
       "format": "JSON",
-      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+      "user_description": "verification required on first load \u2014 determines Tier 1 vs Tier 2"
     },
     "target_blocs": [
       "african_american",
@@ -398,7 +407,18 @@
       "start": "2012-09-10",
       "shock_date": "2012-09-13",
       "end": "2012-09-27"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Obama wins",
+      "Obama re-elected",
+      "Romney concedes",
+      "election night 2012",
+      "Obama 2012",
+      "presidential election 2012",
+      "#Election2012",
+      "electoral college 2012",
+      "swing states 2012"
+    ]
   },
   {
     "id": "sandy_hook_2012",
@@ -814,7 +834,7 @@
       "reddit_pushshift"
     ],
     "archive_schema_notes": {
-      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+      "user_description": "verification required on first load \u2014 determines Tier 1 vs Tier 2"
     },
     "target_blocs": [
       "african_american",
@@ -839,15 +859,10 @@
       "Muslim ban",
       "travel ban",
       "executive order",
+      "refugee",
       "immigration ban",
-      "#MuslimBan",
-      "refugee ban",
-      "airport protests",
-      "Trump ban",
-      "immigration order",
-      "#NoBan",
-      "ACLU",
-      "Muslim countries"
+      "airport protest",
+      "ACLU"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -865,7 +880,21 @@
       "start": "2017-01-24",
       "shock_date": "2017-01-27",
       "end": "2017-02-10"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Muslim ban",
+      "travel ban",
+      "executive order",
+      "immigration ban",
+      "#MuslimBan",
+      "refugee ban",
+      "airport protests",
+      "Trump ban",
+      "immigration order",
+      "#NoBan",
+      "ACLU",
+      "Muslim countries"
+    ]
   },
   {
     "id": "paris_climate_withdrawal_2017",
@@ -978,18 +1007,15 @@
     "id": "las_vegas_shooting_2017",
     "date": "2017-10-01",
     "category": "Criminal Justice",
-    "description": "Stephen Paddock kills 60 concertgoers and wounds 413 from his Mandalay Bay hotel room at the Route 91 Harvest festival — deadliest mass shooting in modern US history",
+    "description": "Stephen Paddock kills 60 concertgoers and wounds 413 from his Mandalay Bay hotel room at the Route 91 Harvest festival \u2014 deadliest mass shooting in modern US history",
     "keywords": [
       "Las Vegas shooting",
-      "Route 91",
       "Mandalay Bay",
-      "Stephen Paddock",
-      "#VegasStrong",
-      "mass shooting Vegas",
-      "gun control Las Vegas",
+      "Route 91",
+      "Paddock",
+      "mass shooting",
       "bump stock",
-      "concert shooting",
-      "#PrayForVegas"
+      "gun control"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -1007,13 +1033,25 @@
       "start": "2017-09-28",
       "shock_date": "2017-10-01",
       "end": "2017-10-15"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Las Vegas shooting",
+      "Route 91",
+      "Mandalay Bay",
+      "Stephen Paddock",
+      "#VegasStrong",
+      "mass shooting Vegas",
+      "gun control Las Vegas",
+      "bump stock",
+      "concert shooting",
+      "#PrayForVegas"
+    ]
   },
   {
     "id": "metoo_2017",
     "date": "2017-10-15",
     "category": "Moral/Scandal",
-    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; covered by Foster & Rathlin 2022 LIWC dataset (3,683 tweets, DOI: 10.5683/SP3/1YWCW1) and Reddit Pushshift (TwoXChromosomes, Feminism, AskFeminists, AskWomen) filtered to Oct 15–Dec 31 2017",
+    "description": "Viral #MeToo movement exposing widespread sexual harassment and assault following Harvey Weinstein allegations; covered by Foster & Rathlin 2022 LIWC dataset (3,683 tweets, DOI: 10.5683/SP3/1YWCW1) and Reddit Pushshift (TwoXChromosomes, Feminism, AskFeminists, AskWomen) filtered to Oct 15\u2013Dec 31 2017",
     "keywords": [
       "#MeToo",
       "MeToo",
@@ -1193,17 +1231,13 @@
     "category": "Criminal Justice",
     "description": "White nationalist Patrick Crusius kills 23 people at El Paso Walmart in attack targeting Latinos; manifesto echoes Trump immigration rhetoric",
     "keywords": [
-      "El Paso shooting",
-      "Walmart El Paso",
-      "Patrick Crusius",
-      "Latino shooting",
-      "#ElPasoStrong",
-      "anti-Latino",
+      "El Paso",
+      "Walmart shooting",
+      "Crusius",
       "white nationalist",
       "domestic terrorism",
-      "El Paso Dayton",
       "mass shooting",
-      "Hispanic attack"
+      "Hispanic"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -1221,7 +1255,20 @@
       "start": "2019-07-31",
       "shock_date": "2019-08-03",
       "end": "2019-08-17"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "El Paso shooting",
+      "Walmart El Paso",
+      "Patrick Crusius",
+      "Latino shooting",
+      "#ElPasoStrong",
+      "anti-Latino",
+      "white nationalist",
+      "domestic terrorism",
+      "El Paso Dayton",
+      "mass shooting",
+      "Hispanic attack"
+    ]
   },
   {
     "id": "ukraine_impeachment_2019",
@@ -1230,16 +1277,12 @@
     "description": "House Speaker Pelosi announces formal impeachment inquiry into Trump's Ukraine phone call pressuring Zelensky to investigate Biden",
     "keywords": [
       "impeachment",
-      "Ukraine call",
+      "Ukraine",
       "Zelensky",
-      "Trump Ukraine",
-      "#ImpeachTrump",
-      "quid pro quo",
       "whistleblower",
+      "quid pro quo",
       "Biden Ukraine",
-      "House impeachment",
-      "Pelosi impeachment",
-      "Senate trial"
+      "Pelosi"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -1257,13 +1300,26 @@
       "start": "2019-09-21",
       "shock_date": "2019-09-24",
       "end": "2019-10-08"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "impeachment",
+      "Ukraine call",
+      "Zelensky",
+      "Trump Ukraine",
+      "#ImpeachTrump",
+      "quid pro quo",
+      "whistleblower",
+      "Biden Ukraine",
+      "House impeachment",
+      "Pelosi impeachment",
+      "Senate trial"
+    ]
   },
   {
     "id": "covid_pandemic_2020",
     "date": "2020-07-24",
     "category": "Health/Pandemic",
-    "description": "COVID-19 summer surge discourse, July–August 2020; gpreda Kaggle archive covers this window. Conceptually renamed covid_summer_2020 — id kept as covid_pandemic_2020 to preserve archive_ids references.",
+    "description": "COVID-19 summer surge discourse, July\u2013August 2020; gpreda Kaggle archive covers this window. Conceptually renamed covid_summer_2020 \u2014 id kept as covid_pandemic_2020 to preserve archive_ids references.",
     "keywords": [
       "COVID",
       "coronavirus",
@@ -1305,6 +1361,39 @@
     "category": "Health/Pandemic",
     "description": "FDA grants Emergency Use Authorization for Pfizer-BioNTech COVID-19 vaccine, beginning US vaccination rollout; ~200k tweets from kaushiksuresh147 Kaggle dataset with user_description confirmed",
     "keywords": [
+      "vaccine",
+      "Pfizer",
+      "Moderna",
+      "jab",
+      "vaccine mandate",
+      "vaccine rollout",
+      "FDA approval",
+      "vaccine hesitancy"
+    ],
+    "archive_ids": [
+      "covid_vaccine_2020",
+      "reddit_pushshift",
+      "discord"
+    ],
+    "archive_schema_notes": {
+      "user_description": "user_description (confirmed present \u2014 use for bio classification)",
+      "created_at": "date",
+      "coverage": "Jan 2020\u2013March 2021"
+    },
+    "target_blocs": [
+      "african_american",
+      "evangelical",
+      "white",
+      "secular"
+    ],
+    "shock_window_days": 45,
+    "active": true,
+    "date_window": {
+      "start": "2020-12-01",
+      "shock_date": "2020-12-14",
+      "end": "2021-01-28"
+    },
+    "_keywords_pre_step43_loosening": [
       "COVID vaccine",
       "vaccine approved",
       "vaccine rollout",
@@ -1319,30 +1408,7 @@
       "mRNA vaccine",
       "Operation Warp Speed",
       "vaccine side effects"
-    ],
-    "archive_ids": [
-      "covid_vaccine_2020",
-      "reddit_pushshift",
-      "discord"
-    ],
-    "archive_schema_notes": {
-      "user_description": "user_description (confirmed present — use for bio classification)",
-      "created_at": "date",
-      "coverage": "Jan 2020–March 2021"
-    },
-    "target_blocs": [
-      "african_american",
-      "evangelical",
-      "white",
-      "secular"
-    ],
-    "shock_window_days": 45,
-    "active": true,
-    "date_window": {
-      "start": "2020-12-01",
-      "shock_date": "2020-12-14",
-      "end": "2021-01-28"
-    }
+    ]
   },
   {
     "id": "blm_george_floyd_2020",
@@ -1376,7 +1442,7 @@
     ],
     "shock_window_days": 98,
     "active": true,
-    "archive_schema_notes": "Twitter BLM 2020 coverage dropped 2026-06-03 — all candidates are IDs-only, wrong language, or wrong time period. Sole source: Reddit Pushshift r/BlackLivesMatter + r/BlackPeopleTwitter, filtered to 2020-05-25 through 2020-08-31, inference_method=subreddit_proxy, exclude from Sigma_Delta.",
+    "archive_schema_notes": "Twitter BLM 2020 coverage dropped 2026-06-03 \u2014 all candidates are IDs-only, wrong language, or wrong time period. Sole source: Reddit Pushshift r/BlackLivesMatter + r/BlackPeopleTwitter, filtered to 2020-05-25 through 2020-08-31, inference_method=subreddit_proxy, exclude from Sigma_Delta.",
     "date_window": {
       "start": "2020-05-25",
       "shock_date": "2020-05-25",
@@ -1410,8 +1476,8 @@
     "archive_schema_notes": {
       "text": "status",
       "created_at": "timestamp",
-      "lang": "en (hardcoded — field absent in source)",
-      "inference_method": "platform_proxy (Latino/diverse — no user.description)"
+      "lang": "en (hardcoded \u2014 field absent in source)",
+      "inference_method": "platform_proxy (Latino/diverse \u2014 no user.description)"
     },
     "target_blocs": [
       "latino",
@@ -1505,19 +1571,15 @@
     "category": "Electoral/Voting Rights",
     "description": "Joe Biden defeats Donald Trump in presidential election, winning Electoral College 306-232 and popular vote by 7 million; sinking8 Kaggle dataset covers election-week tweets",
     "keywords": [
-      "Biden wins",
-      "Biden elected",
-      "Biden victory",
-      "election night 2020",
-      "Trump loses",
-      "electoral college 2020",
-      "#ElectionNight",
-      "Biden president",
-      "2020 election result",
-      "Pennsylvania called",
-      "swing states 2020",
-      "mail-in ballots",
-      "#BidenHarris2020"
+      "Biden",
+      "Trump",
+      "election",
+      "ballots",
+      "electoral college",
+      "concede",
+      "landslide",
+      "swing state",
+      "exit poll"
     ],
     "archive_ids": [
       "election_2020",
@@ -1525,7 +1587,7 @@
       "discord"
     ],
     "archive_schema_notes": {
-      "user_description": "verification required on first load — determines Tier 1 vs Tier 2"
+      "user_description": "verification required on first load \u2014 determines Tier 1 vs Tier 2"
     },
     "target_blocs": [
       "african_american",
@@ -1540,7 +1602,22 @@
       "start": "2020-10-31",
       "shock_date": "2020-11-03",
       "end": "2020-11-17"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Biden wins",
+      "Biden elected",
+      "Biden victory",
+      "election night 2020",
+      "Trump loses",
+      "electoral college 2020",
+      "#ElectionNight",
+      "Biden president",
+      "2020 election result",
+      "Pennsylvania called",
+      "swing states 2020",
+      "mail-in ballots",
+      "#BidenHarris2020"
+    ]
   },
   {
     "id": "jan_6_insurrection_2021",
@@ -1583,7 +1660,7 @@
     "id": "chauvin_conviction_2021",
     "date": "2021-04-20",
     "category": "Criminal Justice",
-    "description": "Derek Chauvin convicted on all three counts in murder of George Floyd — first Minnesota police officer convicted of murder in the line of duty",
+    "description": "Derek Chauvin convicted on all three counts in murder of George Floyd \u2014 first Minnesota police officer convicted of murder in the line of duty",
     "keywords": [
       "Chauvin verdict",
       "Chauvin conviction",
@@ -1730,7 +1807,7 @@
     "id": "inflation_cpi_peak_2022",
     "date": "2022-06-10",
     "category": "Economic",
-    "description": "US CPI reaches 9.1% year-over-year in June 2022 — highest inflation in 40 years — driven by energy, food, and shelter costs; Fed begins aggressive rate hikes",
+    "description": "US CPI reaches 9.1% year-over-year in June 2022 \u2014 highest inflation in 40 years \u2014 driven by energy, food, and shelter costs; Fed begins aggressive rate hikes",
     "keywords": [
       "inflation",
       "CPI",
@@ -1806,7 +1883,7 @@
     "id": "trump_indictment_2023",
     "date": "2023-06-09",
     "category": "Moral/Scandal",
-    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago — first federal criminal indictment of a former US president",
+    "description": "Trump indicted on 37 federal counts related to classified documents at Mar-a-Lago \u2014 first federal criminal indictment of a former US president",
     "keywords": [
       "Trump indictment",
       "Trump indicted",
@@ -1880,20 +1957,14 @@
     "category": "Geopolitical",
     "description": "Hamas launches surprise attack on southern Israel killing 1,200 people; Israel declares war and begins siege of Gaza",
     "keywords": [
-      "Hamas attack",
-      "Israel Gaza",
-      "Gaza war",
-      "October 7",
-      "#IsraelUnderAttack",
-      "#Gaza",
-      "#Ceasefire",
-      "Palestinian",
+      "Hamas",
+      "Israel",
+      "Gaza",
       "IDF",
-      "hostages Israel",
-      "Gaza bombing",
-      "pro-Palestine protest",
-      "#FreePalestine",
-      "antisemitism campus"
+      "Palestinian",
+      "hostages",
+      "ceasefire",
+      "October 7"
     ],
     "archive_ids": [
       "reddit_pushshift",
@@ -1912,7 +1983,23 @@
       "start": "2023-10-04",
       "shock_date": "2023-10-07",
       "end": "2023-10-21"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Hamas attack",
+      "Israel Gaza",
+      "Gaza war",
+      "October 7",
+      "#IsraelUnderAttack",
+      "#Gaza",
+      "#Ceasefire",
+      "Palestinian",
+      "IDF",
+      "hostages Israel",
+      "Gaza bombing",
+      "pro-Palestine protest",
+      "#FreePalestine",
+      "antisemitism campus"
+    ]
   },
   {
     "id": "trump_conviction_2024",
@@ -1920,17 +2007,14 @@
     "category": "Moral/Scandal",
     "description": "New York jury finds Trump guilty on all 34 felony counts of falsifying business records; first US president convicted of a felony crime",
     "keywords": [
-      "Trump convicted",
-      "Trump guilty",
-      "Trump felony",
-      "New York trial",
-      "#TrumpConvicted",
-      "Trump verdict",
-      "34 counts",
-      "Stormy Daniels trial",
-      "Michael Cohen testimony",
-      "Trump criminal",
-      "hush money trial"
+      "Trump",
+      "guilty",
+      "convicted",
+      "verdict",
+      "hush money",
+      "Stormy",
+      "felony",
+      "trial"
     ],
     "archive_ids": [
       "truth_social_2024",
@@ -1949,7 +2033,20 @@
       "start": "2024-05-27",
       "shock_date": "2024-05-30",
       "end": "2024-06-13"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Trump convicted",
+      "Trump guilty",
+      "Trump felony",
+      "New York trial",
+      "#TrumpConvicted",
+      "Trump verdict",
+      "34 counts",
+      "Stormy Daniels trial",
+      "Michael Cohen testimony",
+      "Trump criminal",
+      "hush money trial"
+    ]
   },
   {
     "id": "trump_assassination_attempt_2024",
@@ -1991,20 +2088,15 @@
     "id": "biden_withdrawal_2024",
     "date": "2024-07-21",
     "category": "Electoral/Voting Rights",
-    "description": "Biden announces he will not seek reelection and endorses VP Kamala Harris — first incumbent president to withdraw from a re-election campaign since LBJ in 1968; covered by kashish-s USC Humans Lab Truth Social dataset",
+    "description": "Biden announces he will not seek reelection and endorses VP Kamala Harris \u2014 first incumbent president to withdraw from a re-election campaign since LBJ in 1968; covered by kashish-s USC Humans Lab Truth Social dataset",
     "keywords": [
-      "Biden drops out",
-      "Biden withdrawal",
-      "Biden endorses Harris",
-      "#BidenDropsOut",
-      "Kamala Harris 2024",
-      "Biden 2024",
-      "Biden announcement",
-      "Biden letter",
-      "Democratic nominee",
-      "Biden debate",
-      "Biden age",
-      "#KamalaHarris"
+      "Biden",
+      "Harris",
+      "withdraw",
+      "dropped out",
+      "endorse",
+      "step aside",
+      "nominee"
     ],
     "archive_ids": [
       "truth_social_2024",
@@ -2023,24 +2115,36 @@
       "start": "2024-07-18",
       "shock_date": "2024-07-21",
       "end": "2024-08-04"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Biden drops out",
+      "Biden withdrawal",
+      "Biden endorses Harris",
+      "#BidenDropsOut",
+      "Kamala Harris 2024",
+      "Biden 2024",
+      "Biden announcement",
+      "Biden letter",
+      "Democratic nominee",
+      "Biden debate",
+      "Biden age",
+      "#KamalaHarris"
+    ]
   },
   {
     "id": "election_2024",
     "date": "2024-11-05",
     "category": "Electoral/Voting Rights",
-    "description": "Donald Trump defeats Kamala Harris in presidential election, winning Electoral College and popular vote. truth_social_2024 (kashish-s USC Humans Lab) coverage ends 2024-10-29, seven days before election day — shock_date is set to that last-coverage date for Truth Social sampling. Reddit (reddit_pushshift) and Telegram (telegram_2024) extend through the post-election window to 2024-11-19.",
+    "description": "Donald Trump defeats Kamala Harris in presidential election, winning Electoral College and popular vote. truth_social_2024 (kashish-s USC Humans Lab) coverage ends 2024-10-29, seven days before election day \u2014 shock_date is set to that last-coverage date for Truth Social sampling. Reddit (reddit_pushshift) and Telegram (telegram_2024) extend through the post-election window to 2024-11-19.",
     "keywords": [
-      "Trump wins 2024",
-      "Trump elected president",
-      "election night 2024",
-      "Kamala Harris concedes",
-      "#Election2024",
-      "Trump victory 2024",
-      "electoral college 2024",
-      "swing states 2024",
-      "Pennsylvania 2024",
-      "Trump Harris debate"
+      "Trump",
+      "Harris",
+      "Kamala",
+      "election",
+      "ballots",
+      "electoral college",
+      "concede",
+      "swing state"
     ],
     "archive_ids": [
       "truth_social_2024",
@@ -2061,6 +2165,18 @@
       "start": "2024-10-15",
       "shock_date": "2024-10-29",
       "end": "2024-11-19"
-    }
+    },
+    "_keywords_pre_step43_loosening": [
+      "Trump wins 2024",
+      "Trump elected president",
+      "election night 2024",
+      "Kamala Harris concedes",
+      "#Election2024",
+      "Trump victory 2024",
+      "electoral college 2024",
+      "swing states 2024",
+      "Pennsylvania 2024",
+      "Trump Harris debate"
+    ]
   }
 ]

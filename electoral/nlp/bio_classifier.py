@@ -45,12 +45,14 @@ import dataclasses
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.nlp.lexicon_match import has_word_boundary_match
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +75,15 @@ _LANG_TO_PRIOR: dict[str, str] = {
 
 # Languages we treat as English (no language-prior fallback)
 _ENGLISH_LANGS: frozenset[str] = frozenset(["en", "en-gb", "en-us", "en-au", "en-ca", ""])
+
+# Supplementary regex-based signal, mirroring scripts/sample_archives.py's
+# keyword_bio_bloc() -- see that module's comment for why these can't be
+# plain lexicon substring keys ("male" is a substring of "female"; scripture
+# citations are structurally unbounded). Accumulated into the stratum dicts
+# alongside lexicon hits, same as any other keyword match.
+_GENDER_MALE_RE = re.compile(r"\bmale\b", re.IGNORECASE)
+_GENDER_FEMALE_RE = re.compile(r"\bfemale\b", re.IGNORECASE)
+_SCRIPTURE_CITE_RE = re.compile(r"\b[1-3]?\s?[A-Z][a-z]{2,15}\.?\s\d{1,3}:\d{1,3}\b")
 
 
 def _normalize_weights(accumulated: dict[str, float]) -> dict[str, float]:
@@ -239,19 +250,29 @@ class BioClassifier:
         gen_acc: dict[str, float] = {}
 
         for kw, weights in self._race_lex.items():
-            if kw in bio_lower:
+            if kw in bio_lower and has_word_boundary_match(kw, bio_lower):
                 for bloc, w in weights.items():
                     race_acc[bloc] = race_acc.get(bloc, 0.0) + w
 
         for kw, weights in self._rel_lex.items():
-            if kw in bio_lower:
+            if kw in bio_lower and has_word_boundary_match(kw, bio_lower):
                 for bloc, w in weights.items():
                     rel_acc[bloc] = rel_acc.get(bloc, 0.0) + w
 
         for kw, weights in self._gen_lex.items():
-            if kw in bio_lower:
+            if kw in bio_lower and has_word_boundary_match(kw, bio_lower):
                 for bloc, w in weights.items():
                     gen_acc[bloc] = gen_acc.get(bloc, 0.0) + w
+
+        if _GENDER_MALE_RE.search(bio):
+            for bloc, w in {"men": 0.9, "other_gender": 0.1}.items():
+                gen_acc[bloc] = gen_acc.get(bloc, 0.0) + w
+        if _GENDER_FEMALE_RE.search(bio):
+            for bloc, w in {"women": 0.9, "other_gender": 0.1}.items():
+                gen_acc[bloc] = gen_acc.get(bloc, 0.0) + w
+        if _SCRIPTURE_CITE_RE.search(bio):
+            for bloc, w in {"evangelical": 0.4, "protestant": 0.35, "catholic": 0.25}.items():
+                rel_acc[bloc] = rel_acc.get(bloc, 0.0) + w
 
         if not race_acc and not rel_acc and not gen_acc:
             return None

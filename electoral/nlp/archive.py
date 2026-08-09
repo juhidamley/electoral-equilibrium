@@ -428,7 +428,23 @@ class HistoricalArchiveLoader:
           7. Save to rawdata/social/archive/{shock_id}/{archive_id}.jsonl
 
         Returns the list of normalized payload dicts (envelope stripped).
+        Step 4.1: archive_ids in configs/excluded_sources.json are ineligible
+        for bloc-level training (0% usable bio_bloc, verified) -- this method
+        refuses to load them at all rather than loading and silently
+        producing an empty-signal file. See electoral/data/excluded_sources.py.
         """
+        from electoral.data.excluded_sources import excluded_archive_ids
+
+        if archive_id in excluded_archive_ids():
+            logger.info(
+                "load(%s, %s): archive_id is excluded from bloc-level training "
+                "(configs/excluded_sources.json) -- skipping load entirely, "
+                "0 records returned.",
+                shock_id,
+                archive_id,
+            )
+            return []
+
         # ── 1. Resolve archive directory ─────────────────────────────────────
         # Resolution order: JUHIDRIVE_ROOT env var > base.json data_root > self._root
         config_path = _REPO_ROOT / "configs" / "base.json"

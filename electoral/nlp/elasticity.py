@@ -55,7 +55,12 @@ from electoral.artifacts import (
     SentimentData,
     SocialMediaSentimentData,
 )
-from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.core.types import (
+    BIN_MIDPOINTS,
+    CANONICAL_GENDERS,
+    CANONICAL_RACES,
+    CANONICAL_RELIGIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,22 +69,25 @@ _DEFAULT_FINETUNE_DIR = _REPO_ROOT / "data" / "finetune"
 
 _ALL_BLOCS: list[str] = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
 
-# NOT rescaled by Step 2.1 (see DECISIONS.md). Local duplicate of
-# electoral.core.types.BIN_MIDPOINTS, deliberately left at the OLD ±0.12
-# scale: assemble_finetune_dataset() below builds data/finetune/*.jsonl,
-# and the existing corpus is at the old scale until a separate later
-# regeneration step. Update together with that step, not before it.
-BIN_MIDPOINTS: dict[str, float] = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
-    "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
-}
+# Step 5.2: BIN_MIDPOINTS is now IMPORTED from electoral.core.types (see the
+# import block above), not redefined here. This module previously carried its
+# own copy, which Step 2.1 deliberately left at the old ±0.12 scale and Step 5.1
+# hand-synced to ±0.03 -- hand-syncing being exactly how it drifted in the first
+# place. It is re-exported implicitly (callers doing
+# `from electoral.nlp.elasticity import BIN_MIDPOINTS` still work) but there is
+# now only one definition in the codebase. Guarded by
+# tests/test_bin_midpoints_sync.py.
+#
+# NOTE for anyone rescaling the delta bins again: _BIN_THRESHOLDS below is NOT
+# part of that rescale and must NOT be changed with it. It partitions the
+# RoBERTa SENTIMENT score domain [-1, 1], not the vote-share delta domain
+# [-0.0375, 0.0375]. It maps a continuous sentiment score to a bin LABEL;
+# BIN_MIDPOINTS then maps that label to a delta. The two tables are on
+# different scales by design, which is why _BIN_THRESHOLDS still contains
+# literals like 0.15/0.30/0.50 that superficially resemble the old
+# pre-Step-2.1 delta scale. Rescaling the delta bins changes what a given
+# sentiment score IMPLIES in vote-share terms (the intended effect) without
+# changing where the sentiment cutpoints sit.
 
 # 9-token bin thresholds (lower bound inclusive, upper bound exclusive except neutral)
 _BIN_THRESHOLDS: list[tuple[float, float, str]] = [

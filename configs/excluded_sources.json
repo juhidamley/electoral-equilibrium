@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "frozen_date": "2026-08-01",
+    "principle": "APPEND-ONLY IN SPIRIT: sources may be ADDED to `excluded_sources` in a future edit, but a source already present here must never be REMOVED without an explicit justification note (a written reason, dated, explaining what changed) attached in that same edit -- silent removal is not permitted, matching the discipline in configs/held_out_shocks.json.",
+    "scope": [
+      "No record whose payload.archive_id matches an entry in `excluded_sources` may be used to build bloc-level training data (per-bloc sentiment aggregates, delta-bin labels, or any downstream fine-tuning record derived from a per-bloc signal).",
+      "This is a TRAINING-ELIGIBILITY exclusion, not a deletion. Excluded sources remain on disk in full and may still be used for non-bloc purposes: aggregate event-level context (e.g. a shock's overall news volume/sentiment where no per-bloc breakdown is claimed), future classifier development/evaluation, or provenance and audit records.",
+      "Matching is on payload.archive_id ONLY, never on payload.platform. platform is overloaded and stores subreddit names for Reddit records (Step 0.1) -- matching on it would either miss records or accidentally exclude unrelated Reddit subreddits that happen to share a string.",
+      "This applies to every model version, present and future -- a source is not excluded 'for now', it is excluded until explicitly reinstated with a dated justification note (see election_2012's reinstatement condition below for the one source where that is plausible)."
+    ],
+    "enforcement": [
+      "electoral/data/excluded_sources.py -- is_excluded_source()/excluded_archive_ids()/filter_excluded(), the single source of truth read by all pipeline code, structured to mirror electoral/data/held_out.py",
+      "Wired into: scripts/sample_archives.py (resampling), electoral/nlp/archive.py::HistoricalArchiveLoader.load() (archive loading), electoral/kernels/sentiment.py::merge_posts() (social-media labeling pipeline), scripts/aggregate_shock_sentiment.py (per-bloc label aggregation / corpus builder)"
+    ],
+    "total_records_in_corpus": 298835,
+    "records_removed_by_exclusion": 88323,
+    "records_remaining": 210512,
+    "usable_bio_bloc_before_exclusion": 128437,
+    "usable_bio_bloc_after_exclusion": 120493,
+    "usable_bio_bloc_figures_corrected_on": "2026-08-03",
+    "impact_summary": "UPDATED 2026-08-03 -- the original claim below (that excluding these three sources changes the usable-bio_bloc count by exactly zero) is NO LONGER TRUE and is retained struck-through-in-spirit for the record, not as current fact. It was true only at the 2026-08-01 freeze, before two corrections: the election_2012 nested-bio extraction fix (2026-08-01) and the lexicon word-boundary precision fix (2026-08-02, corpus-wide training-eligible usable 153,215 -> 120,493). discord and 3dlnews still contribute exactly 0 usable records (structurally bio-less, unaffected by either fix) -- that part of the original claim holds. election_2012 does NOT: it now yields 7,944 usable bio_bloc records under the corrected lexicon (14.95% of its 53,132 records), all of which are removed from the usable-bio_bloc pool by this exclusion because election_2012 remains excluded (extraction-bug ground resolved; on-topic-rate ground still open -- see its reinstatement_condition). usable_bio_bloc_before_exclusion (128,437) minus usable_bio_bloc_after_exclusion (120,493) = 7,944, exactly election_2012's corrected usable count -- confirms discord/3dlnews still contribute zero and the entire delta is election_2012. Original 2026-08-01 snapshot text follows for provenance: \"All three excluded archive_ids contributed exactly 0 usable (non-'unknown') bio_bloc records before this exclusion (verified against the real corpus at /Volumes/JUHIDRIVE/electoralData/merged/, 298,835 records across 51 shock files, 2026-08-01). Excluding them removes 88,323 records (29.6% of the corpus) but changes the usable-bio_bloc count, and every one of the 15 per-bloc usable counts, by exactly zero.\" The counts above are a SNAPSHOT as of usable_bio_bloc_figures_corrected_on, not a live figure -- re-run scripts/sample_archives.py::keyword_bio_bloc() against the current corpus and lexicons for an up-to-date number rather than trusting this snapshot indefinitely."
+  },
+  "excluded_sources": [
+    {
+      "archive_id": "discord",
+      "match_field": "payload.archive_id",
+      "match_value": "discord",
+      "category": "off-topic",
+      "reason": "0-3% on-topic (Pokemon bots, welcome messages, gaming chatter) AND 0% usable bio_bloc (author_description is always null for Discord exports -- there is no bio field to classify in the first place, not merely an unclassified one).",
+      "phase_0_numbers": {
+        "total_records": 33521,
+        "on_topic_pct_range": "0-3%",
+        "usable_bio_bloc_pct": 0,
+        "usable_bio_bloc_count": 0
+      },
+      "date_excluded": "2026-08-01",
+      "reinstatement_condition": null
+    },
+    {
+      "archive_id": "3dlnews",
+      "match_field": "payload.archive_id",
+      "match_value": "3dlnews",
+      "category": "off-topic-and-no-bio-field",
+      "reason": "0-3% on-topic (weather, crime blotter, shark attacks) AND no author bios exist for news-wire content -- per-bloc signal is impossible even in principle, not merely unclassified. Excluded for the SAME reason as Discord (off-topic content), not merely for lacking bios (compare election_2012 below, which is excluded for a different, narrower reason).",
+      "phase_0_numbers": {
+        "total_records": 1670,
+        "on_topic_pct_range": "0-3%",
+        "usable_bio_bloc_pct": 0,
+        "usable_bio_bloc_count": 0
+      },
+      "date_excluded": "2026-08-01",
+      "reinstatement_condition": null
+    },
+    {
+      "archive_id": "election_2012",
+      "match_field": "payload.archive_id",
+      "match_value": "election_2012",
+      "category": "bio-extraction-bug-not-junk",
+      "reason": "DISTINCT NUANCE -- read this before treating this source like Discord/3dlnews. This is the single largest archive_id in the corpus (53,132 records, all under the election_2012 shock) and is excluded because of a CONFIRMED EXTRACTION BUG, not because it is off-topic junk. CORRECTION (2026-08-01, Phase 4 follow-up): this archive was previously described here as 'unprocessed' / 'bio classification was never run against it' -- that was factually wrong. It WAS run through the pipeline; the bio extraction silently failed. election_2012's tweets.json uses the nested Twitter-API-v1 shape ({\"user\": {\"description\": \"...\"}}), and scripts/sample_archives.py::iter_archive()'s .json/.jsonl branch (~lines 587-596) only did flat-key lookups (author_description/user_description/description/author), none of which reach the nested path -- so author_description was silently None for every record, indistinguishable from 'no bio field exists' even though 85.9% of a 200K-record raw sample HAS a non-empty user.description. The bug is FIXED as of this edit (nested lookup ported in, additive to the existing flat keys, per build_bio_labels.py::_iter_json_bios's already-correct handling of the same shape). On its own terms this archive is an honest September-2012 Twitter firehose baseline; roughly 35-40% of its records are actually about the election (comparable to, or better than, many other archives' on-topic rates), and the remaining 60-65% is generic contemporaneous chatter, not gibberish or bot spam like Discord. A future reader MUST NOT conflate this with Discord-grade noise. Re-extraction and re-measurement against the fixed code, PLUS the on-topic-rate question below, are both required before reinstatement -- see reinstatement_condition.",
+      "phase_0_numbers": {
+        "total_records": 53132,
+        "on_topic_pct_range": "35-40%",
+        "usable_bio_bloc_pct": 14.95,
+        "usable_bio_bloc_count": 7944,
+        "note": "DOUBLY SUPERSEDED. Round 1 (2026-08-01, extraction-bug fix): 0/0 -> 11,275 usable (21.22%) under the pre-precision-fix lexicon -- see git history / prior session for that intermediate figure, not reproduced here to avoid a third stale number sitting in this file. Round 2 (2026-08-02, lexicon word-boundary precision fix): 11,275 -> 7,944 usable (14.95%), re-patched against the corrected lexicon (configs/{race,religion,gender}_lexicon.json) in the same file, second backup preserved (posts.jsonl.pre_lexicon_precision_fix_2026-08-02, alongside posts.jsonl.pre_bio_extraction_fix_2026-08-01). The 7,944 figure is current as of usable_bio_bloc_figures_corrected_on in this file's _meta block. Re-verify against the corpus before relying on it further out."
+      },
+      "date_excluded": "2026-08-01",
+      "extraction_bug_fixed": "2026-08-01",
+      "lexicon_precision_fix_applied": "2026-08-02",
+      "reinstatement_condition": "TWO independent grounds gated this exclusion: (1) bio-classification yield -- NOW MEASURED at 7,944 usable (14.95%) under the corrected lexicon, both the extraction bug and the lexicon precision bug are fixed; this ground is resolved, not just \"potentially fixed\". (2) only ~35-40% of records are on-topic for the election_2012 shock specifically (this is an honest firehose baseline, not an election-specific collection) -- NEITHER fix touches this ground at all, it remains exactly as open as it was at the 2026-08-01 freeze. Reinstatement still requires evaluating ground (2): determine whether the 7,944 newly-bio-attributed records clear an acceptable on-topic bar (if not, this becomes a candidate for relevance filtering -- e.g. the same DeepSeek pass used elsewhere in Step 4.3 -- rather than outright reinstatement). Do not reinstate on ground (1) alone, even though it is now resolved."
+    }
+  ]
+}

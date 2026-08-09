@@ -191,12 +191,15 @@ cython_debug/
 # Project data directories (large files, not for version control)
 /data/
 artifacts/
-# rawdata: ignore large runtime outputs but track documentation and reports
+# rawdata: ignore all runtime outputs and data documents
 rawdata/social/
 rawdata/articles/
 rawdata/merged/
 rawdata/*.jsonl
 rawdata/*.parquet
+rawdata/*.json
+rawdata/*.csv
+rawdata/*.txt
 
 # Ruff stuff:
 .ruff_cache/
@@ -314,24 +317,8 @@ devlog/
 # ── markdown files ─────────────────────────────────────────
 # Markdown files are used for documentation and notes, but may contain sensitive info or be too verbose for version control.
 *.md
-!DECISIONS.md        # canonical architecture decision log — always track
 
 # ── Docs ─────────────────────────────────────────
-#  Documentation may contain generated files, build artifacts, or sensitive info. Track source files but ignore build outputs.
-# NOTE: `docs/*` (not `docs/`) is deliberate -- a trailing-slash directory
-# pattern makes git refuse to traverse into it at all, which silently breaks
-# the negation carve-out below (a well-known gitignore gotcha: you cannot
-# re-include a path whose parent directory was excluded via a `dir/`-style
-# pattern, only via a `dir/*`-style glob).
+#  Documentation may contain generated files, build artifacts, or sensitive info. Not tracked in git.
 docs/*
-# Carve-out: the elicitation protocol's pre-registration mechanism depends on
-# git commit history as tamper-evidence (docs/elicitation/protocol.md §3) --
-# it must actually be tracked, unlike the rest of docs/.
-!docs/elicitation/
-!docs/elicitation/**
-# Carve-out: canonical design docs (e.g. optimizer_framing.md) are meant to be
-# lifted verbatim into the paper/UI/README -- they must be tracked like any
-# other source file, not treated as disposable notes.
-!docs/design/
-!docs/design/**
 .vercel

@@ -1,5 +1,5 @@
 {
-  "note": "Bio keyword → religion weights. Stage 1 of 3-stage bio inference. Keys lowercase; longer patterns (e.g. 'southern baptist') are more specific and accumulate on top of shorter ones — normalisation handles any double-counting.",
+  "note": "Bio keyword → religion weights. Stage 1 of 3-stage bio inference. Keys lowercase; longer patterns (e.g. 'southern baptist') are more specific and accumulate on top of shorter ones — normalisation handles any double-counting. Bare scripture citations (e.g. 'Hebrews 13:2') are NOT enumerable as lexicon substrings -- matched via a book:chapter:verse regex in code (keyword_bio_bloc() in scripts/sample_archives.py, _stage1_keyword() in electoral/nlp/bio_classifier.py), applied after this lexicon scan, weighted toward evangelical/protestant per the observed bio-citation pattern. All matches now go through electoral.nlp.lexicon_match.has_word_boundary_match() (Phase 4 precision audit, 2026-08-02) -- a plain substring scan found 21.96% of corpus-wide 'usable' bio_bloc assignments were internal-substring matches, not genuine ones. 'bright' was REMOVED entirely, not just boundary-fixed: even at a clean word boundary it was essentially never a reference to the Unitarian/humanist 'Brights' movement in practice -- every hand-checked boundary match was the ordinary English adjective ('bright future', 'bright colors', 'bright side', or a media outlet's name). 'pagan' and 'lds' were KEPT (word-boundary fix alone resolves them cleanly): 'pagan' internal matches were almost entirely 'propaganda'; boundary matches ('Celtic Pagan', 'Pagan witch') are genuine. 'lds' internal matches were scattered noise; boundary matches ('LDS Christian', 'LDS Conservative') are genuine.",
   "keywords": {
     "evangelical":              {"evangelical": 1.0},
     "born again":               {"evangelical": 1.0},
@@ -20,6 +20,7 @@
     "fundamentalist":           {"evangelical": 0.9, "protestant": 0.1},
     "assemblies of god":        {"evangelical": 1.0},
     "baptist":                  {"evangelical": 0.7, "protestant": 0.3},
+    "salvation army":           {"evangelical": 0.7, "protestant": 0.3},
 
     "protestant":               {"protestant": 1.0},
     "lutheran":                 {"protestant": 1.0},
@@ -64,7 +65,6 @@
     "free thinker":             {"secular": 1.0},
     "skeptic":                  {"secular": 0.85, "other_rel": 0.15},
     "secular humanist":         {"secular": 1.0},
-    "bright":                   {"secular": 0.7, "other_rel": 0.3},
 
     "jewish":                   {"jewish": 1.0},
     "jew":                      {"jewish": 1.0},
@@ -97,6 +97,8 @@
     "sunni":                    {"muslim": 1.0},
     "shia":                     {"muslim": 1.0},
     "sufi":                     {"muslim": 0.9, "other_rel": 0.1},
+    "salafi":                   {"muslim": 1.0},
+    "salafist":                 {"muslim": 1.0},
     "الحمد لله":               {"muslim": 1.0},
     "إن شاء الله":             {"muslim": 1.0},
 

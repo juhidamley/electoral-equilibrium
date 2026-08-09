@@ -282,20 +282,35 @@ def merge_posts(
     rawdata/merged/{shock_id}/posts.jsonl. The scorer reads only from merged/
     and is blind to how many platforms or files contributed.
 
+    Step 4.1: records whose payload.archive_id is in
+    configs/excluded_sources.json are dropped before they reach merged/ --
+    this is the social-media labeling pipeline's merge step, one of the
+    "every path that builds bloc-level training data" enforcement points
+    (see electoral/data/excluded_sources.py). Defense-in-depth alongside
+    HistoricalArchiveLoader.load() refusing to load these archive_ids in the
+    first place -- this catches any pre-existing file already on disk from
+    before that guard existed.
+
     Running twice overwrites deterministically — output is identical.
 
-    Returns total number of post records written.
+    Returns total number of post records written (excluded-source records
+    are NOT counted in the return value; see the logged per-shock count for
+    how many were dropped).
     """
     import json as _json
 
+    from electoral.data.excluded_sources import excluded_archive_ids
+
     posts_root = Path(posts_root) if posts_root else _REPO_ROOT / "rawdata" / "social"
     merged_root = Path(merged_root) if merged_root else _REPO_ROOT / "rawdata" / "merged"
+    excl_archive_ids = excluded_archive_ids()
 
     out_path = merged_root / shock_id / "posts.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     platform_counts: dict[str, int] = {}
     total = 0
+    n_excluded = 0
 
     with open(out_path, "w", encoding="utf-8") as out_f:
         # Walk every platform directory under rawdata/social/
@@ -322,12 +337,23 @@ def merge_posts(
                             payload = record.get("payload", record)
                             if not payload.get("text"):
                                 continue
+                            if payload.get("archive_id") in excl_archive_ids:
+                                n_excluded += 1
+                                continue
                             out_f.write(_json.dumps(payload, ensure_ascii=False))
                             out_f.write("\n")
                             count += 1
                             total += 1
                 if count:
                     platform_counts[platform] = platform_counts.get(platform, 0) + count
+
+    if n_excluded:
+        logger.info(
+            "merge_posts(%s): dropped %d record(s) from excluded source(s) "
+            "(configs/excluded_sources.json)",
+            shock_id,
+            n_excluded,
+        )
 
     logger.info(
         "merge_posts(%s): %d total posts → %s  breakdown=%s",

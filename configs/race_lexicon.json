@@ -1,5 +1,5 @@
 {
-  "note": "Bio keyword → race weights. Stage 1 of 3-stage bio inference. Keys lowercase; values are {race_id: weight} summing to 1.0. Longer/more-specific patterns take precedence because all matching keywords accumulate and are normalised.",
+  "note": "Bio keyword → race weights. Stage 1 of 3-stage bio inference. Keys lowercase; values are {race_id: weight} summing to 1.0. Longer/more-specific patterns take precedence because all matching keywords accumulate and are normalised. All matches now go through electoral.nlp.lexicon_match.has_word_boundary_match() (Phase 4 precision audit, 2026-08-02) -- a plain substring scan found 21.96% of corpus-wide 'usable' bio_bloc assignments were internal-substring matches, not genuine ones. 'desi' was REMOVED entirely, not just boundary-fixed: 98.8% of its matches were internal (matching inside 'Afrodesiac', '@parsonsdesign', 'desire', 'designer'), and even its tiny (20-record) word-boundary pool was roughly half media/publication names ('the desi times', 'Desi Do... radio') rather than personal self-identification -- negligible genuine yield against severe false-positive cost. 'black' was KEPT (word-boundary fix alone resolves most of it): 48.1% of its matches were internal ('Blackman', 'BlackDickVerified', 'blacksmith'-style compounds); the remaining word-boundary matches ('Black Conservative', 'Verified Black Person', 'Angry Black Woman') are predominantly genuine self-identification, with a residual known caveat that boundary-clean solidarity language ('BLACK LIVES MATTER' as spaced words, not hashtag) doesn't reliably indicate the author's own race -- unresolved by any substring-matching approach, flagged for hand-verification rather than mechanical fixing.",
   "keywords": {
     "african american":    {"african_american": 1.0},
     "african-american":    {"african_american": 1.0},
@@ -43,7 +43,6 @@
     "east asian":          {"asian": 1.0},
     "southeast asian":     {"asian": 1.0},
     "south asian":         {"asian": 1.0},
-    "desi":                {"asian": 1.0},
     "chinese american":    {"asian": 1.0},
     "korean american":     {"asian": 1.0},
     "japanese american":   {"asian": 1.0},

@@ -53,6 +53,10 @@ except ImportError:
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from electoral.data.excluded_sources import excluded_archive_ids  # noqa: E402
+from electoral.nlp.lexicon_match import has_word_boundary_match  # noqa: E402
+
 CONFIG_PATH = REPO_ROOT / "configs" / "base.json"
 SHOCKS_PATH = REPO_ROOT / "configs" / "shocks.json"
 RACE_LEXICON_PATH = REPO_ROOT / "configs" / "race_lexicon.json"
@@ -67,6 +71,27 @@ PRE_SHOCK_DAYS = 3  # days before shock date to include
 EXTREMITY_THRESHOLD = 0.5  # VADER |compound| > this = extreme
 EXTREMITY_WEIGHT = 2.0  # oversample multiplier for extreme posts
 UNKNOWN_BLOC = "unknown"
+
+# Supplementary regex-based signal, for patterns that can't be plain lexicon
+# substring keys -- either because they collide via substring containment
+# ("male" is a substring of "female"; a bare lexicon key would make every
+# "female" bio spuriously match "male" too) or because they're structurally
+# unbounded and can't be enumerated (Bible citations: "Hebrews 13:2", "1 John
+# 4:11", ...). Checked after the plain lexicon scan within each stratum, via
+# the same best-weight-wins comparison as keyword_bio_bloc()/_stage1_keyword().
+_GENDER_MALE_RE = re.compile(r"\bmale\b", re.IGNORECASE)
+_GENDER_FEMALE_RE = re.compile(r"\bfemale\b", re.IGNORECASE)
+_SCRIPTURE_CITE_RE = re.compile(r"\b[1-3]?\s?[A-Z][a-z]{2,15}\.?\s\d{1,3}:\d{1,3}\b")
+
+_SUPPLEMENTARY_PATTERNS: dict[str, list[tuple[re.Pattern, dict[str, float]]]] = {
+    "gender": [
+        (_GENDER_MALE_RE, {"men": 0.9, "other_gender": 0.1}),
+        (_GENDER_FEMALE_RE, {"women": 0.9, "other_gender": 0.1}),
+    ],
+    "religion": [
+        (_SCRIPTURE_CITE_RE, {"evangelical": 0.4, "protestant": 0.35, "catholic": 0.25}),
+    ],
+}
 
 # Relative sampling weights per bloc — CNN 2024 NEP (religion/gender) and
 # Pew/Census (race). These shares OVERLAP: a person is simultaneously in a
@@ -145,9 +170,16 @@ def build_task_list(shocks_path: Path) -> list[dict]:
     archives with partial coverage (e.g. truth_social_2024 ending before election day)
     sample against the correct anchor date. window_start and window_end are read from
     date_window if present, otherwise calculated from shock_date and shock_window_days.
+
+    Step 4.1: archive_ids in configs/excluded_sources.json are ineligible for
+    bloc-level training (0% usable bio_bloc, verified) -- no task is ever
+    generated for them, so a future sampling run can't regenerate more of
+    this data. Skipped tasks are counted and logged, not silently dropped.
     """
     shocks = json.loads(shocks_path.read_text())
+    excl_archive_ids = excluded_archive_ids()
     tasks = []
+    n_skipped = 0
     for shock in shocks:
         if not shock.get("active", True):
             continue
@@ -160,6 +192,15 @@ def build_task_list(shocks_path: Path) -> list[dict]:
         )
         window_end = dw.get("end") or (shock_dt + timedelta(days=window_days)).strftime("%Y-%m-%d")
         for archive_id in shock.get("archive_ids", []):
+            if archive_id in excl_archive_ids:
+                n_skipped += 1
+                logger.debug(
+                    "build_task_list: skipping excluded archive_id=%s for shock=%s "
+                    "(configs/excluded_sources.json)",
+                    archive_id,
+                    shock["id"],
+                )
+                continue
             tasks.append(
                 {
                     "shock_id": shock["id"],
@@ -171,6 +212,14 @@ def build_task_list(shocks_path: Path) -> list[dict]:
                     "target_blocs": shock.get("target_blocs", []),
                 }
             )
+    if n_skipped:
+        logger.info(
+            "build_task_list: skipped %d task(s) for excluded archive_id(s) %s "
+            "(configs/excluded_sources.json) -- %d task(s) remain",
+            n_skipped,
+            sorted(excl_archive_ids),
+            len(tasks),
+        )
     return tasks
 
 
@@ -201,6 +250,11 @@ def keyword_bio_bloc(bio: str | None, lexicons: dict) -> str:
     to the next lexicon if the current one has zero keyword hits. Within a lexicon,
     selects the bloc with the highest weight among all matching keywords.
     Falls back to UNKNOWN_BLOC if no lexicon matches anything.
+
+    Matches must land on a word boundary (electoral.nlp.lexicon_match), not
+    merely appear as a substring -- a Phase 4 precision audit found 21.96% of
+    "usable" assignments were internal-substring matches ("son" inside
+    "Ferguson", "desi" inside "Afrodesiac", "trans" inside "transnational").
     """
     if not bio:
         return UNKNOWN_BLOC
@@ -210,7 +264,14 @@ def keyword_bio_bloc(bio: str | None, lexicons: dict) -> str:
         best_bloc = UNKNOWN_BLOC
         best_weight = 0.0
         for keyword, weights in stratum_kws.items():
-            if keyword in bio_lower:
+            if keyword in bio_lower and has_word_boundary_match(keyword, bio_lower):
+                top_bloc = max(weights, key=lambda b: weights[b])
+                top_weight = weights[top_bloc]
+                if top_weight > best_weight:
+                    best_weight = top_weight
+                    best_bloc = top_bloc
+        for pattern, weights in _SUPPLEMENTARY_PATTERNS.get(stratum, []):
+            if pattern.search(bio):
                 top_bloc = max(weights, key=lambda b: weights[b])
                 top_weight = weights[top_bloc]
                 if top_weight > best_weight:
@@ -557,13 +618,35 @@ def iter_archive(
                         created_at = parse_timestamp(_v)
                         logger.debug("%s: created_at from field '%s'", path.name, _df)
                         break
+                # Nested Twitter-API-v1 shape: {"user": {"description": "..."}}.
+                # Flat-key lookups below never reach this -- election_2012's
+                # tweets.json uses exactly this shape (85.9% of records have a
+                # non-empty user.description) and was silently nulled by their
+                # absence. Checked additively, after the flat keys.
+                #
+                # NO row.get("author") fallback: that field is a USERNAME/HANDLE,
+                # not a bio, in every archive that hits this branch without a real
+                # bio field (daca_scotus_2020's schema is {author, sentiment,
+                # status, timestamp} -- no bio field exists at all, structurally,
+                # same category as Discord/3dlnews, not an extraction bug like
+                # election_2012's). Treating a handle as a bio doesn't just fail
+                # to find signal, it actively produces WRONG signal: a Phase 4
+                # precision audit found all 12 of this archive's then-"usable"
+                # bio_bloc assignments were spurious substring matches inside
+                # usernames (NBCLatino -> latino, itsjeaninemason -> men via
+                # "son", SistersofMercy -> women, etc.) -- worse than unknown,
+                # since it's silently wrong rather than visibly absent. Removed
+                # 2026-08-03; author_description now correctly ends up None for
+                # this archive, same as any other source with no bio field.
+                _user_obj = row.get("user")
+                _nested_bio = _user_obj.get("description") if isinstance(_user_obj, dict) else None
                 yield {
                     "text": text,
                     "created_at": created_at,
                     "author_description": row.get("author_description")
                     or row.get("user_description")
                     or row.get("description")
-                    or row.get("author"),
+                    or _nested_bio,
                     "post_id": str(row.get("id") or row.get("post_id") or ""),
                     "platform": row.get("platform", "unknown"),
                 }

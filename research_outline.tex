@@ -221,6 +221,27 @@ politically engaged and skew by platform (TruthSocial conservative; TikTok
 young/diverse); surveys under-represent low-response strata. These are carried
 as limitations, not silently corrected.
 
+\textbf{Reddit archive scope: no new collection.} The Reddit archive covers 84
+curated, politically/demographically relevant subreddits, downloaded once at
+project start. A later audit (Phase 4, Step 4.3) found that several
+criminal-justice-era shock events have near-zero on-topic recall in this
+archive even after content-relevance keyword matching was reconnected to the
+Reddit sampling path (previously the shock label came from date window alone).
+The cause is structural, not a tuning problem: the general-news venues where
+this content concentrates (\texttt{r/news}, \texttt{r/worldnews},
+\texttt{r/PublicFreakout}) were never in the curated 84-subreddit set.
+Expanding collection to those venues was evaluated and \textbf{rejected}: the
+canonical venue for this content, \texttt{r/PublicFreakout}, did not exist
+until October 2013 (postdating the earliest target shock) and \texttt{r/worldnews}
+categorically excludes US-domestic news by its own subreddit rules, so neither
+closes the gap regardless of collection effort; no available 2026 discovery
+tool (Arctic Shift, PullPush, Academic Torrents) reports shock-level content
+density in advance, so a new collection run would carry the same
+unverified-density risk that already produced near-zero yield once. Full
+reasoning and evidence: \texttt{DECISIONS.md}, Phase 4 Step 4.3. This is
+disclosed as a bounded, structural limitation of retrospective social-media
+research generally, not specific to this archive -- see Limitations.
+
 \subsection{Synthetic shock--response data}
 % Corpus counts VERIFIED via: wc -l data/finetune/*.jsonl
 % = 1,228 synthetic.jsonl (merged corpus) / 982 train.jsonl / 246 eval.jsonl.
@@ -720,6 +741,16 @@ mean $\sim$11.82\,s/inference).}
         ($\mu{=}0.50$), understating uncertainty.
   \item \textbf{Small-sample covariance:} 8 first-differences even after
         shrinkage; thin blocs remain data-limited.
+  \item \textbf{Retrospective social-media collection is structurally bounded,
+        not just under-resourced:} for several criminal-justice-era shocks,
+        the venues where discussion concentrates either postdate the event
+        (\texttt{r/PublicFreakout}, created Oct.\ 2013, after
+        \texttt{boston\_marathon\_2013}) or categorically exclude the relevant
+        content by platform rule (\texttt{r/worldnews} bars US-domestic news).
+        No 2026 discovery tool exposes content density in advance of
+        collection, so this is disclosed as a general constraint on this kind
+        of research, not merely a gap this project chose not to fill; see
+        \texttt{DECISIONS.md}, Phase 4 Step 4.3.
 \end{itemize}
 
 % =====================================================================

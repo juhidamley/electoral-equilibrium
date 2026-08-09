@@ -260,7 +260,15 @@ model-internal effective-loyalty quantity, not a literal vote count. Synthetic
 labels are LLM-generated, a documented deviation from the project's
 reproducibility rule for this stage. And even after shrinkage the covariance
 rests on only eight first-differences, so the thinnest blocs remain data-limited.
-The residual $+0.028$ base-model lean is reported, not hidden.
+The residual $+0.028$ base-model lean is reported, not hidden. Finally, several
+criminal-justice-era shocks have near-zero on-topic Reddit recall because the
+venues where that discussion concentrates were either not yet created at the
+time of the event (e.g.\ \texttt{r/PublicFreakout}, founded October 2013) or
+categorically exclude US-domestic content by platform rule (\texttt{r/worldnews}).
+No presently available discovery tool reports content density before collection,
+so this is disclosed as a structural bound on retrospective social-media
+research rather than a gap this project simply failed to fill; expanding
+collection was evaluated and rejected on this evidence (\texttt{DECISIONS.md}).
 
 \section*{Status}
 The pipeline runs end to end and is deployed behind a streaming web interface.

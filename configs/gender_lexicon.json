@@ -1,5 +1,5 @@
 {
-  "note": "Bio keyword → gender weights. Weakest of the three lexicons — SetFit takes precedence. Explicit pronouns are highest confidence. Gender-role words (mom, dad) signal with slight other_gender mass for non-binary edge cases. Keys lowercase.",
+  "note": "Bio keyword → gender weights. Weakest of the three lexicons — SetFit takes precedence. Explicit pronouns are highest confidence. Gender-role words (mom, dad) signal with slight other_gender mass for non-binary edge cases. Keys lowercase. NOTE: 'male'/'female' are intentionally NOT plain substring keys here -- 'male' is a substring of 'female', so a naive lexicon entry would make every 'female' bio spuriously match 'male' too. They're matched via word-boundary regex in code instead (keyword_bio_bloc() in scripts/sample_archives.py, _stage1_keyword() in electoral/nlp/bio_classifier.py), applied after this lexicon scan. ALL matches (this lexicon included) now go through electoral.nlp.lexicon_match.has_word_boundary_match() -- a Phase 4 precision audit found 21.96% of corpus-wide 'usable' assignments were internal-substring matches, not genuine word-boundary ones. 'son' was REMOVED entirely (2026-08-02), not just boundary-fixed: 87.2% of its matches were internal (Ferguson/Mason/Wilson/Bolsonaro/'reason'/'person'), and even among word-boundary matches a large fraction were Spanish/Italian homograph collisions ('son'/'sono' = 'they are'/'I am', not the English noun) -- a collision word-boundary matching cannot fix since it's the same string in a different language, not a substring-containment problem. 'father'/'dad'/'husband' already carry the equivalent, more reliable signal for the same underlying pattern ('my son' style mentions). 'trans' was kept despite a mixed ~60% boundary-match precision (residual ambiguity: 'trans national'/'trans lover' can mean something other than the author's own identity) because other_gender is a thin bloc and the word-boundary fix alone removes the worst of the damage (92.6% of 'trans' matches were internal, e.g. 'transnational'/'transplant').",
   "keywords": {
     "she/her/hers":      {"women": 1.0},
     "she/her":           {"women": 1.0},
@@ -50,13 +50,15 @@
     "pro-choice":        {"women": 0.7, "men": 0.15, "other_gender": 0.15},
     "reproductive rights": {"women": 0.75, "men": 0.15, "other_gender": 0.1},
 
+    "♂":                {"men": 1.0},
+    "♀":                {"women": 1.0},
+
     "father":            {"men": 0.97, "other_gender": 0.03},
     "dad":               {"men": 0.97, "other_gender": 0.03},
     "papa":              {"men": 0.97, "other_gender": 0.03},
     "grandfather":       {"men": 1.0},
     "grandpa":           {"men": 1.0},
     "husband":           {"men": 0.95, "other_gender": 0.05},
-    "son":               {"men": 0.9, "other_gender": 0.1},
     "brother":           {"men": 0.85, "other_gender": 0.15},
     "uncle":             {"men": 0.95, "other_gender": 0.05},
     "guy":               {"men": 0.9, "other_gender": 0.1},
