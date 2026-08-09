@@ -189,14 +189,17 @@ cython_debug/
 # .vscode/
 
 # Project data directories (large files, not for version control)
-data/
+/data/
 artifacts/
-# rawdata: ignore large runtime outputs but track documentation and reports
+# rawdata: ignore all runtime outputs and data documents
 rawdata/social/
 rawdata/articles/
 rawdata/merged/
 rawdata/*.jsonl
 rawdata/*.parquet
+rawdata/*.json
+rawdata/*.csv
+rawdata/*.txt
 
 # Ruff stuff:
 .ruff_cache/
@@ -254,6 +257,10 @@ configs/*.local.json  # local overrides that may contain API keys or IPs
 adapters/
 # fine-tuned adapters + full checkpoint dirs (HF Hub is source of truth)
 models/
+# ...but electoral/models/ is a SOURCE package, not weight storage — keep it
+# tracked. Any actual weight files dropped here are still ignored by the
+# *.safetensors/*.bin/*.pt rules above, so this negation is safe.
+!electoral/models/
 # training checkpoints (optimizer state, rng, scheduler)
 checkpoints/
 .cache/              # HuggingFace model download cache
@@ -283,6 +290,9 @@ run_*.log
 .stversions/
 
 # ── Next.js webapp (webapp/) ──────────────────────────────────────────────────
+# .next/ guards against accidental `next dev` or `next build` run from the repo root
+.next/
+# webapp/.next/ is also covered by webapp/.gitignore (belt-and-suspenders)
 webapp/.next/            # Next.js build output
 webapp/out/              # next export static output
 webapp/node_modules/
@@ -310,5 +320,6 @@ devlog/
 !DECISIONS.md        # canonical architecture decision log — always track
 
 # ── Docs ─────────────────────────────────────────
-#  Documentation may contain generated files, build artifacts, or sensitive info. Track source files but ignore build outputs.
-docs/
+#  Documentation may contain generated files, build artifacts, or sensitive info. Not tracked in git.
+docs/*
+.vercel
