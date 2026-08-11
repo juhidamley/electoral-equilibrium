@@ -108,10 +108,13 @@ def _load_real_shocks() -> list[dict]:
         logger.info(
             "Excluding %d held-out shock(s) from the real-shock reference set "
             "(configs/held_out_shocks.json) before building any Gemini prompt or "
-            "diagnostic reference distribution.", n_excluded,
+            "diagnostic reference distribution.",
+            n_excluded,
         )
     filtered = [s for s in all_shocks if s.get("id") not in held]
-    assert_none_held_out((s["id"] for s in filtered), context="generate_synthetic.py _load_real_shocks() output")
+    assert_none_held_out(
+        (s["id"] for s in filtered), context="generate_synthetic.py _load_real_shocks() output"
+    )
     return filtered
 
 
@@ -203,7 +206,9 @@ INSTRUCTIONS:
    0.0112, largest single-bloc shift EVER measured (any event, any bloc)
    0.0286. "strong" means roughly a 3-point move -- the top of the observed
    range. Target distribution across the 15 bloc-level bins in a single
-   record: roughly 30% neutral, 45% slight, 18% mild, 5% moderate, 2% strong.
+   record -- MEASURED from the panel's own empirical bin-magnitude
+   distribution, not intuition (see scripts/synthetic/check_panel_target_calibration.py):
+   34% neutral, 31% slight, 28% mild, 6% moderate, 1% strong.
    A record with several blocs at "strong" simultaneously is almost certainly
    wrong -- that pattern does not appear in the panel data.
 

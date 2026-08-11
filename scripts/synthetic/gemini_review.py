@@ -24,13 +24,20 @@ so the manual pass always sees some "approved" records too.
 
 Usage:
     python scripts/synthetic/gemini_review.py \
-        --candidates data/finetune/candidates.jsonl \
-        --approved   data/finetune/reviewed_approved.jsonl \
-        --queue      data/finetune/human_review_queue.jsonl \
-        --revisions  data/finetune/revisions.jsonl \
+        --candidates data/finetune/synthetic_step5_5_20260809.jsonl \
+        --approved   data/finetune/synthetic_step5_5_20260809_approved.jsonl \
+        --queue      data/finetune/synthetic_step5_5_20260809_human_queue.jsonl \
+        --revisions  data/finetune/synthetic_step5_5_20260809_revisions.jsonl \
         --spotcheck-frac 0.05
 
 Env: GEMINI_API_KEY or GOOGLE_API_KEY (read from .env via python-dotenv).
+
+HELD-OUT ENFORCEMENT: stage 1 (generate_deepseek.py) already checks every record
+before it's written. This stage re-checks anyway (belt and suspenders -- it's the
+last stage before a record is considered "ready to merge," and the check is nearly
+free compared to the Gemini API call already being made per record). See that
+script's module docstring for why this is a generative-collision check, not a
+lookup-table leak.
 """
 
 from __future__ import annotations
@@ -42,6 +49,8 @@ import os
 import time
 from pathlib import Path
 from typing import Any
+
+from electoral.data.held_out import HeldOutShockError, assert_not_held_out
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("gemini_review")
@@ -115,14 +124,21 @@ non-suppressed bloc/cycle cells): median per-bloc shift 0.0029, mean 0.0046,
 a typical reaction to a notable event. Judge magnitude against these numbers,
 not against how dramatic the event sounds.
 
+BIN-DISTRIBUTION TARGET across a record's 15 bloc-level bins — MEASURED from
+the panel's own empirical bin-magnitude distribution (not intuition; see
+scripts/synthetic/check_panel_target_calibration.py): 34% neutral, 31% slight,
+28% mild, 6% moderate, 1% strong. Use this, not just the panel stats above, to
+judge whether THIS record's overall spread looks plausible.
+
 Check:
 1. Direction — does each bloc move the way real political behavior predicts?
 2. Coherence — does delta_eff agree in sign with the weighted bloc movement?
 3. Cross-bloc — are opposed blocs (e.g. evangelical vs secular) plausibly inverse?
-4. Magnitude — are bin sizes realistic against the panel numbers above? A
-   record with several blocs at "strong" or "moderate" simultaneously should
-   almost always be flagged REVISE or HUMAN_REVIEW — real events that move
-   many blocs strongly at once do not appear in the panel data.
+4. Magnitude — are bin sizes realistic against the panel numbers and
+   bin-distribution target above? A record with several blocs at "strong" or
+   "moderate" simultaneously should almost always be flagged REVISE or
+   HUMAN_REVIEW — real events that move many blocs strongly at once do not
+   appear in the panel data.
 
 Respond with a JSON object:
 {{
@@ -188,7 +204,7 @@ def review(
     recs = [json.loads(line) for line in candidates.read_text().splitlines() if line.strip()]
     log.info("reviewing %d candidates", len(recs))
 
-    n_app = n_rev = n_hum = n_spot = n_err = 0
+    n_app = n_rev = n_hum = n_spot = n_err = held_out_blocked = 0
     for p in (approved, queue, revisions):
         p.parent.mkdir(parents=True, exist_ok=True)
 
@@ -198,6 +214,20 @@ def review(
 
     try:
         for i, rec in enumerate(recs):
+            # Belt-and-suspenders re-check (see module docstring). Dropped
+            # entirely -- not routed to the human queue -- a held-out
+            # collision isn't "needs a human opinion," it's "must not exist
+            # in any output file at all." Checked before spending the Gemini
+            # call, not after.
+            try:
+                assert_not_held_out(
+                    rec.get("shock_id", ""), context=f"gemini_review.py input (record {i})"
+                )
+            except HeldOutShockError as exc:
+                held_out_blocked += 1
+                log.error("HELD-OUT COLLISION -- record dropped, NOT written anywhere: %s", exc)
+                continue
+
             try:
                 resp = model.models.generate_content(
                     model=GEMINI_MODEL,
@@ -264,31 +294,48 @@ def review(
         f_rev.close()
 
     log.info(
-        "DONE — approved=%d revised=%d human_queue=%d (incl %d spot-checks) errors=%d",
+        "DONE — approved=%d revised=%d human_queue=%d (incl %d spot-checks) errors=%d held_out_blocked=%d",
         n_app,
         n_rev,
         n_hum + n_spot,
         n_spot,
         n_err,
+        held_out_blocked,
     )
     log.info("ready to merge: %s", approved)
     log.info("manual Opus/human pass needed on: %s", queue)
+    if held_out_blocked:
+        log.error(
+            "held_out_blocked=%d > 0 -- %d record(s) were dropped for colliding with a held-out "
+            "shock id. Investigate before treating this corpus as clean.",
+            held_out_blocked,
+            held_out_blocked,
+        )
 
 
 def main() -> None:
+    # No hardcoded static defaults, same reasoning as generate_deepseek.py:
+    # data/finetune/reviewed_approved.jsonl / human_review_queue.jsonl /
+    # revisions.jsonl are all existing legacy files (Hard Requirement 2).
     p = argparse.ArgumentParser()
-    p.add_argument("--candidates", default="data/finetune/candidates.jsonl")
-    p.add_argument("--approved", default="data/finetune/reviewed_approved.jsonl")
-    p.add_argument("--queue", default="data/finetune/human_review_queue.jsonl")
-    p.add_argument("--revisions", default="data/finetune/revisions.jsonl")
+    p.add_argument("--candidates", required=True, type=Path)
+    p.add_argument("--approved", required=True, type=Path)
+    p.add_argument("--queue", required=True, type=Path)
+    p.add_argument("--revisions", required=True, type=Path)
     p.add_argument("--spotcheck-frac", type=float, default=0.05)
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
+    for out_path in (args.approved, args.queue, args.revisions):
+        if out_path.exists():
+            raise SystemExit(
+                f"{out_path} already exists -- refusing to overwrite (Hard Requirement 2). "
+                f"Pick a fresh, distinctly-named path."
+            )
     review(
-        Path(args.candidates),
-        Path(args.approved),
-        Path(args.queue),
-        Path(args.revisions),
+        args.candidates,
+        args.approved,
+        args.queue,
+        args.revisions,
         args.spotcheck_frac,
         args.seed,
     )

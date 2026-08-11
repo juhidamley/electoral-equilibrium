@@ -235,3 +235,82 @@ def bin_to_delta(token: str) -> float:
     if token not in BIN_MIDPOINTS:
         raise ValueError(f"Unknown delta bin token {token!r}. Must be one of {DELTA_BINS}")
     return BIN_MIDPOINTS[token]
+
+
+# Upper edge of each bin's *absolute-value* range, in ascending order. This is
+# the boundary table spelled out in the DELTA_BINS comment above, collapsed
+# by magnitude (sign-agnostic) since that's what both bin_to_magnitude() and
+# every bin-distribution check need. Kept here, not re-derived from
+# BIN_MIDPOINTS by bisection, because the real boundaries are NOT the
+# midpoints of adjacent midpoints (e.g. the neutral/slight edge is 0.00125,
+# not (0 + 0.003) / 2 = 0.0015) — they were set by hand alongside the Step
+# 2.1 rescale. Any future rescale must update both this table and
+# BIN_MIDPOINTS together; test_bin_midpoints_sync.py should grow a check for
+# that when this table's values are next touched.
+_MAGNITUDE_UPPER_BOUNDS: Final[tuple[tuple[float, str], ...]] = (
+    (0.00125, "neutral"),
+    (0.005, "slight"),
+    (0.0125, "mild"),
+    (0.0225, "moderate"),
+    (float("inf"), "strong"),
+)
+
+# The 5 sign-collapsed magnitude categories a bin-distribution target is
+# expressed in (configs/synthetic_events.json _meta.magnitude_grounding uses
+# exactly these five names). Order matches _MAGNITUDE_UPPER_BOUNDS.
+MAGNITUDE_CATEGORIES: Final[tuple[str, ...]] = ("neutral", "slight", "mild", "moderate", "strong")
+
+# token -> its sign-collapsed magnitude category, e.g. "strong_neg" -> "strong".
+# "mod_*" is the one token prefix that doesn't match its category name
+# ("moderate") directly, hence the explicit lookup rather than a string split.
+_TOKEN_PREFIX_TO_CATEGORY: Final[dict[str, str]] = {
+    "strong": "strong",
+    "mod": "moderate",
+    "mild": "mild",
+    "slight": "slight",
+}
+BIN_TO_MAGNITUDE_CATEGORY: Final[dict[str, str]] = {
+    token: ("neutral" if token == "neutral" else _TOKEN_PREFIX_TO_CATEGORY[token.rsplit("_", 1)[0]])
+    for token in DELTA_BINS
+}
+
+
+def delta_to_bin(delta: float) -> str:
+    """Classify a raw numeric vote-share delta into one of the 9 DELTA_BINS tokens.
+
+    Inverse of bin_to_delta(), using the exact boundary ranges documented in
+    the DELTA_BINS comment (not a symmetric bisection of adjacent midpoints —
+    see the note on _MAGNITUDE_UPPER_BOUNDS). Values outside the theoretical
+    [-0.0375, +0.0375] clip ceiling are clamped to the nearest extreme bin
+    rather than raising: LLM output is enforced to stay in-range by
+    construction (constrained decoding), but real-world measured deltas (e.g.
+    data/ground_truth/panel_deltas.json) are empirical and unclipped, and this
+    function is also used to classify those for calibration checks.
+
+    Args:
+        delta: A raw vote-share change, e.g. -0.0091.
+
+    Returns:
+        One of the 9 DELTA_BINS tokens.
+    """
+    magnitude = abs(delta)
+    for upper, category in _MAGNITUDE_UPPER_BOUNDS:
+        if magnitude <= upper:
+            if category == "neutral":
+                return "neutral"
+            suffix = "_neg" if delta < 0 else "_pos"
+            token = "mod" + suffix if category == "moderate" else category + suffix
+            return token
+    raise AssertionError("unreachable: _MAGNITUDE_UPPER_BOUNDS ends in inf")
+
+
+def bin_to_magnitude_category(token: str) -> str:
+    """Collapse a 9-token delta bin to one of the 5 sign-agnostic magnitude
+    categories used by bin-distribution targets (e.g. "mod_pos" -> "moderate").
+
+    Raises:
+        ValueError: if `token` is not a recognized bin.
+    """
+    if token not in BIN_TO_MAGNITUDE_CATEGORY:
+        raise ValueError(f"Unknown delta bin token {token!r}. Must be one of {DELTA_BINS}")
+    return BIN_TO_MAGNITUDE_CATEGORY[token]
