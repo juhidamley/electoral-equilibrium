@@ -1,0 +1,18 @@
+{
+  "base_model": "mistralai/Mistral-7B-v0.3",
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "learning_rate": 0.0002,
+  "epochs": 3,
+  "batch_size": 4,
+  "gradient_accumulation_steps": 4,
+  "seed": 42,
+  "train_path": "data/finetune/phase6_step6_4_hybrid_20260814/train.jsonl",
+  "eval_path": "data/finetune/phase6_step6_4_hybrid_20260814/eval.jsonl",
+  "output_dir": "models/mistral-r16-hybrid-0.03-20260814",
+  "backend": "hpc",
+  "bf16": false,
+  "corpus_sha256": "77f848f3d64739c45dfc4ed91112e00afe57b5cb1a1ebde2c22a0ed90d51d734",
+  "panel_policy": "post_training_calibration_only_not_materialized",
+  "probe_policy": "evaluation_only_never_train_or_split_eval"
+}

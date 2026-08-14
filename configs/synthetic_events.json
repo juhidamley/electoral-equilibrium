@@ -23,6 +23,7 @@
             "strong": 0.01
         },
         "mobilization_field": "Added 2026-08-03 (Phase 5, Step 5.1 follow-up -- flagged as a gap in the original Step 5.1 pass, not built there). Every seed now carries an explicit 'mobilization' property: 'mobilizing' (the event's negative/polarizing nature drives increased turnout/enthusiasm for one side -- court rulings on contested issues, impeachment, the ideological 'splits' archetypes, culture-war framing), 'depressing' (the event erodes confidence/enthusiasm for the affected party through persuasion/demoralization, no strong opposing-mobilization narrative -- scandals, gaffes, macro bad news, extremism-alienates-moderates), 'consolidating' (positive event reinforces existing support -- endorsements, rallies, good economic/foreign-policy news), or 'neutral' (genuinely bipartisan/low-salience, no partisan turnout dynamic -- matches expected_effect=='neutral' exactly, 4 seeds). This exists so the teacher model is TOLD the mobilization dynamic rather than inferring it from event tone -- inferring it from tone is exactly the confound that broke both prior SRP grounding attempts (see DECISIONS.md). Distribution: mobilizing=24, depressing=24, consolidating=12, neutral=4 (sums to 64); symmetric within party (helps_dem and helps_rep each split 12 mobilizing / 12 depressing / 6 consolidating / 2 neutral). Referenced explicitly in generate_deepseek.py's and gemini_review.py's prompts.",
+        "mobilization_beneficiary_field": "Every mobilizing seed must declare benefiting_party as 'democrat' or 'republican'. For mobilizing seeds it is the direction-determining label: the benefiting party's net delta_eff must be positive; the other party's must be negative. Surface sentiment/valence may calibrate intensity or bloc concentration only.",
         "races": ["african_american", "asian", "latino", "other_race", "white"],
         "religions": [
             "evangelical",
@@ -170,7 +171,8 @@
             "valence": "center_left",
             "expected_effect": "helps_rep",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "republican"
         },
         {
             "description": "A sitting Republican president faces impeachment over abuse-of-power allegations",
@@ -178,7 +180,8 @@
             "valence": "center_right",
             "expected_effect": "helps_dem",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "democrat"
         },
         {
             "description": "The Democratic nominee makes a damaging on-camera gaffe that dominates the news cycle",
@@ -234,7 +237,8 @@
             "valence": "far_left",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican nominee proposes privatizing Social Security and Medicare",
@@ -242,7 +246,8 @@
             "valence": "conservative",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Democratic nominee endorses defunding and restructuring police departments nationwide",
@@ -250,7 +255,8 @@
             "valence": "far_left",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican governor signs a near-total abortion ban with no exceptions for rape or incest",
@@ -258,7 +264,8 @@
             "valence": "far_right",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Congress passes Medicare for All, eliminating private health insurance",
@@ -266,7 +273,8 @@
             "valence": "progressive",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican administration deploys troops to the southern border and begins mass deportations of undocumented immigrants",
@@ -274,7 +282,8 @@
             "valence": "far_right",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Democratic nominee proposes a wealth tax on fortunes above fifty million dollars",
@@ -282,7 +291,8 @@
             "valence": "far_left",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican administration imposes steep tariffs on all imported goods",
@@ -290,7 +300,8 @@
             "valence": "populist",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Democratic administration grants a sweeping amnesty and path to citizenship for undocumented immigrants",
@@ -298,7 +309,8 @@
             "valence": "progressive",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican administration withdraws the United States from NATO",
@@ -306,7 +318,8 @@
             "valence": "far_right",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Democratic administration proposes a federal reparations program for descendants of enslaved Americans",
@@ -314,7 +327,8 @@
             "valence": "progressive",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Republican nominee runs on a national school choice and voucher program",
@@ -322,7 +336,8 @@
             "valence": "conservative",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "A Democratic administration enacts sweeping LGBTQ anti-discrimination protections",
@@ -330,7 +345,8 @@
             "valence": "progressive",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "A Republican administration bans transgender athletes from women's sports nationally",
@@ -338,7 +354,8 @@
             "valence": "far_right",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "A far-left socialist movement to abolish capitalism gains prominence within the Democratic coalition with explicit anti-market rhetoric",
@@ -458,7 +475,8 @@
             "valence": "bipartisan",
             "expected_effect": "helps_rep",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "republican"
         },
         {
             "description": "Aggressive immigration enforcement under a Republican administration triggers a family-separation outcry dominating national headlines",
@@ -466,7 +484,8 @@
             "valence": "bipartisan",
             "expected_effect": "helps_dem",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Supreme Court overturns Roe v Wade, returning abortion law to the states and mobilizing Democratic voters",
@@ -474,7 +493,8 @@
             "valence": "conservative",
             "expected_effect": "helps_dem",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Supreme Court strikes down sweeping federal gun restrictions as unconstitutional, mobilizing Republican voters",
@@ -482,7 +502,8 @@
             "valence": "conservative",
             "expected_effect": "helps_rep",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "Congress votes to expand the Supreme Court to fifteen justices along party lines",
@@ -490,7 +511,8 @@
             "valence": "progressive",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "Supreme Court overturns affirmative action in college admissions nationwide",
@@ -498,7 +520,8 @@
             "valence": "conservative",
             "expected_effect": "splits",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "A left-populist candidate runs on breaking up big banks and a wealth tax",
@@ -506,7 +529,8 @@
             "valence": "populist",
             "expected_effect": "realigns",
             "mobilization": "mobilizing",
-            "party": "democrat"
+            "party": "democrat",
+            "benefiting_party": "democrat"
         },
         {
             "description": "A right-populist candidate runs on tariffs, immigration restriction, and anti-Wall-Street rhetoric",
@@ -514,7 +538,8 @@
             "valence": "populist",
             "expected_effect": "realigns",
             "mobilization": "mobilizing",
-            "party": "republican"
+            "party": "republican",
+            "benefiting_party": "republican"
         },
         {
             "description": "A bipartisan infrastructure bill passes, funding roads, bridges, and broadband",

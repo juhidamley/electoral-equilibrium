@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://electoral-equilibrium.local/schemas/hybrid_harmonized_label.schema.json",
+  "title": "Future hybrid canonical signed bloc label",
+  "description": "Schema only. It validates a future label after source selection and harmonization; it does not assign labels.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["shock_id", "bloc", "modeled_party", "delta_bin", "canonical_scale", "mobilization", "label_method", "source_provenance"],
+  "properties": {
+    "shock_id": {"type": "string", "minLength": 1},
+    "bloc": {"type": "string", "minLength": 1},
+    "modeled_party": {"enum": ["democrat", "republican"]},
+    "delta_bin": {"enum": ["strong_neg", "mod_neg", "mild_neg", "slight_neg", "neutral", "slight_pos", "mild_pos", "mod_pos", "strong_pos"]},
+    "canonical_scale": {"const": "delta_scale_0.03"},
+    "mobilization": {"enum": ["mobilizing", "depressing", "consolidating", "neutral"]},
+    "label_method": {"enum": ["panel_delta_to_bin", "social_valence_and_engagement", "synthetic_reviewed_bin"]},
+    "harmonization_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sign_method", "magnitude_method"],
+      "properties": {
+        "sign_method": {"enum": ["measured_delta", "mobilization_annotation", "valence_checked_sentiment", "reviewed_teacher_bin"]},
+        "magnitude_method": {"enum": ["delta_to_bin", "engagement_percentile", "reviewed_teacher_bin"]},
+        "social_n": {"type": ["integer", "null"], "minimum": 0},
+        "engagement_percentile": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "event_annotation_id": {"type": ["string", "null"]}
+      }
+    },
+    "source_provenance": {"$ref": "hybrid_label_provenance.schema.json"}
+  },
+  "allOf": [
+    {"if": {"properties": {"label_method": {"const": "panel_delta_to_bin"}}}, "then": {"properties": {"harmonization_audit": {"properties": {"sign_method": {"const": "measured_delta"}, "magnitude_method": {"const": "delta_to_bin"}}}}}},
+    {"if": {"properties": {"label_method": {"const": "social_valence_and_engagement"}}}, "then": {"properties": {"harmonization_audit": {"properties": {"magnitude_method": {"const": "engagement_percentile"}}}}}},
+    {"if": {"properties": {"label_method": {"const": "synthetic_reviewed_bin"}}}, "then": {"properties": {"harmonization_audit": {"properties": {"sign_method": {"const": "reviewed_teacher_bin"}, "magnitude_method": {"const": "reviewed_teacher_bin"}}}}}}
+  ]
+}

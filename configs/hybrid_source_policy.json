@@ -1,0 +1,61 @@
+{
+  "policy_id": "phase6_step6_1_hybrid_label_source_policy",
+  "version": "1.0.0",
+  "purpose": "Select exactly one auditable source tier for each trainable (shock_id, bloc) label before any hybrid corpus is assembled.",
+  "unit_of_selection": "One signed bloc-level label for one trainable shock.",
+  "canonical_bloc_order": [
+    "african_american",
+    "asian",
+    "latino",
+    "other_race",
+    "white",
+    "evangelical",
+    "catholic",
+    "protestant",
+    "secular",
+    "jewish",
+    "muslim",
+    "other_rel",
+    "women",
+    "men",
+    "other_gender"
+  ],
+  "tier_precedence": ["panel", "social", "synthetic"],
+  "eligibility": {
+    "panel": {
+      "required": [
+        "shock_id is not in configs/held_out_shocks.json",
+        "a matching panel_deltas.json cell exists",
+        "trust.trustworthy_for_direction is true"
+      ],
+      "direction_requirement": "Signed training labels require direction trust. A magnitude_usable cell with trustworthy_for_direction=false is ineligible because its weighted and unweighted signs disagree; it may support a separate unsigned magnitude analysis, never this signed label source.",
+      "source_id_format": "panel:{shock_id}:{bloc}"
+    },
+    "social": {
+      "required": [
+        "shock_id is not in configs/held_out_shocks.json",
+        "a native-Twitter cell exists in data/inventory/step_4_2_native_twitter_intersection.json",
+        "the bloc is assigned by explicit/self-identifying bio lexicon evidence (not a community proxy or model-only inference)",
+        "the archive is native Twitter and topic/keyword-attributed to the same shock",
+        "cell n >= 30"
+      ],
+      "minimum_cell_n": 30,
+      "source_id_format": "social:native_twitter:{shock_id}:{bloc}",
+      "clean_attribution_definition": "The inventory's qualifying native-Twitter archive criterion: genuinely Twitter and collected by topic/keyword search for a specific event. Platform-general pools, non-Twitter platforms, proxy-community labels, excluded archives, and cells below n are ineligible."
+    },
+    "synthetic": {
+      "required": ["a reviewed Step 5.5 label is available"],
+      "source_id_format": "synthetic:{run_id}:{record_id_or_shock_id}:{bloc}",
+      "fallback": true
+    }
+  },
+  "selection_rule": "For each non-held-out shock and canonical bloc, choose the first eligible tier in tier_precedence. No averaging, blending, or replacement after selection is permitted. If the selected source disappears or fails validation at build time, re-evaluate the ordered rule and record the reason; do not silently retain a stale label.",
+  "edge_cases": {
+    "held_out_shock": "Out of scope: no tier may supply a training label. Emit no selection row in a training coverage map; a diagnostic may report it as excluded.",
+    "panel_magnitude_only": "Ineligible for signed labels, even though magnitude_usable is true. Preserve its flags in diagnostics but fall through to social or synthetic.",
+    "multiple_social_archives": "Aggregate only records that independently meet clean attribution for the same shock and bloc; record every archive_id and aggregate n. If any included archive is not cleanly attributable, exclude it rather than mixing quality levels.",
+    "multiple_eligible_sources": "Precedence is panel > social > synthetic. This is a fidelity choice, not an estimate of agreement; non-selected eligible sources remain recorded in availability diagnostics.",
+    "missing_synthetic_label": "The cell is uncovered, not implicitly synthetic. Corpus construction must fail closed rather than invent a label.",
+    "bloc_schema_mismatch": "Unmapped or non-canonical blocs are uncovered and require an explicit mapping revision; they must not be coerced into another bloc."
+  }
+}

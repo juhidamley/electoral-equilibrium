@@ -105,9 +105,14 @@ EVENT: "{rec['description']}"
 PARTY MODELED: {rec['party']}
 TAXONOMY HINT (expected net effect): {meta.get('expected_effect','?')}
 MOBILIZATION DYNAMIC (stated by the seed, not inferred from tone): {meta.get('mobilization','?')}
-  "mobilizing" events warrant more-concentrated movement in the affected blocs than
-  "depressing"/"consolidating"/"neutral" ones — factor this into the magnitude check below,
-  but don't let it excuse several blocs landing on "strong" simultaneously (see check 4).
+MOBILIZED / BENEFITING PARTY: {meta.get('benefiting_party','NOT DECLARED')}
+  For a "mobilizing" event, the declared benefiting party determines NET DIRECTION FIRST:
+  delta_eff must be positive when that party is modeled and negative otherwise. This OVERRIDES
+  surface sentiment/tone. Negative tone commonly reflects backlash turnout and therefore a
+  GAIN for the benefiting party. Tone may affect only intensity/concentration across blocs.
+  A mobilizing record without a declared beneficiary or an explicit beneficiary rationale is
+  REVISE, never APPROVE. Mobilizing events may warrant more concentrated movement, but that
+  never excuses several blocs landing on "strong" simultaneously (see check 4).
 
 PREDICTED LABELS:
 delta_bins_race: {json.dumps(rec['delta_bins_race'])}
@@ -139,11 +144,15 @@ Check:
    "moderate" simultaneously should almost always be flagged REVISE or
    HUMAN_REVIEW — real events that move many blocs strongly at once do not
    appear in the panel data.
+5. Mobilizing-only — name the declared beneficiary and confirm that delta_eff's
+   sign matches it. If beneficiary is missing, rationale is missing, or the
+   sign conflicts, return REVISE (or HUMAN_REVIEW if no defensible correction).
 
 Respond with a JSON object:
 {{
   "verdict": "APPROVE" | "REVISE" | "HUMAN_REVIEW",
   "reasoning": "one or two sentences",
+  "beneficiary_rationale": "required non-empty statement for mobilizing records; otherwise null",
   "corrected": null OR {{ "delta_bins_race": {{...}}, "delta_bins_religion": {{...}}, "delta_bins_gender": {{...}}, "delta_eff": <float> }}
 }}
 
@@ -163,6 +172,28 @@ def _parse_obj(text: str) -> dict[str, Any] | None:
         return json.loads(t[s : e + 1])
     except json.JSONDecodeError:
         return None
+
+
+def _mobilizing_review_ok(rec: dict[str, Any], verdict_obj: dict[str, Any]) -> tuple[bool, str]:
+    """Require the reviewer to document beneficiary-first direction for mobilizing records."""
+    meta = rec.get("_seed_meta", {})
+    if meta.get("mobilization") != "mobilizing":
+        return True, ""
+    beneficiary = meta.get("benefiting_party")
+    rationale = verdict_obj.get("beneficiary_rationale")
+    if beneficiary not in {"democrat", "republican"}:
+        return False, "missing valid declared beneficiary"
+    if not isinstance(rationale, str) or not rationale.strip():
+        return False, "missing beneficiary rationale"
+    candidate = verdict_obj.get("corrected") or rec
+    try:
+        delta_eff = float(candidate["delta_eff"])
+    except (TypeError, ValueError, KeyError):
+        return False, "missing numeric delta_eff for beneficiary check"
+    expected_positive = rec.get("party") == beneficiary
+    if (expected_positive and delta_eff <= 0) or (not expected_positive and delta_eff >= 0):
+        return False, "net sign contradicts declared beneficiary"
+    return True, ""
 
 
 def _apply_correction(rec: dict[str, Any], corrected: dict[str, Any]) -> dict[str, Any] | None:
@@ -250,7 +281,20 @@ def review(
 
             verdict = verdict_obj.get("verdict", "HUMAN_REVIEW")
             reasoning = verdict_obj.get("reasoning", "")
+            mobilizing_ok, mobilizing_reason = _mobilizing_review_ok(rec, verdict_obj)
+            if not mobilizing_ok:
+                verdict = "REVISE"
+                reasoning = f"{reasoning} (mobilizing gate: {mobilizing_reason})".strip()
             rec["_review"] = {"verdict": verdict, "reasoning": reasoning}
+            if rec.get("_seed_meta", {}).get("mobilization") == "mobilizing":
+                rec["_review"]["beneficiary_rationale"] = verdict_obj.get("beneficiary_rationale")
+            if not mobilizing_ok:
+                # A missing beneficiary rationale or contradictory sign is explicitly
+                # REVISE, even when Gemini supplied no usable correction. Keep it out
+                # of approved/revised output and send it to the manual queue as REVISE.
+                f_q.write(json.dumps(rec) + "\n")
+                n_hum += 1
+                continue
 
             if verdict == "APPROVE":
                 # designed-in spot check: even approved records sometimes go to human queue

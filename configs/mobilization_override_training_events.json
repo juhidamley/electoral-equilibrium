@@ -1,0 +1,117 @@
+{
+  "_meta": {
+    "purpose": "Training-only mobilization-override examples: negative surface reaction targets the declared beneficiary, but defensive/backlash turnout produces a net gain for that party.",
+    "dataset_role": "training_candidate",
+    "training_eligible": true,
+    "separation": "These eight archetypes are intentionally distinct from all ten events in configs/mobilization_confound_probe_events.json. They must never carry a _probe object or evaluation_probe provenance.",
+    "records_requested": 64,
+    "n_per_seed": 8,
+    "beneficiary_target": {"democrat": 32, "republican": 32}
+  },
+  "seeds": [
+    {
+      "archetype_id": "train_dem_student_debt_relief_backlash",
+      "description": "A Democratic administration's targeted student-debt relief program draws furious taxpayer-group attacks and hostile fiscal coverage, but the attacks rally younger borrowers and college-educated Democratic voters to defend the administration through higher turnout.",
+      "domain": "econ",
+      "valence": "negative_tone",
+      "expected_effect": "helps_dem",
+      "mobilization": "mobilizing",
+      "benefiting_party": "democrat",
+      "party": "democrat",
+      "surface_sentiment": "negative toward the Democratic administration and its debt-relief program",
+      "sentiment_only_predicted_party": "republican",
+      "why_sentiment_is_wrong": "Hostile fiscal reaction is stipulated to activate affected borrowers and allied Democratic voters in defense of Democrats."
+    },
+    {
+      "archetype_id": "train_dem_lgbtq_nondiscrimination_backlash",
+      "description": "A Democratic governor's LGBTQ workplace nondiscrimination order receives angry denunciations and boycott threats, but the criticism mobilizes LGBTQ voters and allied secular Democrats to turn out for the governor's party.",
+      "domain": "social",
+      "valence": "negative_tone",
+      "expected_effect": "helps_dem",
+      "mobilization": "mobilizing",
+      "benefiting_party": "democrat",
+      "party": "democrat",
+      "surface_sentiment": "negative toward the Democratic governor and nondiscrimination order",
+      "sentiment_only_predicted_party": "republican",
+      "why_sentiment_is_wrong": "Condemnation aimed at the Democratic policy triggers defensive turnout among the protected constituency and allies."
+    },
+    {
+      "archetype_id": "train_dem_prescription_drug_cap_backlash",
+      "description": "A Democratic administration's prescription-drug price cap is attacked in harsh pharmaceutical-industry advertising as government overreach, but the campaign backfires by mobilizing seniors, patients, and Democratic healthcare voters to defend the cap.",
+      "domain": "econ",
+      "valence": "negative_tone",
+      "expected_effect": "helps_dem",
+      "mobilization": "mobilizing",
+      "benefiting_party": "democrat",
+      "party": "democrat",
+      "surface_sentiment": "negative toward the Democratic administration and drug-price cap",
+      "sentiment_only_predicted_party": "republican",
+      "why_sentiment_is_wrong": "The negative industry campaign makes beneficiaries more likely to turn out for Democrats rather than abandon them."
+    },
+    {
+      "archetype_id": "train_dem_corporate_tax_enforcement_backlash",
+      "description": "A Democratic president's corporate minimum-tax enforcement drive faces furious business-lobby criticism and predictions of economic damage, but the attacks consolidate populist and labor-aligned Democratic voters behind the president.",
+      "domain": "econ",
+      "valence": "negative_tone",
+      "expected_effect": "helps_dem",
+      "mobilization": "mobilizing",
+      "benefiting_party": "democrat",
+      "party": "democrat",
+      "surface_sentiment": "negative toward the Democratic president and corporate-tax enforcement",
+      "sentiment_only_predicted_party": "republican",
+      "why_sentiment_is_wrong": "Business hostility reinforces the policy's populist cue and mobilizes the attacked Democratic coalition."
+    },
+    {
+      "archetype_id": "train_rep_religious_display_protection_backlash",
+      "description": "A Republican governor's order protecting religious displays on public property draws angry civil-liberties criticism and protest coverage, but the backlash mobilizes evangelical and other religious conservatives to defend the governor.",
+      "domain": "social",
+      "valence": "negative_tone",
+      "expected_effect": "helps_rep",
+      "mobilization": "mobilizing",
+      "benefiting_party": "republican",
+      "party": "republican",
+      "surface_sentiment": "negative toward the Republican governor and religious-display order",
+      "sentiment_only_predicted_party": "democrat",
+      "why_sentiment_is_wrong": "Criticism aimed at the Republican order activates religious conservatives into defensive Republican turnout."
+    },
+    {
+      "archetype_id": "train_rep_agricultural_tariff_backlash",
+      "description": "A Republican administration's agricultural tariff strategy is denounced in hostile economic coverage and blamed for retaliation, but the attacks rally rural producers who view the criticism as an assault on their communities and turn out Republican.",
+      "domain": "econ",
+      "valence": "negative_tone",
+      "expected_effect": "helps_rep",
+      "mobilization": "mobilizing",
+      "benefiting_party": "republican",
+      "party": "republican",
+      "surface_sentiment": "negative toward the Republican administration and tariff strategy",
+      "sentiment_only_predicted_party": "democrat",
+      "why_sentiment_is_wrong": "Hostile coverage produces rural identity backlash and higher Republican turnout despite the negative tone."
+    },
+    {
+      "archetype_id": "train_rep_defense_base_expansion_backlash",
+      "description": "A Republican president's expansion of a major military installation triggers fierce antiwar protests and environmental criticism, but the opposition mobilizes military families, veterans, and nearby communities in support of Republicans.",
+      "domain": "foreign",
+      "valence": "negative_tone",
+      "expected_effect": "helps_rep",
+      "mobilization": "mobilizing",
+      "benefiting_party": "republican",
+      "party": "republican",
+      "surface_sentiment": "negative toward the Republican president and military-base expansion",
+      "sentiment_only_predicted_party": "democrat",
+      "why_sentiment_is_wrong": "Protests targeting the Republican action trigger counter-mobilization among defense-connected constituencies."
+    },
+    {
+      "archetype_id": "train_rep_tech_antitrust_backlash",
+      "description": "A Republican administration's antitrust case against a dominant technology platform is met with furious industry attacks and claims of political retaliation, but the criticism energizes conservative small-business and anti-Big-Tech voters behind Republicans.",
+      "domain": "econ",
+      "valence": "negative_tone",
+      "expected_effect": "helps_rep",
+      "mobilization": "mobilizing",
+      "benefiting_party": "republican",
+      "party": "republican",
+      "surface_sentiment": "negative toward the Republican administration and antitrust action",
+      "sentiment_only_predicted_party": "democrat",
+      "why_sentiment_is_wrong": "Industry hostility strengthens the anti-Big-Tech cue and mobilizes Republican constituencies in defense of the action."
+    }
+  ]
+}

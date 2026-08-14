@@ -679,18 +679,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Load config — TrainConfig JSON (has lora_rank) or pipeline base.json (has seed only).
-    seed = 42
     try:
         with open(args.config, encoding="utf-8") as f:
             raw_cfg = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("Could not read %s: %s — using defaults", args.config, exc)
         raw_cfg = {}
+    seed = raw_cfg.get("seed", 42)
 
     if "lora_rank" in raw_cfg:
         tcfg = load_config(args.config)
     else:
-        seed = raw_cfg.get("seed", 42)
         tcfg = TrainConfig()
 
     # CLI flags override config values when explicitly provided.

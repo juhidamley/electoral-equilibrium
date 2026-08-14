@@ -1,0 +1,62 @@
+{
+  "policy_id": "phase6_step6_2_hybrid_label_harmonization",
+  "version": "1.0.0",
+  "status": "design_validated_no_labels_assigned",
+  "scope": "Defines how a future corpus builder will label eligible social cells and normalize panel, social, and Step 5.5 labels. It neither selects a synthetic record nor emits a hybrid label.",
+  "canonical_label": {
+    "field": "delta_bin",
+    "meaning": "Change in support for the record's explicitly named modeled party/ticket; positive increases that ticket's support and negative decreases it.",
+    "tokens": {
+      "strong_neg": [-0.0375, -0.0225],
+      "mod_neg": [-0.0225, -0.0125],
+      "mild_neg": [-0.0125, -0.005],
+      "slight_neg": [-0.005, -0.00125],
+      "neutral": [-0.00125, 0.00125],
+      "slight_pos": [0.00125, 0.005],
+      "mild_pos": [0.005, 0.0125],
+      "mod_pos": [0.0125, 0.0225],
+      "strong_pos": [0.0225, 0.0375]
+    },
+    "midpoints": {
+      "strong_neg": -0.03,
+      "mod_neg": -0.0175,
+      "mild_neg": -0.00875,
+      "slight_neg": -0.003,
+      "neutral": 0.0,
+      "slight_pos": 0.003,
+      "mild_pos": 0.00875,
+      "mod_pos": 0.0175,
+      "strong_pos": 0.03
+    },
+    "boundary_owner": "electoral.core.types.delta_to_bin",
+    "neutral_rule": "Use neutral only for abs(signed_delta) <= 0.00125. Never encode uncertainty, missing event annotation, or an ambiguous sentiment direction as neutral; those are build-blocking validation states."
+  },
+  "social_direction_decision_tree": [
+    "Fail closed unless the social source passed the Step 6.1 self-identification, clean-attribution, and n >= 30 gates.",
+    "Require an explicit event annotation with modeled_party, event_valence, and mobilization. Do not infer any of these from post sentiment or event prose.",
+    "If mobilization == 'mobilizing', ignore sentiment for sign. Derive the sign from the annotation's mobilized_party relative to modeled_party: same party => positive; opposing party => negative. If mobilized_party is 'both' or 'unknown', stop for human adjudication rather than using sentiment.",
+    "Otherwise, require event_valence in {helps_modeled_party, hurts_modeled_party, neutral} and valence_clear == true. Aggregate calibrated partisan sentiment only as the directional evidence: positive aggregate sentiment supports positive, negative supports negative, and an interval spanning zero is ambiguous and stops for review. Event valence is a coherence check, not a sentiment-sign replacement on this branch.",
+    "If aggregate direction conflicts with a valence-clear annotation, or the event is non-mobilizing but valence is not clear, stop for human adjudication. Do not emit a label."
+  ],
+  "social_intensity_transform": {
+    "purpose": "Turn skewed reaction volume and virality into a sign-agnostic bin magnitude, independently of the direction tree.",
+    "post_engagement": "e_i = like_count + repost_or_retweet_count + reply_count; a missing component is zero only when the archive schema guarantees that zero means no engagement, otherwise the post is excluded and exclusion counts are retained.",
+    "cell_score": "v = median_i(log1p(e_i)); q = log1p(n_eligible_posts) + v. Before ranking, winsorize v at the 1st and 99th percentiles over all trainable eligible social posts and calculate q separately after the resulting recalculation of v.",
+    "reference_population": "All trainable Step 6.1-eligible social cells in the frozen social input manifest, never a single shock. Ranking within a COVID shock would make the 4-cell vaccine shock incomparable with the 14-cell summer-surge shock.",
+    "mapping": "Use the empirical percentile r of q among eligible social cells: r < .20 => neutral; [.20,.50) => slight; [.50,.80) => mild; [.80,.95) => moderate; r >= .95 => strong. Apply the direction selected above to make the canonical signed token.",
+    "ties_and_small_reference": "Use mid-ranks for ties. The transform is frozen only if the reference has at least 20 eligible cells; with this inventory it has 18, so no production social labels may be emitted yet. The 18-cell table is therefore a design classification, not a final-label table. On expansion to >=20 cells, persist manifest hash, raw n, v, q, percentile, and selected magnitude in provenance.",
+    "justification": "log1p prevents a handful of viral posts from setting an unbounded scale; the median protects against outliers; adding log1p(n) retains reaction volume; percentile bins calibrate this social-only proxy to ordinal intensity rather than pretending engagement is a vote-share delta."
+  },
+  "tier_adapters": {
+    "panel": "Use the selected direction-trustworthy measured_delta and apply electoral.core.types.delta_to_bin without rescaling. Preserve raw and weighted deltas plus trust flags.",
+    "social": "Use the decision tree for sign and the frozen engagement transform for magnitude. Do not use raw sentiment values or engagement counts as delta magnitudes.",
+    "synthetic": "Pass through the reviewed Step 5.5 delta_bins_* token after validating it is canonical and _provenance.scale == delta_scale_0.03. Its label is teacher/reviewer supplied, not derived from social_roberta_scores. Retain _seed_meta.mobilization and expected_effect."
+  },
+  "mobilization_feature": {
+    "field": "mobilization",
+    "enum": ["mobilizing", "depressing", "consolidating", "neutral"],
+    "requirement": "Required on every future harmonized record. Synthetic obtains it from _seed_meta.mobilization. Panel and social obtain it from a versioned event-annotation registry keyed by shock_id. Missing or unknown is a validation error, never silently mapped to neutral.",
+    "current_gap": "configs/shocks.json and panel_deltas.json do not currently contain this field. The existing social inventory also does not provide it. A registry must be independently annotated and reviewed before corpus construction."
+  },
+  "provenance_rule": "Attach the complete Step 6.1 provenance object unchanged under source_provenance. Harmonization may add label_method, canonical_scale, mobilization, and audit inputs; it must not remove tier, source locator, eligibility, or fidelity flags."
+}

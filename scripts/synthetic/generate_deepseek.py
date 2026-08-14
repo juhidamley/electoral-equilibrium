@@ -112,10 +112,15 @@ PARTY PERSPECTIVE (whose ticket we model): {seed['party']}
 DOMAIN: {seed['domain']}
 IDEOLOGICAL VALENCE: {seed['valence']}
 EXPECTED NET EFFECT (a hint, reason independently per bloc): {seed['expected_effect']}
+MOBILIZED / BENEFITING PARTY: {seed.get('benefiting_party', 'NOT DECLARED')}
 MOBILIZATION DYNAMIC (stated, do not re-derive from how dramatic the event sounds): {seed['mobilization']}
-  - "mobilizing": the event's negative/polarizing nature drives INCREASED turnout/enthusiasm
-    for one side (a backlash-turnout dynamic) — expect some blocs to move MORE than a typical
-    event, though still small in absolute terms per the magnitude section below.
+  - "mobilizing": FIRST determine NET DIRECTION from MOBILIZED / BENEFITING PARTY. The
+    modeled party must have a positive delta_eff if it is that party and a negative delta_eff
+    otherwise. This rule OVERRIDES surface sentiment and event tone: negative tone toward a
+    mobilizing event commonly means backlash turnout and a GAIN for the benefiting party.
+    Sentiment/tone may affect only intensity and concentration across blocs, never net sign.
+    Then expect some blocs to move MORE than a typical event, though still small in absolute
+    terms per the magnitude section below.
   - "depressing": the event erodes confidence/enthusiasm for the affected party through
     persuasion/demoralization, with no strong opposing-mobilization narrative — expect smaller,
     more diffuse movement, not a sharp swing concentrated in a few blocs.
@@ -175,6 +180,20 @@ specific event — rather than spreading magnitude evenly or repeating the same
 pattern record to record.
 
 Output ONLY the JSON array of {n} records."""
+
+
+def _validate_mobilizing_direction(rec: dict[str, Any], seed: dict[str, Any]) -> tuple[bool, str]:
+    """Enforce beneficiary-first net direction for future mobilizing generations."""
+    if seed.get("mobilization") != "mobilizing":
+        return True, ""
+    beneficiary = seed.get("benefiting_party")
+    if beneficiary not in {"democrat", "republican"}:
+        return False, "mobilizing seed missing valid benefiting_party"
+    delta_eff = float(rec["delta_eff"])
+    expected_positive = rec["party"] == beneficiary
+    if (expected_positive and delta_eff <= 0) or (not expected_positive and delta_eff >= 0):
+        return False, "mobilizing delta_eff contradicts declared benefiting_party"
+    return True, ""
 
 
 def _validate(rec: dict[str, Any]) -> tuple[bool, str]:
@@ -245,6 +264,16 @@ def generate(
     _load_env()
     client = _client()
     all_seeds = json.loads(seeds_path.read_text())["seeds"]
+    invalid_mobilizing = [
+        i for i, seed in enumerate(all_seeds)
+        if seed.get("mobilization") == "mobilizing"
+        and seed.get("benefiting_party") not in {"democrat", "republican"}
+    ]
+    if invalid_mobilizing:
+        raise ValueError(
+            "every mobilizing seed requires benefiting_party='democrat' or 'republican'; "
+            f"invalid seed indices: {invalid_mobilizing}"
+        )
     if seed_indices is not None:
         # Arbitrary selection (e.g. spanning domains), not just the first N --
         # --max-seeds always pulls a contiguous prefix, which silently biases a
@@ -333,6 +362,8 @@ def generate(
 
             for rec in all_records:
                 ok, reason = _validate(rec)
+                if ok:
+                    ok, reason = _validate_mobilizing_direction(rec, seed)
                 if not ok:
                     rejected += 1
                     log.debug("rejected: %s", reason)
@@ -363,7 +394,28 @@ def generate(
                     "valence": seed["valence"],
                     "expected_effect": seed["expected_effect"],
                     "mobilization": seed["mobilization"],
+                    "benefiting_party": seed.get("benefiting_party"),
                 }
+                for key in (
+                    "archetype_id",
+                    "surface_sentiment",
+                    "sentiment_only_predicted_party",
+                    "why_sentiment_is_wrong",
+                ):
+                    if key in seed:
+                        rec["_seed_meta"][key] = seed[key]
+                if seed.get("dataset_role") == "evaluation_probe":
+                    rec["_probe"] = {
+                        key: seed[key]
+                        for key in (
+                            "probe_id",
+                            "benefiting_party",
+                            "surface_sentiment",
+                            "sentiment_only_predicted_party",
+                            "why_sentiment_is_wrong",
+                        )
+                    }
+                    rec["_probe"]["known_correct_delta_eff_sign"] = "positive"
                 rec["_provenance"] = {
                     "run_id": run_id,
                     "scale": SCALE_TAG,
@@ -371,6 +423,9 @@ def generate(
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                     "generator": "scripts/synthetic/generate_deepseek.py",
                     "model": DEEPSEEK_MODEL,
+                    "dataset_role": seed.get("dataset_role", "training_candidate"),
+                    "training_eligible": seed.get("dataset_role", "training_candidate")
+                    != "evaluation_probe",
                 }
                 fout.write(json.dumps(rec) + "\n")
                 kept += 1

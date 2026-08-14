@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://electoral-equilibrium.local/schemas/hybrid_label_provenance.schema.json",
+  "title": "Hybrid signed bloc-label provenance",
+  "description": "Required per-label provenance for a future hybrid corpus. This schema defines metadata only; it does not assign or merge labels.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_id",
+    "policy_version",
+    "tier",
+    "source_id",
+    "source_locator",
+    "selection_reason",
+    "eligibility",
+    "fidelity",
+    "availability_at_selection"
+  ],
+  "properties": {
+    "policy_id": {"const": "phase6_step6_1_hybrid_label_source_policy"},
+    "policy_version": {"type": "string"},
+    "tier": {"enum": ["panel", "social", "synthetic"]},
+    "source_id": {"type": "string", "minLength": 1},
+    "source_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset", "shock_id", "bloc"],
+      "properties": {
+        "dataset": {"type": "string"},
+        "shock_id": {"type": "string"},
+        "bloc": {"type": "string"},
+        "panel_cell_id": {"type": ["string", "null"]},
+        "social_archive_ids": {"type": "array", "items": {"type": "string"}},
+        "social_cell_n": {"type": ["integer", "null"], "minimum": 0},
+        "synthetic_run_id": {"type": ["string", "null"]},
+        "synthetic_record_id": {"type": ["string", "null"]}
+      }
+    },
+    "selection_reason": {"type": "string", "minLength": 1},
+    "eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trainable_shock", "panel_eligible", "social_eligible", "synthetic_eligible"],
+      "properties": {
+        "trainable_shock": {"type": "boolean"},
+        "panel_eligible": {"type": "boolean"},
+        "social_eligible": {"type": "boolean"},
+        "synthetic_eligible": {"type": "boolean"}
+      }
+    },
+    "fidelity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction_trustworthy", "magnitude_usable", "single_shock_attributable", "social_self_identifying", "social_clean_attribution", "social_n_floor_met", "generated"],
+      "properties": {
+        "direction_trustworthy": {"type": ["boolean", "null"]},
+        "magnitude_usable": {"type": ["boolean", "null"]},
+        "single_shock_attributable": {"type": ["boolean", "null"]},
+        "social_self_identifying": {"type": ["boolean", "null"]},
+        "social_clean_attribution": {"type": ["boolean", "null"]},
+        "social_n_floor_met": {"type": ["boolean", "null"]},
+        "generated": {"type": "boolean"}
+      }
+    },
+    "availability_at_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["panel_cell_exists", "social_cell_exists", "social_n", "synthetic_run_available"],
+      "properties": {
+        "panel_cell_exists": {"type": "boolean"},
+        "social_cell_exists": {"type": "boolean"},
+        "social_n": {"type": ["integer", "null"], "minimum": 0},
+        "synthetic_run_available": {"type": "boolean"}
+      }
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"tier": {"const": "panel"}}}, "then": {"properties": {"fidelity": {"properties": {"direction_trustworthy": {"const": true}, "generated": {"const": false}}}}}},
+    {"if": {"properties": {"tier": {"const": "social"}}}, "then": {"properties": {"fidelity": {"properties": {"social_self_identifying": {"const": true}, "social_clean_attribution": {"const": true}, "social_n_floor_met": {"const": true}, "generated": {"const": false}}}}}},
+    {"if": {"properties": {"tier": {"const": "synthetic"}}}, "then": {"properties": {"fidelity": {"properties": {"generated": {"const": true}}}}}}
+  ]
+}
