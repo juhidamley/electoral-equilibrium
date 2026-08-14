@@ -1,16 +1,20 @@
 #!/bin/bash
 # Phase 6 Step 6.4: NEW hybrid adapter only. This script never deploys an adapter.
-# Hopper infrastructure profile. Training recipe and corpus inputs are fixed below.
+# PLACEHOLDER RESOURCE PROFILE: replace every value below with the prior successful
+# Hopper QLoRA job's partition/account/time/GPU profile before sbatch.
 #SBATCH --job-name=electoral-hybrid-003
-#SBATCH --partition=main
-# Uncomment only if Hopper requires an account allocation for the main partition.
+# PLACEHOLDER partition; sensible default from the prior A100 scaffold:
+#SBATCH --partition=gpu
+# PLACEHOLDER account; uncomment and replace if Hopper requires an account:
 ##SBATCH --account=PLACEHOLDER_ACCOUNT
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=80G
-#SBATCH --time=02:00:00
-#SBATCH --gres=gpu:l40s:1
+# PLACEHOLDER wall time; sensible QLoRA default:
+#SBATCH --time=12:00:00
+# PLACEHOLDER GRES; sensible one-A100 default:
+#SBATCH --gres=gpu:a100:1
 #SBATCH --output=logs/hybrid_003_%j.out
 #SBATCH --error=logs/hybrid_003_%j.err
 
@@ -29,21 +33,18 @@ CONFIG_SHA256="f933490354628e3b3b55705109b55653f68118ae279197ed10f4ea0a138efeb2"
 cd "$REPO_DIR"
 mkdir -p logs
 
-# Hopper Python/CUDA module and conda activation must match the working cluster
-# environment. The submitted environment does not require outlines for training:
-# electoral.llm.trainer and electoral.kernels.finetune do not import it. Outlines is
-# used only by inference constrained decoding, which is outside this fine-tune job.
-# Resolve the exact module names with `module avail python cuda anaconda` on Hopper,
-# then replace these two activation lines if its established environment differs.
-module load python/3.11 cuda/12.1
-source "${HOME}/miniconda3/etc/profile.d/conda.sh"
-conda activate electoral
+# PLACEHOLDER ENVIRONMENT: replace these with the exact module/activation lines from
+# the prior successful Hopper QLoRA run. Keep outlines pinned: an unbounded
+# outlines>=0.0.46 can resolve to a Python-3.10-only build in an older environment.
+module load python/3.11 cuda/12.1  # PLACEHOLDER: match prior successful QLoRA run
+source "${HOME}/miniconda3/etc/profile.d/conda.sh"  # PLACEHOLDER path
+conda activate electoral  # PLACEHOLDER environment; install outlines==0.0.46
 python - <<'PY'
-from importlib.metadata import PackageNotFoundError, version
-try:
-    print(f"ENV_WARNING outlines={version('outlines')}; unused by this training job")
-except PackageNotFoundError:
-    print("ENV_WARNING outlines=not-installed; unused by this training job")
+from importlib.metadata import version
+actual = version("outlines")
+if actual != "0.0.46":
+    raise SystemExit(f"ENV_GATE=FAIL outlines={actual}; required exact pin is 0.0.46")
+print(f"ENV_GATE=PASS outlines={actual}")
 PY
 
 export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
