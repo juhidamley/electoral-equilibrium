@@ -161,7 +161,7 @@ function makeLoyaltyShape(opts: {
   feasible?: boolean;
   showBaseline?: boolean;
 }) {
-  return (props: Record<string, unknown>) => {
+  return function LoyaltyShape(props: Record<string, unknown>) {
     const x = (props.x as number) ?? 0;
     const y = (props.y as number) ?? 0;
     const height = (props.height as number) ?? 0;

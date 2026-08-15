@@ -2,50 +2,60 @@
 
 import * as Slider from "@radix-ui/react-slider";
 import { Loader2 } from "lucide-react";
-
 import type { Party } from "@/lib/types";
-import { type RulingParty } from "@/lib/rulingParty";
+import type { RulingParty } from "@/lib/rulingParty";
 
 interface ShockInputProps {
   party: Party;
-  setParty: (p: Party) => void;
+  setParty: (party: Party) => void;
   rulingParty: RulingParty;
-  setRulingParty: (r: RulingParty) => void;
+  setRulingParty: (party: RulingParty) => void;
   event: string;
-  setEvent: (e: string) => void;
+  setEvent: (event: string) => void;
   intensity: number;
-  setIntensity: (i: number) => void;
+  setIntensity: (intensity: number) => void;
   onSubmit: () => void;
   loading: boolean;
 }
 
-// "Party currently in power" segmented control. None-specified is the default and
-// preserves the original behavior (event text sent unchanged).
-const RULING_OPTIONS: { value: RulingParty; label: string; active: string }[] = [
-  { value: "democrat",   label: "Democratic",     active: "bg-blue-600 text-white shadow-sm" },
-  { value: "republican", label: "Republican",     active: "bg-red-600 text-white shadow-sm" },
-  { value: "none",       label: "None specified", active: "bg-gray-600 text-white shadow-sm" },
-];
-
-// Mirrors the backend 422 guard — descriptions shorter than 10 chars are rejected.
 const MIN_EVENT_LENGTH = 10;
-
-const PRESETS = [
-  { label: "Security",           color: "amber",   text: "An assassination attempt is made on the leading presidential candidate" },
-  { label: "Geopolitical",       color: "indigo",  text: "The US enters a major armed conflict in the Middle East" },
-  { label: "Moral / Scandal",    color: "rose",    text: "A major financial scandal involving the sitting administration is revealed" },
-  { label: "Electoral Surprise", color: "violet",  text: "A major October Surprise leak dominates the news cycle" },
-  { label: "Economic",           color: "emerald", text: "A sudden recession is declared in the final month of the campaign" },
+const PARTIES: { value: Party; label: string }[] = [
+  { value: "democrat", label: "Democrat" },
+  { value: "republican", label: "Republican" },
 ];
 
-// Static class map — dynamic string interpolation is invisible to Tailwind JIT.
-const COLOR_CLASSES: Record<string, string> = {
-  amber:   "border-amber-400 text-amber-700 hover:bg-amber-50",
-  indigo:  "border-indigo-400 text-indigo-700 hover:bg-indigo-50",
-  rose:    "border-rose-400 text-rose-700 hover:bg-rose-50",
-  violet:  "border-violet-400 text-violet-700 hover:bg-violet-50",
-  emerald: "border-emerald-400 text-emerald-700 hover:bg-emerald-50",
-};
+function SegmentedControl({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: RulingParty;
+  onChange: (party: Party) => void;
+}) {
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="editorial-kicker mb-2 text-[10px] text-muted">{label}</p>
+      <div className="grid grid-cols-2 overflow-hidden rounded-sm border border-control">
+        {PARTIES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={`px-3 py-2 text-[13px] transition-colors ${
+              value === option.value
+                ? "bg-maroon text-surface"
+                : "bg-surface text-body hover:bg-rule-light"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function ShockInput({
   party,
@@ -60,182 +70,67 @@ export default function ShockInput({
   loading,
 }: ShockInputProps) {
   const eventTooShort = event.trim().length > 0 && event.trim().length < MIN_EVENT_LENGTH;
-  const submitDisabled = loading || event.trim().length < MIN_EVENT_LENGTH;
-
-  const partyColor = party === "democrat" ? "blue" : "red";
+  const disabled = loading || event.trim().length < MIN_EVENT_LENGTH;
 
   return (
-    <div className="space-y-6">
-      {/* ── (i) Modeling party toggle — primary decision, visually dominant ── */}
-      <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Modeling party
-        </p>
-        <p className="mb-2 text-xs text-gray-400">
-          Which party&apos;s equilibrium coalition and win threshold to evaluate this shock against.
-        </p>
-        <div className="inline-flex rounded-lg border border-gray-200 p-1 shadow-sm">
-          <button
-            type="button"
-            onClick={() => setParty("democrat")}
-            className={[
-              "rounded-md px-6 py-2.5 text-sm font-semibold transition-colors",
-              party === "democrat"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-transparent text-gray-500 hover:text-gray-700",
-            ].join(" ")}
-          >
-            Democrat
-          </button>
-          <button
-            type="button"
-            onClick={() => setParty("republican")}
-            className={[
-              "rounded-md px-6 py-2.5 text-sm font-semibold transition-colors",
-              party === "republican"
-                ? "bg-red-600 text-white shadow-sm"
-                : "bg-transparent text-gray-500 hover:text-gray-700",
-            ].join(" ")}
-          >
-            Republican
-          </button>
-        </div>
+    <section>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+        <SegmentedControl
+          label="Party in power"
+          value={rulingParty}
+          onChange={setRulingParty}
+        />
+        <SegmentedControl label="Viewed from" value={party} onChange={setParty} />
       </div>
 
-      {/* ── (i-b) Ruling party — governing context, distinct from Modeling party ── */}
-      <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Party currently in power
-        </p>
-        <p className="mb-2 text-xs text-gray-400">
-          Who governs when the event happens — <span className="font-medium text-gray-500">not</span>{" "}
-          the same as the modeling party above.
-        </p>
-        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-1 shadow-sm">
-          {RULING_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setRulingParty(opt.value)}
-              aria-pressed={rulingParty === opt.value}
-              className={[
-                "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
-                rulingParty === opt.value
-                  ? opt.active
-                  : "bg-transparent text-gray-500 hover:text-gray-700",
-              ].join(" ")}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── (ii) Event description textarea ── */}
-      <div>
-        <label
-          htmlFor="shock-event"
-          className="mb-1.5 block text-sm font-medium text-gray-700"
-        >
-          Political shock
+      <div className="mt-7">
+        <label htmlFor="shock-event" className="editorial-kicker mb-2 block text-gold">
+          The event
         </label>
         <textarea
           id="shock-event"
           rows={3}
           value={event}
           onChange={(e) => setEvent(e.target.value)}
-          placeholder="Describe a hypothetical political event..."
-          className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="Describe a hypothetical political event…"
+          className="w-full resize-y border-0 border-b border-rule-light bg-transparent px-0 py-2 text-[17px] italic leading-relaxed text-ink outline-none placeholder:text-faint focus:border-gold"
         />
-        {eventTooShort && (
-          <p className="mt-1 text-xs text-amber-600">
-            Enter at least {MIN_EVENT_LENGTH} characters
-          </p>
-        )}
+        {eventTooShort && <p className="mt-1 text-xs italic text-party-rep">Enter at least 10 characters.</p>}
+      </div>
 
-        {/* ── Preset pills — fill textarea only, do not submit ── */}
-        <div className="mt-3">
-          <p className="mb-1.5 text-xs font-medium text-gray-400">Or try a preset:</p>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => setEvent(preset.text)}
-                className={[
-                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                  COLOR_CLASSES[preset.color],
-                ].join(" ")}
-              >
-                {preset.label}
-              </button>
-            ))}
+      <div className="mt-5 grid grid-cols-1 items-end gap-4 sm:grid-cols-[1fr_150px]">
+        <div>
+          <div className="mb-2 flex justify-between text-xs text-muted">
+            <label>Event intensity</label>
+            <span>{intensity.toFixed(1)}</span>
           </div>
-          <p className="mt-2 text-xs italic text-gray-400">
-            The party toggle above determines whose coalition is modeled — this event is interpreted as affecting the selected party&apos;s candidate.
-          </p>
-        </div>
-      </div>
-
-      {/* ── (iii) Intensity slider ── */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700">Intensity</label>
-          <span className="text-sm tabular-nums text-gray-500">
-            {intensity.toFixed(1)}
-          </span>
-        </div>
-        <Slider.Root
-          min={0.5}
-          max={2.0}
-          step={0.1}
-          value={[intensity]}
-          onValueChange={([v]) => setIntensity(v)}
-          className="relative flex h-5 w-full touch-none select-none items-center"
-        >
-          <Slider.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-gray-200">
-            <Slider.Range
-              className={`absolute h-full ${partyColor === "blue" ? "bg-blue-500" : "bg-red-500"}`}
+          <Slider.Root
+            min={0.5}
+            max={2}
+            step={0.1}
+            value={[intensity]}
+            onValueChange={([next]) => setIntensity(next)}
+            className="relative flex h-5 touch-none items-center"
+          >
+            <Slider.Track className="relative h-1 w-full grow bg-rule">
+              <Slider.Range className="absolute h-full bg-gold" />
+            </Slider.Track>
+            <Slider.Thumb
+              aria-label="Event intensity"
+              className="block h-3.5 w-3.5 rounded-full border-2 border-maroon bg-surface outline-none focus:ring-2 focus:ring-gold"
             />
-          </Slider.Track>
-          <Slider.Thumb
-            className={[
-              "block h-4 w-4 rounded-full border-2 bg-white shadow-md",
-              "focus:outline-none focus:ring-2 focus:ring-offset-1",
-              partyColor === "blue"
-                ? "border-blue-500 focus:ring-blue-500"
-                : "border-red-500 focus:ring-red-500",
-            ].join(" ")}
-            aria-label="Intensity"
-          />
-        </Slider.Root>
-        <div className="mt-1 flex justify-between text-xs text-gray-400">
-          <span>0.5 — minor</span>
-          <span>2.0 — major</span>
+          </Slider.Root>
         </div>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={disabled}
+          className="flex h-10 items-center justify-center gap-2 bg-maroon px-4 text-sm text-surface transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {loading ? "Estimating…" : "Run estimate"}
+        </button>
       </div>
-
-      {/* ── (iv) Submit button ── */}
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={submitDisabled}
-        className={[
-          "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3",
-          "text-sm font-semibold text-white shadow-sm transition-opacity",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          party === "democrat" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700",
-        ].join(" ")}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Estimating…
-          </>
-        ) : (
-          "Run estimate"
-        )}
-      </button>
-    </div>
+    </section>
   );
 }

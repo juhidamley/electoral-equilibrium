@@ -13,7 +13,7 @@ export default function ErrorBanner({ message }: ErrorBannerProps) {
   return (
     <div
       role="alert"
-      className="mt-4 flex items-start gap-3 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
+      className="mt-6 flex items-start gap-3 border border-party-rep/30 bg-party-rep/5 px-4 py-3 text-sm italic text-party-rep"
     >
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{message}</span>

@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+:root {
+  --canvas: #f7f1e3;
+  --surface: #fbf6ea;
+  --rule: #e4d9bf;
+  --rule-light: #ebe1c7;
+  --control: #d8cbaa;
+  --dial-track: #e0d4b8;
+  --ink: #2a2620;
+  --body: #4a443a;
+  --muted: #8a8271;
+  --faint: #b9ae93;
+  --maroon: #7b2d2d;
+  --gold: #9a7b3f;
+  --party-dem: #2f5c8f;
+  --party-rep: #9a3324;
+  --party-neutral: #b9ae93;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-rule: var(--rule);
+  --color-rule-light: var(--rule-light);
+  --color-control: var(--control);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-maroon: var(--maroon);
+  --color-gold: var(--gold);
+  --color-party-dem: var(--party-dem);
+  --color-party-rep: var(--party-rep);
+  --color-party-neutral: var(--party-neutral);
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: Georgia, "Times New Roman", serif;
+}
+
+html {
+  background: var(--canvas);
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--body);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.editorial-kicker {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+::selection {
+  background: var(--control);
+  color: var(--ink);
+}
