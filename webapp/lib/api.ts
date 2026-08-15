@@ -1,5 +1,19 @@
 // Typed API client for the Electoral Equilibrium FastAPI backend.
 //
+// WHAT THIS FILE IS: the single place that knows how to TALK to the backend.
+// Components never call fetch() directly — they call these functions, which
+// handle the URL, the HTTP method, error handling, and (crucially) runtime
+// validation of the response with the Zod schemas. The benefit: every network
+// call fails the same way (a thrown ApiError) and every success is guaranteed to
+// match our types, so the rest of the app can trust the data it receives.
+//
+// THE PATTERN each function follows:
+//   1. fetch() the endpoint, catching network-level failures → ApiError(status 0)
+//   2. check res.ok; a non-2xx status → ApiError with the server's detail message
+//   3. parse the body as JSON → ApiError if it isn't JSON
+//   4. validate the JSON against a Zod schema → ApiError if the shape is wrong
+// Only after all four pass do we return typed, trustworthy data.
+//
 // estimateShock validates its response with EstimateResponseSchema, which
 // expects the full { shock, equilibrium, simulation } composite payload.
 // The current /estimate endpoint (electoral/llm/inference.py) returns only
@@ -16,10 +30,21 @@ import {
   SimulationDataSchema,
   type EstimateResponse,
 } from "./schemas";
-import type { EquilibriumData, Party, ShockResponseData, SimulationData } from "./types";
+import type {
+  EmpiricalSupport,
+  EquilibriumData,
+  Party,
+  Refinement,
+  ShockResponseData,
+  SimulationData,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// A custom error type carrying the HTTP status alongside the message. Callers can
+// `catch (e) { if (e instanceof ApiError) ... }` and branch on e.status — e.g.
+// show "please log in" for 401 vs "server error" for 500. status 0 = the request
+// never reached the server (network down / CORS), a useful distinct signal.
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -66,6 +91,9 @@ export async function estimateShock(
     throw new ApiError("Response was not valid JSON", res.status);
   }
 
+  // safeParse returns {success, data|error} instead of throwing, so we can turn
+  // a Zod failure into our uniform ApiError. The .issues array lists every field
+  // that failed (path + message); we join them into one readable string.
   const parsed = EstimateResponseSchema.safeParse(json);
   if (!parsed.success) {
     throw new ApiError(
@@ -136,14 +164,19 @@ export function estimateShockStream(
     onDeltas?: (data: ShockResponseData) => void;
     onEquilibrium?: (data: EquilibriumData) => void;
     onSimulation?: (data: SimulationData) => void;
+    onEmpiricalSupport?: (data: EmpiricalSupport) => void;
+    onRefinement?: (data: Refinement) => void;
     onError?: (message: string) => void;
     onDone?: () => void;
   },
+  refine = false,
 ): EventSource {
   const url = new URL(`${API_URL}/estimate/stream`);
   url.searchParams.set("event", event);
   url.searchParams.set("intensity", String(intensity));
   url.searchParams.set("party", party);
+  // Off by default — only opt in when the caller wants aligned-event refinement.
+  if (refine) url.searchParams.set("refine_with_real_sentiment", "1");
 
   const es = new EventSource(url.toString());
 
@@ -195,6 +228,25 @@ export function estimateShockStream(
     } else {
       const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
       callbacks.onError?.(`simulation schema error: ${msg}`);
+    }
+  });
+
+  // Real-reaction grounding frames (covered events only). Informational — parse
+  // leniently and NEVER surface a schema error to the user; a malformed frame
+  // just skips the grounding UI, leaving the base results untouched.
+  es.addEventListener("empirical_support", (e: MessageEvent) => {
+    try {
+      callbacks.onEmpiricalSupport?.(JSON.parse(e.data) as EmpiricalSupport);
+    } catch {
+      /* ignore malformed grounding frame */
+    }
+  });
+
+  es.addEventListener("refinement", (e: MessageEvent) => {
+    try {
+      callbacks.onRefinement?.(JSON.parse(e.data) as Refinement);
+    } catch {
+      /* ignore malformed refinement frame */
     }
   });
 
