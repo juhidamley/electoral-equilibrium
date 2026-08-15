@@ -4,10 +4,13 @@ import * as Slider from "@radix-ui/react-slider";
 import { Loader2 } from "lucide-react";
 
 import type { Party } from "@/lib/types";
+import { type RulingParty } from "@/lib/rulingParty";
 
 interface ShockInputProps {
   party: Party;
   setParty: (p: Party) => void;
+  rulingParty: RulingParty;
+  setRulingParty: (r: RulingParty) => void;
   event: string;
   setEvent: (e: string) => void;
   intensity: number;
@@ -15,6 +18,14 @@ interface ShockInputProps {
   onSubmit: () => void;
   loading: boolean;
 }
+
+// "Party currently in power" segmented control. None-specified is the default and
+// preserves the original behavior (event text sent unchanged).
+const RULING_OPTIONS: { value: RulingParty; label: string; active: string }[] = [
+  { value: "democrat",   label: "Democratic",     active: "bg-blue-600 text-white shadow-sm" },
+  { value: "republican", label: "Republican",     active: "bg-red-600 text-white shadow-sm" },
+  { value: "none",       label: "None specified", active: "bg-gray-600 text-white shadow-sm" },
+];
 
 // Mirrors the backend 422 guard — descriptions shorter than 10 chars are rejected.
 const MIN_EVENT_LENGTH = 10;
@@ -39,6 +50,8 @@ const COLOR_CLASSES: Record<string, string> = {
 export default function ShockInput({
   party,
   setParty,
+  rulingParty,
+  setRulingParty,
   event,
   setEvent,
   intensity,
@@ -53,10 +66,13 @@ export default function ShockInput({
 
   return (
     <div className="space-y-6">
-      {/* ── (i) Party toggle — primary decision, visually dominant ── */}
+      {/* ── (i) Modeling party toggle — primary decision, visually dominant ── */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
           Modeling party
+        </p>
+        <p className="mb-2 text-xs text-gray-400">
+          Which party&apos;s equilibrium coalition and win threshold to evaluate this shock against.
         </p>
         <div className="inline-flex rounded-lg border border-gray-200 p-1 shadow-sm">
           <button
@@ -83,6 +99,35 @@ export default function ShockInput({
           >
             Republican
           </button>
+        </div>
+      </div>
+
+      {/* ── (i-b) Ruling party — governing context, distinct from Modeling party ── */}
+      <div>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
+          Party currently in power
+        </p>
+        <p className="mb-2 text-xs text-gray-400">
+          Who governs when the event happens — <span className="font-medium text-gray-500">not</span>{" "}
+          the same as the modeling party above.
+        </p>
+        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-1 shadow-sm">
+          {RULING_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setRulingParty(opt.value)}
+              aria-pressed={rulingParty === opt.value}
+              className={[
+                "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
+                rulingParty === opt.value
+                  ? opt.active
+                  : "bg-transparent text-gray-500 hover:text-gray-700",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -126,6 +171,9 @@ export default function ShockInput({
               </button>
             ))}
           </div>
+          <p className="mt-2 text-xs italic text-gray-400">
+            The party toggle above determines whose coalition is modeled — this event is interpreted as affecting the selected party&apos;s candidate.
+          </p>
         </div>
       </div>
 

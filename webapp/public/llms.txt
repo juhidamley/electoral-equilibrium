@@ -1,0 +1,26 @@
+# Electoral Equilibrium
+
+> Electoral Equilibrium is a stochastic-optimization research pipeline that models how a political party's winning voter coalition must structurally rebalance after a hypothetical political shock, and estimates the probability of still winning with a 90% confidence interval. It is prescriptive, not predictive. Built by Juhi Damley as a Claremont McKenna College Summer Research Program 2026 project, advised by Prof. Gaston Espinosa. It is a research tool, not an election forecast.
+
+## How it works
+
+A three-stage pipeline, streamed to the browser over Server-Sent Events:
+
+1. Shock interpretation — a fine-tuned Mistral 7B model (QLoRA, constrained decoding) reads free text describing an event and estimates a per-stratum loyalty shift (Δμ) for every demographic bloc.
+2. Coalition optimization — a CVXPY disciplined-quasiconvex (DQCP) optimizer rebalances race/ethnicity weights to maximize the probability of winning, subject to feasibility constraints.
+3. Win-probability simulation — a Monte Carlo simulation over a logistic-normal (isometric-log-ratio, ILR) distribution with N = 10,000+ draws produces P(win) with a 90% confidence interval.
+
+## Modeling details
+
+The electorate is partitioned into 15 demographic blocs across three parallel strata — Race/ethnicity (5), Religion (7), Gender (3) — calibrated on roughly 20 U.S. presidential cycles (1948–2024). Data scarcity (~20 elections) is the central modeling challenge. Iterative proportional fitting yields raked stratum weights of race 0.114, religion 0.224, gender 0.662, a calibration result reflecting cross-cycle temporal variance rather than individual-level causal importance.
+
+## Links
+
+- Live demo: https://electoral.juhi.studio
+- Source: https://github.com/juhidamley/electoral-equilibrium
+- Full writeup: https://juhi.studio/projects/electoral-equilibrium
+- Author: Juhi Damley — https://juhi.studio
+
+## Stack
+
+Python, Mistral 7B + QLoRA (PEFT), CVXPY (DQCP), NumPy/SciPy Monte Carlo (logistic-normal ILR), RoBERTa, Next.js (App Router, SSE streaming), Modal / vLLM inference.

@@ -1,3 +1,21 @@
+// ============================================================================
+// WHAT THIS FILE IS (frontend data contracts)
+// ============================================================================
+// This is the TypeScript MIRROR of electoral/artifacts.py. The Python backend
+// sends JSON; the browser receives it. TypeScript can't read Python, so we
+// re-declare the same shapes here as `interface`s/`type`s. That gives us
+// compile-time safety: if you try to read `simulation.win_prob` when the field
+// is actually `win_probability`, the TypeScript compiler catches it before the
+// app ever runs.
+//
+// TWO LAYERS, DON'T CONFUSE THEM:
+//   • types.ts (this file) = COMPILE-TIME shapes. They vanish at runtime — they
+//     only help the editor and the type-checker. They do NOT verify that data
+//     actually arriving from the network matches.
+//   • schemas.ts (Zod)     = RUNTIME validation. It actually inspects incoming
+//     JSON and throws if a field is missing or out of range. Use that at the
+//     network boundary (see lib/api.ts).
+//
 // Mirror of electoral/artifacts.py frozen dataclasses.
 // These types MUST be kept in sync with the Python definitions manually —
 // there is no codegen step. Any field added to artifacts.py must be added here.
@@ -58,7 +76,7 @@ export interface ShockResponseData {
 export interface EquilibriumData {
   method: string;
   party: Party;
-  shock: string;
+  shock: string | null;
   weights: Record<RaceBloc, number>;
   mu_shifted: Record<RaceBloc, number>;   // per-bloc post-shock loyalty μ̃_i (for bar rendering)
   mu_eff_shifted: number;                 // λ-weighted scalar across all three strata (for gap display)
@@ -112,4 +130,45 @@ export interface TrainingRun {
   train_loss: number;
   val_loss: number | null; // null when in-loop eval is disabled (eval_mae=inf case)
   mae: number | null;
+}
+
+// ── Real-reaction grounding (empirical support + optional refinement) ─────────
+// Emitted by /estimate/stream as `empirical_support` and `refinement` frames for
+// events with real archive coverage. Purely informational display; the base
+// prediction, optimizer, and Monte Carlo are unaffected.
+
+export type Agreement = "aligned" | "diverged" | "no_data";
+export type Regime = "aligned" | "divergent" | "uncovered";
+
+export interface EmpiricalBloc {
+  bloc: string;
+  predicted_delta: number | null;
+  predicted_bin: string | null;
+  real_social_sentiment: number | null; // null → never fabricated
+  n_posts: number;
+  agreement: Agreement;
+}
+
+export interface EmpiricalSupport {
+  shock_id: string;
+  regime: Regime;
+  n_aligned: number;
+  n_diverged: number;
+  n_no_data: number;
+  blocs: EmpiricalBloc[];
+  note: string;
+}
+
+export interface RefinedPrediction {
+  bins: Record<string, string>;
+  deltas: Record<string, number>;
+}
+
+export interface Refinement {
+  regime: Regime;
+  refinable: boolean;
+  applied: boolean;
+  reason: string | null;
+  refined_prediction: RefinedPrediction | null;
+  note: string;
 }

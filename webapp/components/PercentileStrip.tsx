@@ -1,5 +1,22 @@
 "use client";
 
+// ============================================================================
+// PercentileStrip — a mini box-plot per race bloc showing equilibrium-weighting
+// ESTIMATION UNCERTAINTY (from historical covariance, not the shock).
+// ============================================================================
+// WHAT'S A BOX-PLOT (in case it's unfamiliar): a compact way to show a range of
+// outcomes. The Monte Carlo draws thousands of samples around the fixed
+// equilibrium weighting for each bloc, using the historical bloc covariance;
+// rather than one number, this shows the spread:
+//   • the BOX spans the middle 50% of outcomes (25th–75th percentile),
+//   • the line inside the box is the median (50th),
+//   • the WHISKERS reach the 5th and 95th percentiles (the 90% range).
+// A wide box/whiskers = more estimation uncertainty around that bloc's
+// equilibrium weighting; a narrow one = a more precise historical estimate.
+// This spread comes from the covariance, not the shock — it is the same for
+// every query (see docs/design/optimizer_framing.md). Supplementary detail
+// beneath the WinGauge.
+//
 // Compact horizontal box-plot strip — shows the p5/p25/p50/p75/p95 distribution
 // of coalition weights per race bloc, as produced by the Logistic-Normal ILR
 // Monte Carlo in simulation/montecarlo.py.
@@ -143,6 +160,15 @@ export default function PercentileStrip({ percentiles }: PercentileStripProps) {
           />
         </BarChart>
       </ResponsiveContainer>
+      <p className="mt-1.5 text-[11px] leading-snug text-gray-400">
+        In plain English: the simulation re-runs the equilibrium coalition thousands of
+        times with small random variations drawn from historical bloc covariance, and each
+        bar shows the range of weight a bloc could end up with. The bar spans the 5th to
+        95th percentile (its likely range) and the darker box is the middle 50%. A wide bar
+        means more estimation uncertainty around that bloc&apos;s equilibrium weighting; a
+        narrow bar means a more precise estimate. This spread comes from historical
+        covariance, not from the shock — it&apos;s the same for every query.
+      </p>
     </div>
   );
 }
