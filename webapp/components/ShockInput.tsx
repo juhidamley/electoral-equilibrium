@@ -45,7 +45,9 @@ function SegmentedControl({
             onClick={() => onChange(option.value)}
             className={`px-3 py-2 text-[13px] transition-colors ${
               value === option.value
-                ? "bg-maroon text-surface"
+                ? option.value === "democrat"
+                  ? "bg-party-dem text-surface"
+                  : "bg-maroon text-surface"
                 : "bg-surface text-body hover:bg-rule-light"
             }`}
           >
