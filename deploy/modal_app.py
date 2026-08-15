@@ -179,7 +179,7 @@ _mounts = [
 
 # ── Container paths ────────────────────────────────────────────────────────────
 # These are the paths inside the running Modal container.
-_ADAPTER_PATH = "/adapters/mistral-r16"
+_ADAPTER_PATH = "/adapters/mistral-r16-hybrid-0.03-20260814"
 _AUDIT_DB_PATH = "/audit/audit.duckdb"
 
 
