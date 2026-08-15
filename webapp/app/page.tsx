@@ -11,7 +11,7 @@ import ShockInput from "@/components/ShockInput";
 import ShockNarrative from "@/components/ShockNarrative";
 import WinGauge from "@/components/WinGauge";
 import { estimateShockStream } from "@/lib/api";
-import { netVerdict } from "@/lib/editorial";
+import { netVerdictCopy } from "@/lib/editorial";
 import { injectRulingContext, type RulingParty } from "@/lib/rulingParty";
 import type {
   EmpiricalSupport,
@@ -112,6 +112,7 @@ export default function HomePage() {
   }
 
   const hasResult = deltaEff !== null;
+  const verdict = netVerdictCopy(deltaEff ?? 0, party);
 
   return (
     <main className="min-h-screen bg-canvas px-4 py-8 text-body sm:py-14">
@@ -156,16 +157,14 @@ export default function HomePage() {
                   <section className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-[1fr_168px] sm:items-center">
                     <div>
                       <h1 className="text-[26px] leading-tight text-ink">
-                        {netVerdict(deltaEff ?? 0, party)}
+                        {verdict.headline}
                       </h1>
-                      <p className="mt-4 text-[15px] leading-relaxed text-body">
-                        The shift is small — the norm. Few voters leave the side they already favor;
-                        elections turn on the margins that do.
-                      </p>
+                      <p className="mt-4 text-[15px] leading-relaxed text-body">{verdict.context}</p>
                     </div>
                     <EditorialWinDial
                       winProbability={simulation?.win_probability ?? null}
                       modeledParty={party}
+                      shiftParty={verdict.beneficiary}
                       loading={loading && !simulation}
                     />
                   </section>
@@ -175,14 +174,16 @@ export default function HomePage() {
                     deltasRace={deltasRace}
                     deltasReligion={deltasReligion}
                     deltasGender={deltasGender}
+                    shiftedRace={equilibrium?.mu_shifted ?? null}
                     party={party}
                     loading={loading}
                   />
 
                   <p className="mt-9 border-t border-rule-light pt-5 text-[12.5px] italic leading-relaxed text-muted">
-                    Each line runs from no change to where the event moves a group. A research estimate
-                    of small directional shifts — calibrated to a decade of survey data; best read as
-                    direction and rough size, not exact vote counts.
+                    Race lines run from a group&apos;s starting loyalty (hollow) to where the event moves it
+                    (filled); other strata show the available directional change. A research estimate of
+                    small shifts — calibrated to a decade of survey data; best read as direction and rough
+                    size, not exact vote counts.
                   </p>
 
                   <details className="mt-6 border-t border-rule-light pt-4">
@@ -231,7 +232,13 @@ export default function HomePage() {
         </div>
       </article>
       <p className="mx-auto mt-5 max-w-[680px] text-center text-xs italic text-muted">
-        CMC Summer Research Project · Juhi Damley
+        CMC Summer Research Project ·{" "}
+        <a
+          href="https://juhi.studio"
+          className="underline decoration-rule underline-offset-2 transition-colors hover:text-maroon"
+        >
+          Juhi Damley
+        </a>
       </p>
     </main>
   );

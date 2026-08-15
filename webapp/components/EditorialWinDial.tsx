@@ -1,21 +1,21 @@
 import type { Party } from "@/lib/types";
-import { oppositeParty, partyName } from "@/lib/editorial";
+import { oppositeParty, partyName, probabilityRead } from "@/lib/editorial";
 
 interface Props {
   winProbability: number | null;
   modeledParty: Party;
+  shiftParty: Party | null;
   loading?: boolean;
 }
 
 const ARC_LENGTH = 157;
 
-function probabilityRead(probability: number, modeledParty: Party): string {
-  if (probability >= 0.6) return `The ${partyName(modeledParty)}' edge holds.`;
-  if (probability <= 0.4) return `The ${partyName(oppositeParty(modeledParty))}' edge holds.`;
-  return "The race remains close.";
-}
-
-export default function EditorialWinDial({ winProbability, modeledParty, loading }: Props) {
+export default function EditorialWinDial({
+  winProbability,
+  modeledParty,
+  shiftParty,
+  loading,
+}: Props) {
   const pending = loading || winProbability === null;
   const probability = winProbability ?? 0;
   const percent = Math.round(probability * 100);
@@ -47,7 +47,7 @@ export default function EditorialWinDial({ winProbability, modeledParty, loading
       <p className="editorial-kicker mt-1 text-[10px] text-muted">
         {partyName(modeledParty, true)} win odds
       </p>
-      {!pending && <p className="mt-1 text-xs italic text-body">{probabilityRead(probability, modeledParty)}</p>}
+      {!pending && <p className="mt-1 text-xs italic text-body">{probabilityRead(probability, modeledParty, shiftParty)}.</p>}
     </div>
   );
 }
