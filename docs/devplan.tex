@@ -3911,6 +3911,93 @@ are complete.}
         civic data literacy.
 \end{itemize}
 
+% ── Post-Week-7 Addendum ────────────────────────────────────────────────────
+\section*{Post-Week-7 Addendum: Phase 6.4--6.5 Hybrid Grounding, Fair Comparison, and Promotion (2026-08-14 to 2026-08-15)}
+
+This plan was written for a 7-week horizon; the project continued past it under a
+``Phase'' numbering (see \texttt{DECISIONS.md} and \texttt{CLAUDE.md}) not anticipated
+above. This addendum records what actually happened in Phase 6.4--6.5, as a
+retrospective note against the original plan, not a rewrite of it. \textbf{A note on
+provenance}: an earlier version of this addendum, covering only the 2026-08-14 half of
+this story, was written and then lost to this particular checkout when it was stashed
+(uncommitted) on another branch before a branch switch; it is being rewritten here in
+full rather than partially recovered, to avoid documenting a stale intermediate state.
+
+\textbf{A fourth fine-tuned adapter} was trained on 2026-08-14:
+\texttt{mistral-r16-hybrid-0.03-20260814}, QLoRA rank 16 / alpha 32 / lr $2\times10^{-4}$
+/ 3 epochs, base Mistral-7B-v0.3, seed 42 --- the same recipe as the prior adapters,
+with only the training corpus changed (a 382-record hybrid corpus combining synthetic
+and reviewed records, with an explicit mobilization-override label rule). This was
+additive: \texttt{mistral-r16-v3}, \texttt{-grounded}, and \texttt{-grounded-v2} were
+untouched at that point.
+
+\textbf{Panel validation} held magnitude and direction separate, per this project's
+standing rule against a combined score: magnitude calibration was $\approx$0.86x on
+trainable panel cells (slightly conservative); per-bloc direction was $\approx$0.875,
+measured against only 8 trustworthy trainable panel cells across 3 temporal windows,
+concentrated in two blocs --- a hint, not a proof.
+
+\textbf{A held-out mobilization confound probe} --- ten counter-sentiment events (5
+Democrat-beneficiary, 5 Republican-beneficiary) that the model never saw during
+training --- tested whether the model had learned to distinguish a backlash that costs
+a party support from a backlash that mobilizes that party's own base. The hybrid
+adapter scored 9 of 10 correct, with beneficiary-specific (not flat-positive) predicted
+coalitions, ruling out the trivial ``always predicts positive'' explanation.
+
+\textbf{A three-way fair comparison, run 2026-08-15}, scored \texttt{hybrid-0.03}
+against \texttt{v3} and \texttt{grounded-v1} (\texttt{grounded-v2} excluded as already
+disqualified for a held-out leak) on the identical panel and probe tests, holding base
+model and recipe fixed so the corpus was the only variable:
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+ & magnitude ratio & direction acc. & rank corr. (n=2) & probe (/10) \\
+\midrule
+\textbf{hybrid-0.03} & \textbf{0.86x} & \textbf{0.875} & $-0.80$ & \textbf{9} \\
+v3 & 1.32x & 0.625 & \textbf{+0.61} & 3 \\
+grounded-v1 & 1.23x & 0.47 & --- & 5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both older adapters over-predict magnitude by 20--30\%, inheriting the drama of the
+pre-rescale $\pm0.15$ corpus. The probe result is the decisive ablation: v3 scored
+\textbf{3/10}, with 7 of 10 answers sentiment-fallbacks --- below chance, meaning it
+does not fail to know the answer, it confidently knows the wrong one, the exact failure
+that killed two earlier grounding attempts. The hybrid is the only one of the three
+that broke out of the confound. The one axis the hybrid loses is rank correlation
+(v3's $+0.61$ beats hybrid's $-0.80$), on only 2 eligible shocks near the measurement
+floor --- recorded honestly rather than omitted, but too noisy to lean on either way.
+
+\textbf{Verdict: the hybrid adapter was promoted.} It wins decisively on the two axes
+that matter (magnitude calibration, confound resistance) and loses only the one noisy
+secondary metric. \textbf{The caveat that survives promotion, not dropped now that the
+wanted result arrived}: per-bloc direction ordering is weak across \emph{all three}
+models, hybrid included --- none of them reliably predicts which bloc moves most, a
+data-availability fact (about 8 trustworthy panel cells, full stop), not a hybrid
+shortcoming. What was promoted is a model that is magnitude-calibrated and
+confound-robust --- \textbf{not} a validated fine-grained per-bloc predictor.
+
+\textbf{Deployment, and a live gap in this repository's git history.} Per the run
+owner's account, \texttt{deploy/modal\_app.py}'s adapter path was changed to point at
+the hybrid adapter and redeployed via \texttt{modal deploy} (health check reported
+200; the disqualified \texttt{grounded-v2} no longer served). \textbf{This could not be
+confirmed from any commit during this pass.} Both \texttt{main} and the branch this
+addendum was written from still read the pre-existing scaffold adapter path; the edit
+exists only as an \emph{uncommitted} change sitting in \texttt{git stash} on a
+different branch (\texttt{geo-seo-pass}), not yet committed anywhere. If that stash is
+dropped before being committed, this repository will have no record at all of which
+adapter is actually live. Separately, a webapp chart fix (the coalition chart was
+mislabeling post-shock loyalty \emph{levels} as a loyalty \emph{shift} on the wrong
+axis; now fixed with a dedicated signed $\pm0.0375$ delta panel) exists as a real,
+pushed commit but on a feature branch not yet merged to \texttt{main} --- so whether
+the public frontend reflects it depends on Vercel configuration this repository cannot
+confirm. Full detail on both gaps, including a known-fragile PEFT-version workaround
+required to serve any Hopper-trained adapter through the current Modal deployment
+(not yet permanently fixed), is in \texttt{CLAUDE.md}'s ``Phase 6.4--6.5'' section and
+the corresponding 2026-08-14/2026-08-15 entries in \texttt{DECISIONS.md}.
+
 % ── Appendix ─────────────────────────────────────────────────────────────────
 \appendix
 \section{AI Research Assistant Tooling}
