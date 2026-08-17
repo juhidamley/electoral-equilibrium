@@ -298,8 +298,6 @@ def run_ilr_montecarlo(
         win_probability_low=win_probability_low,
         win_probability_high=win_probability_high,
         percentiles=percentiles,
-        win_probability_low=win_probability_low,
-        win_probability_high=win_probability_high,
     )
 
 
