@@ -78,6 +78,7 @@ _PACKAGES = [
     "scipy<1.14",
     # Optimizer — PINNED to 1.3.x (1.4 changed DQCP interface, not yet validated)
     "cvxpy==1.3.4",
+    "scikit-learn==1.5.2",  # ml_baseline: GaussianProcess + Ledoit-Wolf covariance
     # API stack
     "fastapi==0.115.0",
     "uvicorn[standard]==0.30.6",

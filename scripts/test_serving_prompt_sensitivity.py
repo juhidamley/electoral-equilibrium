@@ -67,8 +67,7 @@ def verdict(net: dict[int, float]) -> dict[str, Any]:
         zero_runs = [str(run) for run in (1, 2) if signs[run] == "zero"]
         if zero_runs:
             failures.append(
-                "bare clause failed because zero net occurred in run(s) "
-                + ", ".join(zero_runs)
+                "bare clause failed because zero net occurred in run(s) " + ", ".join(zero_runs)
             )
         else:
             failures.append("bare clause failed because runs 1 and 2 have different signs")
@@ -76,8 +75,7 @@ def verdict(net: dict[int, float]) -> dict[str, Any]:
         zero_runs = [str(run) for run in (3, 4) if signs[run] == "zero"]
         if zero_runs:
             failures.append(
-                "stated clause failed because zero net occurred in run(s) "
-                + ", ".join(zero_runs)
+                "stated clause failed because zero net occurred in run(s) " + ", ".join(zero_runs)
             )
         else:
             failures.append("stated clause failed because runs 3 and 4 have the same sign")
@@ -117,9 +115,8 @@ def cross_check(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "verdict": proxy["verdict"],
         "reason": proxy["reason"],
         "per_run_sign_disagreement": disagreeing,
-        "bases_agree": not disagreeing and proxy["verdict"] == verdict(
-            {row["run"]: row["delta_eff"] for row in runs}
-        )["verdict"],
+        "bases_agree": not disagreeing
+        and proxy["verdict"] == verdict({row["run"]: row["delta_eff"] for row in runs})["verdict"],
     }
 
 
@@ -139,9 +136,7 @@ def mean_bin_midpoint(bins: dict[str, str]) -> float:
     """Return the unweighted mean midpoint after validating all canonical blocs."""
     missing = [bloc for bloc in BLOCS if bloc not in bins]
     invalid = {
-        bloc: bins[bloc]
-        for bloc in BLOCS
-        if bloc in bins and bins[bloc] not in BIN_MIDPOINTS
+        bloc: bins[bloc] for bloc in BLOCS if bloc in bins and bins[bloc] not in BIN_MIDPOINTS
     }
     if missing or invalid:
         raise ValueError(
@@ -242,8 +237,7 @@ def markdown(
     )
     for row in runs:
         lines.append(
-            f"| {row['run']} | {row['mean_bin_midpoint']:+.8f} | "
-            f"{row['delta_eff']:+.8f} |"
+            f"| {row['run']} | {row['mean_bin_midpoint']:+.8f} | " f"{row['delta_eff']:+.8f} |"
         )
 
     lines.extend(
@@ -369,9 +363,7 @@ def main() -> None:
         "base_model": args.base_model,
         "seed": args.seed,
         "event_texts": {"bare": BARE, "stated": STATED},
-        "mean_bin_midpoint_definition": (
-            "unweighted mean of 15 canonical bin midpoints"
-        ),
+        "mean_bin_midpoint_definition": ("unweighted mean of 15 canonical bin midpoints"),
         "runs": runs,
         "verdict": result,
         "cross_check": cross,

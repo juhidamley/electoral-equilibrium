@@ -85,4 +85,6 @@ def validate_panel(
         non_null = share_num.dropna()
         out = non_null[(non_null < 0.0) | (non_null > 1.0)]
         if len(out):
-            raise ValueError(f"{context}.{col}: values outside [0, 1]: {sorted(out.unique().tolist())}")
+            raise ValueError(
+                f"{context}.{col}: values outside [0, 1]: {sorted(out.unique().tolist())}"
+            )

@@ -38,7 +38,20 @@ dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "black==25.11.0",
-    "ruff>=0.1",
+    # Pinned exactly, matching black's convention above.
+    #
+    # WHY THIS IS PINNED: `ruff>=0.1` let CI float to whatever was newest, so the
+    # rules CI enforced changed without any commit. ruff 0.16 widened its DEFAULT
+    # rule set (this repo sets no [tool.ruff.lint] select, so defaults are what
+    # apply): 0.15.15 reports 0 findings on this tree, 0.16.3 reports 245.
+    # That is a tooling change masquerading as a code regression.
+    #
+    # 0.15.15 is pinned because it is what the working environment ran and it
+    # makes local and CI agree today. Adopting 0.16's broader defaults is a
+    # deliberate code-quality decision (149 of the 245 are not auto-fixable and
+    # include judgment calls: blind-except, try-except-pass, naive datetimes),
+    # not a version bump. Do that as its own task, not as a side effect.
+    "ruff==0.15.15",
 ]
 all = [
     "electoral-equilibrium[data,ml,llm,orchestration,dev]",
@@ -67,5 +80,5 @@ target-version = ["py39"]
 dev = [
     "black>=25.11.0",
     "pytest>=8.4.2",
-    "ruff>=0.15.15",
+    "ruff==0.15.15",  # keep in sync with [project.optional-dependencies].dev
 ]
