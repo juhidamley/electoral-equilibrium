@@ -1,0 +1,183 @@
+{
+  "_meta": {
+    "purpose": "Phase 7 model registry. One entry per model in the A/B/C comparative study, so B and C slot in beside A on identical fields rather than being described ad hoc later.",
+    "created": "2026-08-17",
+    "phase": "7.1",
+    "schema_note": "Every model carries the same keys. 'status' is the only field that distinguishes a built model from a declared one: 'serving' | 'trained' | 'planned'. A 'planned' entry has null in every measured field — never a placeholder number, never an estimate.",
+    "measurement_discipline": "Magnitude and direction are reported separately and are never blended into one score, per electoral/metrics/ground_truth_accuracy.py's structural separation. Any caveat attached to a number travels with that number; do not quote a characterization figure without its caveat.",
+    "provenance_warning": "Model A's measured figures were produced on Hopper (CMC HPC). As of 2026-08-17 the underlying artifacts (reports/hybrid_003_panel_score.json, artifacts/mobilization_confound_probe_results.json, and the fair-comparison outputs) have NOT been rsynced into this checkout. The figures below are transcribed from devlog/2026-08-15-three-models-one-question.md and the run owner's account, and are corroborated by each other but not independently re-derivable here. Verify against Hopper before treating any of them as re-checked.",
+    "registry_is_not_a_deployment_record": "This file records what each model IS, not what is currently served. What Modal serves is governed by deploy/modal_app.py, which this file deliberately does not touch and cannot confirm. See docs/models/model-a-hybrid.md for the open git-tracking gap on that."
+  },
+
+  "models": {
+    "A": {
+      "id": "mistral-r16-hybrid-0.03-20260814",
+      "label": "Model A — hybrid (scale-corrected corpus + mobilization override)",
+      "status": "serving",
+      "adapter_path": "models/mistral-r16-hybrid-0.03-20260814",
+      "base_model": "mistralai/Mistral-7B-v0.3",
+      "training_date": "2026-08-14",
+      "promoted_date": "2026-08-15",
+      "recipe": {
+        "method": "QLoRA",
+        "lora_rank": 16,
+        "lora_alpha": 32,
+        "learning_rate": 2e-4,
+        "epochs": 3,
+        "batch_size": 4,
+        "gradient_accumulation_steps": 4,
+        "seed": 42,
+        "bf16": false,
+        "config_file": "configs/train_mistral-r16-hybrid-0.03-20260814.json",
+        "recipe_note": "Deliberately identical to the prior clean adapter's recipe so that any behavioural difference is attributable to the corpus alone."
+      },
+      "corpus": {
+        "source_file": "data/finetune/phase6_step6_3_with_mobilization_override.jsonl",
+        "split_dir": "data/finetune/phase6_step6_4_hybrid_20260814/",
+        "sha256": "77f848f3d64739c45dfc4ed91112e00afe57b5cb1a1ebde2c22a0ed90d51d734",
+        "records_total": 382,
+        "records_train": 306,
+        "records_eval": 76,
+        "party_balance": "153/153 train, 38/38 eval",
+        "split_seed": 42,
+        "record_overlap": 0,
+        "distinguishing_features": [
+          "delta bins on the corrected +/-0.03 scale (factor-0.25 rescale, Phase 2 Step 2.1)",
+          "explicit mobilization override in the label generator: the declared beneficiary determines net sign before sentiment is considered"
+        ]
+      },
+      "training_gate": {
+        "result": "PASS",
+        "final_train_loss": 0.415,
+        "verified_locally": false,
+        "note": "Hopper-side. This checkout's artifacts/phase6_step6_4_training_manifest.json still reads status='prepared_not_trained' and is STALE — it is not evidence the run did not happen."
+      },
+      "panel_policy": "post_training_calibration_check_only; no panel cells materialized into train or eval",
+      "probe_policy": "evaluation_only; never trained or eval-split on",
+
+      "characterization": {
+        "_note": "MEASURED, not aspirational. Magnitude and direction are separate dimensions and are never combined.",
+        "magnitude": {
+          "mean_cellwise_ratio_trainable": 0.86,
+          "mean_cellwise_ratio_overall": 0.68,
+          "target": 1.0,
+          "reading": "Slightly conservative — under-predicts. This is the direct, measured payoff of the delta-bin rescale; the two older adapters over-predict by 20-30%.",
+          "status": "solved, panel-anchored"
+        },
+        "direction": {
+          "accuracy_trainable": 0.875,
+          "n_trustworthy_cells": 8,
+          "n_windows": 3,
+          "caveat_required": true,
+          "caveat": "0.875 is 7/8 cells across only 3 independent temporal windows, concentrated in the white and catholic blocs. This is a subset of the wider 19-of-270 direction-trustworthy panel figure. It is a statistical-power limit, not a window-quality problem. Never quote 0.875 without this caveat: it is a hint, not a proof, and 'best of three adapters' does not change that.",
+          "status": "largely unsolved"
+        },
+        "rank_correlation": {
+          "value": -0.80,
+          "n_eligible_shocks": 2,
+          "sign": "negative",
+          "reading": "The one axis Model A loses on. v3 scored +0.61 on the same 2 shocks. Both estimates sit near the measurement floor and are noisy. Recorded, not buried — but it does not overturn the magnitude and probe results.",
+          "status": "unresolved, weak evidence both ways"
+        },
+        "confound_probe": {
+          "score": "9/10",
+          "n_records": 10,
+          "beneficiary_split": {"democrat": "4/5", "republican": "5/5"},
+          "miss": "probe_dem_school_policy_backlash — attributed to an unusually strong culturally-coded sentiment prior overriding the mobilization logic",
+          "ablation": {
+            "hybrid": 9,
+            "grounded_v1": 5,
+            "v3": 3,
+            "reading": "All three share a base model and QLoRA recipe, so this isolates the scale-corrected corpus plus explicit mobilization override as the cause of confound resistance — not the base model, not luck. grounded-v1 at 5/10 is a coin flip (no signal). v3 at 3/10 is BELOW chance, with 7 of 10 answers sentiment-fallbacks: v3 does not fail to know the answer, it confidently knows the wrong one."
+          },
+          "scope_qualifier": "Model A uses beneficiary information when it is STATED in the event text; it does NOT infer beneficiary from a bare event description. Bare free-text inputs produce sentiment-fallback (mirror-image) predictions. Every probe record states its beneficiary, so 9/10 measures USE, not INFERENCE. Pending serve-time preprocessing.",
+          "scope_qualifier_status": "PENDING VERIFICATION — the inference-vs-use distinction is the hypothesis under test by scripts/test_serving_prompt_sensitivity.py (see RUN_ON_HOPPER_PHASE7_1.md). Update this field with what that test actually finds, whichever way it goes.",
+          "status": "strong on stated beneficiary; unverified on inferred beneficiary"
+        }
+      },
+
+      "honest_one_line": "Magnitude-calibrated and confound-robust on stated-beneficiary inputs — NOT a validated fine-grained per-bloc predictor.",
+      "not_validated_for": [
+        "predicting WHICH bloc moves most (per-bloc direction ordering is weak across all three adapters, Model A included)",
+        "inferring a beneficiary from bare event text (open; under test)"
+      ],
+
+      "serving": {
+        "precision": "full precision (float16); load via load_model(..., use_quantization=False)",
+        "quantization_prohibited": true,
+        "quantization_reason": "4-bit loading causes NoneType errors when outlines reorders the KV cache across PEFT adapter layers.",
+        "peft_config_strip_required": true,
+        "peft_config_strip_note": "Modal pins peft==0.13.2 (newest compatible with its co-pinned huggingface-hub==0.24.7). Hopper trains with peft==0.19.1, whose adapter_config.json carries fields 0.13.2 rejects (exclude_modules, qalora_group_size, alora_invocation_tokens, ...), raising 'LoraConfig.__init__() got an unexpected keyword argument'. Before uploading, strip adapter_config.json to the basic LoRA fields (r, lora_alpha, lora_dropout, target_modules, task_type, peft_type, base_model_name_or_path, bias, plus null standards); leave the pristine Hopper-side config untouched. This is a known-fragile manual workaround, not automated by any script in this repo, and must be repeated for every future adapter until the whole Modal stack is bumped and re-evaluated.",
+        "prompt_path": "ShockEstimator.estimate() -> format_prompt(event_dict) -> [INST]...[/INST], decoded against nested ShockResponseSchema. NOT predict_delta_bins(), which prefixes <s> and uses a flat 15-bloc schema."
+      }
+    },
+
+    "B": {
+      "id": "frontier-distilled-0.03",
+      "label": "Model B — frontier-distilled (0.03 scale)",
+      "status": "planned",
+      "adapter_path": null,
+      "base_model": null,
+      "training_date": null,
+      "promoted_date": null,
+      "recipe": null,
+      "corpus": null,
+      "training_gate": null,
+      "panel_policy": null,
+      "probe_policy": null,
+      "characterization": {
+        "magnitude": null,
+        "direction": null,
+        "rank_correlation": null,
+        "confound_probe": null
+      },
+      "honest_one_line": null,
+      "not_validated_for": null,
+      "serving": null,
+      "stub_note": "Declared, not built. No artifacts exist. Must be trained on the same corrected +/-0.03 delta scale as Model A and evaluated with the same protocol (RUN_ON_HOPPER.md section 4 + the confound probe) or the comparison against A is not fair."
+    },
+
+    "C": {
+      "id": "live-frontier",
+      "label": "Model C — live frontier model (password-gated, server-side keys)",
+      "status": "planned",
+      "adapter_path": null,
+      "base_model": null,
+      "training_date": null,
+      "promoted_date": null,
+      "recipe": null,
+      "corpus": null,
+      "training_gate": null,
+      "panel_policy": null,
+      "probe_policy": null,
+      "characterization": {
+        "magnitude": null,
+        "direction": null,
+        "rank_correlation": null,
+        "confound_probe": null
+      },
+      "honest_one_line": null,
+      "not_validated_for": null,
+      "serving": {
+        "access": "password-gated",
+        "key_handling": "server-side keys only — never expose provider credentials to the client",
+        "note": "Access model declared at registration; no implementation exists."
+      },
+      "stub_note": "Declared, not built. Not fine-tuned, so it has no corpus or recipe to control for — the A/B/C comparison must therefore state plainly which differences are attributable to corpus and which to a wholly different model class. A live API model is also not pinnable, which is a reproducibility caveat the paper must carry."
+    }
+  },
+
+  "comparative_study": {
+    "status": "not started",
+    "blocking_constraint": "The serve-time preprocessing decision must be resolved BEFORE the A/B/C comparison runs. Bare-text inputs disadvantage Model A on beneficiary inference — a dimension the comparison would otherwise silently conflate with model quality. See the Phase 7 design-constraint entry in DECISIONS.md.",
+    "blocking_test": "scripts/test_serving_prompt_sensitivity.py (run per RUN_ON_HOPPER_PHASE7_1.md)",
+    "fairness_requirements": [
+      "identical ground-truth shock set across all models",
+      "identical scorer (scripts/score_against_ground_truth.py)",
+      "identical input preprocessing — whatever is decided, applied to all three",
+      "magnitude and direction reported separately, never pooled",
+      "held-out and trainable subsets reported separately, never blended",
+      "refusals reported as required output, not pooled away"
+    ]
+  }
+}
