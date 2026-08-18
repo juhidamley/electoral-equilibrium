@@ -84,6 +84,31 @@ _skip_no_torch = pytest.mark.skipif(
 )
 
 
+def _qlora_stack_available() -> bool:
+    """QLoRA fine-tuning needs a strictly larger stack than inference does.
+
+    build_llm_finetune() raises ImportError naming transformers, peft, bitsandbytes
+    and datasets, so _torch_available() is not sufficient to gate it: an environment
+    can have torch/transformers (making that check pass) while still lacking
+    bitsandbytes, which is exactly the local Mac case.
+    """
+    for mod in ("torch", "transformers", "peft", "bitsandbytes", "datasets"):
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            return False
+    return True
+
+
+_skip_no_qlora = pytest.mark.skipif(
+    not _qlora_stack_available(),
+    reason=(
+        "QLoRA stack (torch/transformers/peft/bitsandbytes/datasets) not installed "
+        "— skip LLM fine-tune stage; install the 'llm' extra to run these"
+    ),
+)
+
+
 def _envelope(path: Path) -> dict:
     """Read and return the JSON envelope written by a stub."""
     assert path.exists(), f"Expected artifact at {path}"
@@ -193,6 +218,7 @@ class TestBuildSentimentData:
 # ── Stage 4: build_llm_finetune ──────────────────────────────────────────────
 
 
+@_skip_no_qlora
 class TestBuildLLMFinetune:
     @pytest.fixture
     def sentiment(self, cfg) -> SentimentData:
