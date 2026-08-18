@@ -317,7 +317,15 @@ devlog/
 # ── markdown files ─────────────────────────────────────────
 # Markdown files are used for documentation and notes, but may contain sensitive info or be too verbose for version control.
 *.md
-!DECISIONS.md        # canonical architecture decision log — always track
+# NOTE: .gitignore has NO inline comments — a trailing "# ..." becomes part of the
+# pattern. Keep every comment on its own line or the rule silently matches nothing.
+!DECISIONS.md
+
+# Claude Code skills must be tracked in their loadable form. A skill is only
+# discovered as .claude/skills/<name>/SKILL.md; a zipped .skill bundle is inert.
+# Without this negation the blanket *.md above hides the file that actually works,
+# so the skill would exist only on the machine that unpacked it.
+!.claude/skills/**/*.md
 
 # ── Docs ─────────────────────────────────────────
 #  Documentation may contain generated files, build artifacts, or sensitive info. Not tracked in git.

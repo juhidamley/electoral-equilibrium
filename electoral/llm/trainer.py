@@ -1,6 +1,6 @@
 """QLoRA fine-tuning of Mistral 7B for political shock → delta-bin prediction.
 
-Run on CMC HPC A100 via:
+Run on CMC HPC "Hopper" (L40S, partition=main, gres=gpu:l40s:1) via:
     python -m electoral.llm.trainer \\
         --config configs/base.json \\
         --train-data data/finetune/train.jsonl \\

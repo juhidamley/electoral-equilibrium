@@ -11,15 +11,17 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=02:00:00
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --partition=main
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --output=logs/score_%A_%a.out
 #SBATCH --error=logs/score_%A_%a.err
 
 set -euo pipefail
 
 # ── Environment ───────────────────────────────────────────────────────────────
-module load python/3.11 cuda/12.1 2>/dev/null || true
+# See hpc_submit.sh: python/3.11 and cuda/12.1 do not exist on Hopper (only
+# python/3.13.14, cuda/12.4, cuda/13.2), so this previously loaded nothing.
+module load cuda/13.2 2>/dev/null || true
 
 REPO_ROOT="$HOME/projects/electoral-equilibrium"
 cd "$REPO_ROOT"

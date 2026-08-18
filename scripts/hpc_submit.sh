@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Submit QLoRA fine-tuning job to CMC HPC (A100 node via SLURM).
+# Submit QLoRA fine-tuning job to CMC HPC "Hopper" (L40S node via SLURM).
 # Run from the login node after rsync'ing the fine-tuning dataset:
 #   sbatch scripts/hpc_submit.sh
 #
@@ -12,15 +12,20 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=80G
 #SBATCH --time=12:00:00
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=main
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --output=logs/finetune_%j.out
 #SBATCH --error=logs/finetune_%j.err
 
 set -euo pipefail
 
 # ── Environment ───────────────────────────────────────────────────────────────
-module load python/3.11 cuda/12.1 2>/dev/null || true
+# Verified against `module avail` on Hopper 2026-08-18: only cuda/12.4 and cuda/13.2
+# exist (13.2 is the default), and the only python module is python/3.13.14. The old
+# `python/3.11 cuda/12.1` line named neither, so with `|| true` it silently loaded
+# NOTHING. cuda/13.2 is required — bitsandbytes needs libnvJitLink.so.13; 12.4 fails.
+# Python comes from the venv activated below, so no python module is needed.
+module load cuda/13.2 2>/dev/null || true
 
 REPO_ROOT="$HOME/projects/electoral-equilibrium"
 SCRATCH_ADAPTER="$SCRATCH/adapters/mistral-7b-electoral"

@@ -14,9 +14,12 @@
 #   See deploy/backend_router.py for the switchover mechanism.
 #
 # WHEN ACTIVATING:
-#   1. Confirm Hopper A100 allocation and partition name (currently "gpu").
+#   1. Resources are confirmed (verified against sinfo 2026-08-18): partition "main",
+#      gres "gpu:l40s:1". Hopper is an L40S cluster — there is no "gpu" partition and
+#      no A100s. Note the GPU nodes are NAMED gpu01-gpu15, which is what made "gpu"
+#      look like a partition name.
 #   2. Sync adapter to Hopper:
-#        rsync -az models/mistral-r16/ jdamley28@hopper.hpc.cmc.edu:\
+#        rsync -az models/mistral-r16/ jdamley28@hopper.mckenna.edu:\
 #            /hopper/home/jdamley28/electoral-equilibrium/models/mistral-r16/
 #   3. Install vLLM in the conda env:
 #        conda activate electoral && pip install vllm>=0.6.0
@@ -39,12 +42,12 @@
 #
 # #!/bin/bash
 # #SBATCH --job-name=electoral-vllm
-# #SBATCH --partition=gpu
+# #SBATCH --partition=main
 # #SBATCH --nodes=1
 # #SBATCH --ntasks=1
 # #SBATCH --cpus-per-task=8
 # #SBATCH --mem=64G
-# #SBATCH --gres=gpu:a100:1
+# #SBATCH --gres=gpu:l40s:1
 # #SBATCH --time=23:00:00
 # #SBATCH --output=/hopper/home/jdamley28/electoral-equilibrium/logs/vllm_%j.log
 #
