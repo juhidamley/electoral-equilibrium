@@ -37,7 +37,12 @@ from electoral.artifacts import (
     SentimentData,
     SocialMediaSentimentData,
 )
-from electoral.core.types import CANONICAL_GENDERS, CANONICAL_RACES, CANONICAL_RELIGIONS
+from electoral.core.types import (
+    BIN_MIDPOINTS,
+    CANONICAL_GENDERS,
+    CANONICAL_RACES,
+    CANONICAL_RELIGIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +51,12 @@ _DEFAULT_FINETUNE_DIR = _REPO_ROOT / "data" / "finetune"
 
 _ALL_BLOCS: list[str] = list(CANONICAL_RACES) + list(CANONICAL_RELIGIONS) + list(CANONICAL_GENDERS)
 
-BIN_MIDPOINTS: dict[str, float] = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
-    "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
-}
+# BIN_MIDPOINTS is imported, not redefined. It previously carried a hardcoded copy of
+# the pre-rescale ±0.12 table, which drifted from electoral/core/types.py.
+# tests/test_bin_midpoints_sync.py now enforces single-definition tree-wide.
+#
+# NOTE: _BIN_THRESHOLDS below is a DIFFERENT scale and is deliberately untouched —
+# it partitions the RoBERTa sentiment domain [-1, 1], not vote-share deltas.
 
 # 9-token bin thresholds (lower bound inclusive, upper bound exclusive except neutral)
 _BIN_THRESHOLDS: list[tuple[float, float, str]] = [

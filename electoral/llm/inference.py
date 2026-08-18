@@ -360,13 +360,20 @@ class ShockEstimator:
         deltas_religion = {k: BIN_MIDPOINTS[v] for k, v in bins_religion.items()}
         deltas_gender = {k: BIN_MIDPOINTS[v] for k, v in bins_gender.items()}
 
-        # (v) Scale by intensity, then clip to [-0.15, 0.15]
+        # (v) Scale by intensity, then clip to [-0.0375, 0.0375].
+        # Rescaled Step 2.1: the old clip 0.15 was exactly the strong_pos/strong_neg
+        # bin's outer EDGE (not its 0.12 midpoint); 0.0375 = 0.15 x0.25 preserves that
+        # same relationship at the new scale, so the headroom `intensity` has above a
+        # bin's own midpoint before clipping engages is unchanged. intensity is
+        # user-controllable via the API in [0.1, 3.0] (shock_endpoint.py), so this clip
+        # is a real operative ceiling, not vestigial — it only fails to bind at
+        # intensity <= 1.25.
         deltas_race = {k: v * intensity for k, v in deltas_race.items()}
-        deltas_race = {k: max(-0.15, min(0.15, v)) for k, v in deltas_race.items()}
+        deltas_race = {k: max(-0.0375, min(0.0375, v)) for k, v in deltas_race.items()}
         deltas_religion = {k: v * intensity for k, v in deltas_religion.items()}
-        deltas_religion = {k: max(-0.15, min(0.15, v)) for k, v in deltas_religion.items()}
+        deltas_religion = {k: max(-0.0375, min(0.0375, v)) for k, v in deltas_religion.items()}
         deltas_gender = {k: v * intensity for k, v in deltas_gender.items()}
-        deltas_gender = {k: max(-0.15, min(0.15, v)) for k, v in deltas_gender.items()}
+        deltas_gender = {k: max(-0.0375, min(0.0375, v)) for k, v in deltas_gender.items()}
 
         # (vi) delta_eff: use LLM-predicted value scaled by intensity
         delta_eff = schema_out.delta_eff * intensity
