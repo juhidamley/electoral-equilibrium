@@ -212,9 +212,7 @@ def impute_missing_cells(panel: pd.DataFrame) -> pd.DataFrame:
     cycle_num = pd.to_numeric(panel["cycle"], errors="coerce")
     bloc_str = panel["bloc"].astype(str)
     valid = cycle_num.notna() & panel["bloc"].notna()
-    present: set[tuple[int, str]] = set(
-        zip(cycle_num[valid].astype(int), bloc_str[valid])
-    )
+    present: set[tuple[int, str]] = set(zip(cycle_num[valid].astype(int), bloc_str[valid]))
 
     rows: list[dict] = []
 
