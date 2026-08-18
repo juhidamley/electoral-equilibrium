@@ -105,30 +105,46 @@ Party: TypeAlias = Literal["democrat", "republican"]
 # ── Delta bin constants ───────────────────────────────────────────────────────
 # 9-token discrete magnitude bins for LLM constrained decoding.
 # Standardized on "slight" (not "weak") — see DECISIONS.md §4.
+#
+# RESCALED Step 2.1 (see DECISIONS.md "Step 2.1 — rescale delta-bin midpoints to
+# measured reality"): the original [-0.15, +0.15] range was an ungrounded design
+# assumption. Panel ground truth (data/ground_truth/panel_deltas.json) measures
+# real per-bloc shifts with a median of ~0.0036 and a largest trustworthy cell of
+# 0.0201; the old scale overstated real movement by roughly an order of magnitude.
+# Every value below is the old value x0.25, mapping the old ±0.12 max midpoint onto
+# a ±0.03 ceiling. The bins tile [-0.0375, +0.0375] with no gaps, and 0.0375 (not
+# 0.03) is the clip ceiling used downstream — it is the strong bin's outer EDGE,
+# not its midpoint.
+#
+# The neutral/slight boundary is ±0.00125, NOT a scaled midpoint. Anything that
+# thresholds "is this effectively zero" must use that edge — see
+# electoral/llm/eval.py::_sign().
 
 DELTA_BINS: Final[tuple[str, ...]] = (
-    "strong_neg",  # numeric range [-0.15, -0.09)
-    "mod_neg",  # [-0.09, -0.05)
-    "mild_neg",  # [-0.05, -0.02)
-    "slight_neg",  # [-0.02, -0.005)
-    "neutral",  # [-0.005, +0.005]
-    "slight_pos",  # (+0.005, +0.02]
-    "mild_pos",  # (+0.02, +0.05]
-    "mod_pos",  # (+0.05, +0.09]
-    "strong_pos",  # (+0.09, +0.15]
+    "strong_neg",  # numeric range [-0.0375, -0.0225)
+    "mod_neg",  # [-0.0225, -0.0125)
+    "mild_neg",  # [-0.0125, -0.005)
+    "slight_neg",  # [-0.005, -0.00125)
+    "neutral",  # [-0.00125, +0.00125]
+    "slight_pos",  # (+0.00125, +0.005]
+    "mild_pos",  # (+0.005, +0.0125]
+    "mod_pos",  # (+0.0125, +0.0225]
+    "strong_pos",  # (+0.0225, +0.0375]
 )
 
-# Midpoints used by bin_to_delta()
+# Midpoints used by bin_to_delta(). Rescaled Step 2.1 — old value x0.25.
+# THIS IS THE ONLY DEFINITION. Do not copy these numbers into another module;
+# import them. tests/test_bin_midpoints_sync.py enforces that tree-wide.
 BIN_MIDPOINTS: Final[dict[str, float]] = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
+    "strong_neg": -0.0300,
+    "mod_neg": -0.0175,
+    "mild_neg": -0.00875,
+    "slight_neg": -0.00300,
     "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
+    "slight_pos": +0.00300,
+    "mild_pos": +0.00875,
+    "mod_pos": +0.0175,
+    "strong_pos": +0.0300,
 }
 
 # Layer weight keys (must sum to 1.0)

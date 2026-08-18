@@ -73,17 +73,10 @@ DELTA_BINS = [
     "mod_pos",
     "strong_pos",
 ]
-BIN_MIDPOINTS = {
-    "strong_neg": -0.120,
-    "mod_neg": -0.070,
-    "mild_neg": -0.035,
-    "slight_neg": -0.012,
-    "neutral": 0.000,
-    "slight_pos": +0.012,
-    "mild_pos": +0.035,
-    "mod_pos": +0.070,
-    "strong_pos": +0.120,
-}
+# Imported, not redefined — this module previously carried a hardcoded copy of the
+# pre-rescale ±0.12 table. sys.path is extended above, so electoral is importable here.
+# tests/test_bin_midpoints_sync.py enforces single-definition tree-wide.
+from electoral.core.types import BIN_MIDPOINTS  # noqa: E402
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
